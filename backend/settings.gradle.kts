@@ -1,1 +1,1 @@
-rootProject.name = "maid-booking-system"
+rootProject.name = "backend"
