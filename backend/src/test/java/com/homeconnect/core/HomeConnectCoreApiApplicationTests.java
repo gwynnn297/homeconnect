@@ -1,10 +1,10 @@
-package com.fpt.intern.maidbookingsystem;
+package com.homeconnect.core;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class MaidBookingBackendApplicationTests {
+class HomeConnectCoreApiApplicationTests {
 
 	@Test
 	void contextLoads() {
