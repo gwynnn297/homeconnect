@@ -1,16 +1,79 @@
-# React + Vite
+# HomeConnect - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Ứng dụng React + Vite cho HomeConnect Core API.
 
-Currently, two official plugins are available:
+## Yêu Cầu Hệ Thống
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Node.js (v18.0.0 trở lên)
+- npm hoặc yarn
 
-## React Compiler
+## Cài Đặt
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 1. Clone Repository và vào thư mục frontend
 
-## Expanding the ESLint configuration
+```bash
+git clone <repository-url>
+cd homeconnect/frontend
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 2. Cài đặt Dependencies
+
+```bash
+npm install
+```
+
+Hoặc nếu dùng yarn:
+
+```bash
+yarn install
+```
+
+## Chạy Dự Án
+
+### Development Server
+
+```bash
+npm run dev
+```
+
+Hoặc với yarn:
+
+```bash
+yarn dev
+```
+
+Frontend sẽ chạy tại **http://localhost:5173**
+
+## Build cho Production
+
+```bash
+npm run build
+```
+
+Hoặc với yarn:
+
+```bash
+yarn build
+```
+
+Build output sẽ được tạo tại `dist/`
+
+## Các Lệnh Khác
+
+### Kiểm tra Lint (ESLint)
+
+```bash
+npm run lint
+```
+
+### Preview Build (xem production build cục bộ)
+
+```bash
+npm run preview
+```
+
+## Troubleshooting
+
+- **Lỗi khi npm install:** Xóa `node_modules` và `package-lock.json`, rồi chạy lại `npm install`
+- **Port 5173 đã được sử dụng:** Vite sẽ tự động sử dụng port khác
+- **Module không tìm thấy:** Chạy `npm install` lại và xóa cache với `npm cache clean --force`
