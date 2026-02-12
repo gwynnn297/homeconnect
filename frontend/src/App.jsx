@@ -1,9 +1,9 @@
 
 import React from 'react'
-import HomeRouter from './routers/HomeRouter.jsx'
+import AuthRouter from './routers/AuthRouter.jsx'
 
 function App() {
-	return <HomeRouter />
+	return <AuthRouter />
 }
 
 export default App

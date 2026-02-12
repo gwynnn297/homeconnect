@@ -1,0 +1,363 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --primary-color: #346252;
+    --primary-hover: #2a4f42;
+    --text-color: #333;
+    --text-light: #666;
+    --bg-color: #f8fafc;
+    --card-bg: #ffffff;
+    --input-bg: #eff3f6;
+    --border-radius: 12px;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Header Styles */
+.header-register {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 5%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.logo-register {
+    margin-bottom: -10px;
+}
+
+.header-register .logo-img-register {
+    height: 45px;
+    width: auto;
+    cursor: pointer;
+}
+
+.header-buttons-register {
+    display: flex;
+    gap: 10px;
+}
+
+.header-buttons-register button {
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-login-register {
+    width: 110px;
+    height: 40px;
+    background: rgb(241, 240, 240);
+    border: 2px solid #838dde;
+    color: rgb(10, 7, 7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-login-register:hover {
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+}
+
+.btn-register-register {
+    width: 110px;
+    height: 40px;
+    background: #346252;
+    border: 2px solid #838dde;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-register-register:hover {
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+}
+
+/* Container */
+.register-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #e0e7ff 0%, #f3f4f6 100%);
+    padding: 2rem 1rem;
+    padding-top: 80px;
+    /* Space for the header */
+}
+
+.register-card {
+    background-color: var(--card-bg);
+    padding: 2.5rem;
+    margin-top: 20px;
+    border-radius: 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    max-width: 600px;
+    border: 1px solid #eaeaea;
+    transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s cubic-bezier(.2, .8, .2, 1);
+}
+
+.register-card:hover {
+    transform: translateY(-4px);
+    box-shadow:
+        0 18px 40px rgba(15, 23, 42, 0.10),
+        0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.register-heading {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 1.5rem;
+}
+
+/* Logo Styles */
+.register-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-color);
+}
+
+.logo-icon-wrapper {
+    margin-bottom: 0.5rem;
+}
+
+.logo-img {
+    max-width: 150px;
+    /* Adjust size as needed, or check LoginPage.css if it has specific img styles */
+    height: auto;
+}
+
+.register-title {
+    text-align: center;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}
+
+.register-subtitle {
+    text-align: center;
+    font-size: 0.95rem;
+    color: var(--text-light);
+    margin-bottom: 2rem;
+}
+
+/* Role Selection */
+.role-selection {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.role-card {
+    flex: 1;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    background-color: transparent;
+}
+
+.role-card:hover {
+    border-color: var(--primary-color);
+}
+
+.role-card.active {
+    border-color: var(--primary-color);
+    background-color: rgba(52, 98, 82, 0.05);
+    /* Very light primary color tint */
+}
+
+.role-icon-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.role-icon {
+    width: 40px;
+    height: 40px;
+    color: #64748b;
+    background-color: #f1f5f9;
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.role-card.active .role-icon {
+    color: var(--primary-color);
+    background-color: rgba(52, 98, 82, 0.2);
+}
+
+.check-circle {
+    color: #22c55e;
+    /* Green checkmark */
+    width: 24px;
+    height: 24px;
+}
+
+.role-info h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: #1e293b;
+}
+
+.role-info p {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    line-height: 1.4;
+}
+
+/* Form Groups */
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}
+
+/* Input Wrappers */
+.input-with-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-icon {
+    position: absolute;
+    left: 1rem;
+    width: 20px;
+    height: 20px;
+    color: #94a3b8;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.85rem 1rem 0.85rem 3rem;
+    /* Left padding for icon */
+    font-size: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--border-radius);
+    background-color: #fff;
+    color: #333;
+    transition: all 0.2s;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(52, 98, 82, 0.1);
+}
+
+.form-input::placeholder {
+    color: #cbd5e1;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 1rem;
+    cursor: pointer;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+}
+
+.eye-icon {
+    width: 20px;
+    height: 20px;
+}
+
+/* Checkbox & Links */
+.form-checkbox {
+    margin-bottom: 1.5rem;
+}
+
+.terms-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    color: #64748b;
+    cursor: pointer;
+}
+
+.checkbox-input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+    margin-top: 2px;
+    cursor: pointer;
+}
+
+.terms-label a {
+    color: var(--primary-color);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+/* Button */
+.register-button {
+    width: 100%;
+    padding: 0.85rem;
+    background-color: #4CAF50;
+    /* Green from the screenshot */
+    background-color: var(--primary-color);
+    /* Overridden to match Login Page as preferred by user "màu chủ đạo... giống Login" */
+    color: white;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin-bottom: 1.5rem;
+}
+
+.register-button:hover {
+    background-color: var(--primary-hover);
+}
+
+/* Footer Link */
+.login-link {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
+.login-link a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.login-link a:hover {
+    text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .role-selection {
+        flex-direction: column;
+    }
+}
