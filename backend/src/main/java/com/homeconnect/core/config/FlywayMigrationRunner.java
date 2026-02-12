@@ -26,10 +26,10 @@ public class FlywayMigrationRunner implements ApplicationRunner {
                 .locations("classpath:db/migration")
                 .baselineOnMigrate(true)
                 .load();
-        
+
         // Chạy migration
         flyway.migrate();
-        
-        System.out.println("✅ Flyway migration completed successfully!");
+
+        System.out.println("Flyway migration completed successfully!");
     }
 }

@@ -14,6 +14,11 @@ java {
 	}
 }
 
+// Compile với -parameters flag để Spring resolve parameter names
+tasks.compileJava {
+	options.compilerArgs.addAll(listOf("-parameters"))
+}
+
 configurations {
 	compileOnly {
 		extendsFrom(configurations.annotationProcessor.get())
@@ -48,6 +53,9 @@ dependencies {
 	implementation("io.jsonwebtoken:jjwt-api:0.12.3")
 	runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.3")
 	runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.3")
+	
+	// Swagger/OpenAPI Documentation - Latest stable version
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0")
 	
 	// Development
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
