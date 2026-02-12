@@ -8,5 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface HelperProfileRepository extends JpaRepository<HelperProfile, Integer> {
-    Optional<HelperProfile> findByUserId(Long userId);
+    Optional<HelperProfile> findByUser_Id(Long userId);
 }
