@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.Map;
 
 // Tiện ích JWT cho tạo, validation và parse JWT tokens
 @Component
@@ -36,6 +37,25 @@ public class JwtUtil {
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(getSigningKey())
+                .compact();
+    }
+
+    // Tạo JWT token từ email với claims
+    public String generateToken(String email, Map<String, Object> claims) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + jwtExpirationMs);
+
+        JwtBuilder builder = Jwts.builder()
+                .subject(email)
+                .issuedAt(now)
+                .expiration(expiryDate);
+
+        // Thêm claims vào token
+        if (claims != null) {
+            claims.forEach(builder::claim);
+        }
+
+        return builder.signWith(getSigningKey())
                 .compact();
     }
 

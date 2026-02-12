@@ -14,8 +14,7 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 //   Swagger/OpenAPI Configuration
-//   Temporarily disabled due to Spring Boot 4.x compatibility issues
-// @Configuration
+@Configuration
 public class OpenApiConfig {
 
         @Value("${server.port:8080}")
@@ -25,7 +24,7 @@ public class OpenApiConfig {
         public OpenAPI customOpenAPI() {
                 return new OpenAPI()
                                 .info(new Info()
-                                                .title("🏠 HomeConnect API")
+                                                .title(" HomeConnect API")
                                                 .version("1.0.0")
                                                 .description("""
                                                                 ## HomeConnect Core API Documentation
@@ -33,14 +32,14 @@ public class OpenApiConfig {
                                                                 **Enterprise-grade Home Services Platform**
                                                                 *Capstone Project 2 - Spring 2026*
 
-                                                                ### 🚀 Features:
+                                                                ###  Features:
                                                                 - **User Management**: Registration with OTP verification
                                                                 - **JWT Authentication**: Secure token-based authentication
                                                                 - **Email Service**: Professional HTML email templates
                                                                 - **Helper Profiles**: KYC verification system
                                                                 - **Wallet System**: Digital payment management
 
-                                                                ### 🔐 Authentication:
+                                                                ###  Authentication:
                                                                 Use the **Authorize** button to add your JWT token.
                                                                 Format: `Bearer your-jwt-token-here`
                                                                 """)

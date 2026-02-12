@@ -38,5 +38,6 @@ public class HelperService {
     private Service service;  // Dịch vụ đăng ký
     
     @Column(name = "is_active")
+    @Builder.Default
     private Boolean isActive = true;  // Helper còn nhận dịch vụ này không
 }

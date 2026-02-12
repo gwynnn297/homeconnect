@@ -63,6 +63,7 @@ public class HelperProfile {
     
     @Enumerated(EnumType.STRING)
     @Column(name = "kyc_status", length = 20)
+    @Builder.Default
     private KycStatus kycStatus = KycStatus.PENDING;  // Trạng thái KYC
     
     @Column(name = "rejection_reason", columnDefinition = "TEXT")

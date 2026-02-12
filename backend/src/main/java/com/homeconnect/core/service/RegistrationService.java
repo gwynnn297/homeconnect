@@ -43,11 +43,11 @@ public class RegistrationService {
             // 1. Validate form (đã có @Valid annotation)
             
             // 2. Check trùng Phone/Email
-            if (userRepository.existsByEmail(request.getEmail())) {
+            if (userRepository.findByEmail(request.getEmail()).isPresent()) {
                 return RegisterResponse.error("Email đã được đăng ký");
             }
             
-            if (userRepository.existsByPhone(request.getPhone())) {
+            if (userRepository.findByPhone(request.getPhone()).isPresent()) {
                 return RegisterResponse.error("Số điện thoại đã được đăng ký");
             }
             
