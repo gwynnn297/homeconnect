@@ -112,7 +112,8 @@ const RegisterPage = () => {
         try {
             await AuthService.registerVerify({
                 email: formData.email,
-                otpCode: otpCode
+                otpCode: otpCode,
+                password: formData.password
             });
 
             // Thành công

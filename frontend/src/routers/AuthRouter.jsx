@@ -5,6 +5,8 @@ import LoginPage from '../pages/Login/LoginPage'
 import RegisterPage from '../pages/Register/RegisterPage'
 import PrivacyPolicyPage from '../pages/Register/PrivacyPolicyPage'
 import TermsofServicePage from '../pages/Register/TermsofServicePage'
+import CustomerDashboardPage from '../pages/Customer/CustomerDashboardPage'
+import HelperDashboardPage from '../pages/Helper/HelperDashboardPage'
 
 const AuthRouter = () => {
   return (
@@ -16,6 +18,8 @@ const AuthRouter = () => {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsofServicePage />} />
+        <Route path="/customer-dashboard" element={<CustomerDashboardPage />} />
+        <Route path="/helper-dashboard" element={<HelperDashboardPage />} />
       </Routes>
     </BrowserRouter>
   )

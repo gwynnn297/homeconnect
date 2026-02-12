@@ -2,12 +2,42 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 import logoHomeiConnect from '../../assets/LogoHomeiConnect.png';
+import AuthService from '../../services/AuthService';
 
 const LoginPage = () => {
     const navigate = useNavigate();
+    const [email, setEmail] = React.useState('');
+    const [password, setPassword] = React.useState('');
+    const [error, setError] = React.useState('');
 
-    const handleLogin = () => {
-        navigate('/login');
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setError('');
+
+        try {
+            const response = await AuthService.login({ email, password });
+
+            if (response.accessToken) {
+                // Lưu thông tin user/token vào localStorage hoặc Context (tạm thời lưu localStorage)
+                localStorage.setItem('user', JSON.stringify(response.user));
+                localStorage.setItem('token', response.accessToken); // Giả sử response có token
+
+                const role = response.user.role;
+                if (role === 'CUSTOMER') {
+                    navigate('/customer-dashboard');
+                } else if (role === 'HELPER') {
+                    navigate('/helper-dashboard');
+                } else {
+                    // Fallback hoặc role khác (như ADMIN)
+                    setError('Vai trò người dùng không hợp lệ');
+                }
+            } else {
+                setError(response.message || 'Đăng nhập thất bại');
+            }
+        } catch (err) {
+            console.error(err);
+            setError(err.message || 'Có lỗi xảy ra khi đăng nhập');
+        }
     };
 
     const handleRegister = () => {
@@ -19,11 +49,11 @@ const LoginPage = () => {
     return (
         <div className="login-container">
             <header className="header-login">
-                <div className="logo-login" onClick={handleHome}>   
+                <div className="logo-login" onClick={handleHome}>
                     <img className="logo-img-login" src={logoHomeiConnect} alt="HomieConnectLogo" />
                 </div>
                 <div className="header-buttons-login">
-                    <button className="btn-login-login" onClick={handleLogin}>
+                    <button className="btn-login-login" onClick={() => navigate('/login')}>
                         Đăng nhập
                     </button>
                     <button className="btn-register-login" onClick={handleRegister}>
@@ -43,7 +73,9 @@ const LoginPage = () => {
                 <h1 className="login-title">Đăng Nhập</h1>
                 <p className="login-subtitle">Chào mừng bạn quay trở lại HomieConnect</p>
 
-                <form className="login-form">
+                {error && <div className="error-message" style={{ color: 'red', textAlign: 'center', marginBottom: '10px' }}>{error}</div>}
+
+                <form className="login-form" onSubmit={handleLogin}>
                     <div className="form-group">
                         <label htmlFor="email">Email</label>
                         <div className="input-with-icon">
@@ -56,6 +88,9 @@ const LoginPage = () => {
                                 id="email"
                                 placeholder="abc@gmail.com"
                                 className="form-input"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
                             />
                         </div>
                     </div>
@@ -73,6 +108,9 @@ const LoginPage = () => {
                                 id="password"
                                 placeholder="••••••"
                                 className="form-input"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
                             />
                         </div>
                     </div>
