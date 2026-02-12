@@ -40,4 +40,3 @@ public class RegisterInitRequest {
     
     @NotNull(message = "Vai trò không được để trống")
     private UserRole role;
-}

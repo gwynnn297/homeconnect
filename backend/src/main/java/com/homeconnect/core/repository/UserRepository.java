@@ -1,16 +1,14 @@
 package com.homeconnect.core.repository;
 
-import java.util.Optional;
-
+import com.homeconnect.core.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import com.homeconnect.core.entity.User;
+import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-    Boolean existsByEmail(String email);
-    Boolean existsByPhone(String phone);
-
     Optional<User> findByEmail(String email);
+    Optional<User> findByPhone(String phone);
+    Optional<User> findByEmailOrPhone(String email, String phone);
 }

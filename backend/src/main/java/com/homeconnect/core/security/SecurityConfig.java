@@ -38,7 +38,13 @@ public class SecurityConfig {
                         // Các endpoint test
                         .requestMatchers("/api/v1/test/**").permitAll()
                         // Tài liệu Swagger
-                        .requestMatchers("/api/docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers(
+                                "/api/docs/**",
+                                "/swagger-ui/**", "/swagger-ui.html",
+                                "/v3/api-docs", "/v3/api-docs/**",
+                                "/api/swagger-ui/**", "/api/swagger-ui.html",
+                                "/api/v3/api-docs", "/api/v3/api-docs/**"
+                        ).permitAll()
                         .requestMatchers("/swagger-ui.html", "/swagger-resources/**", "/webjars/**").permitAll()
                         // Health check
                         .requestMatchers("/actuator/**").permitAll()
