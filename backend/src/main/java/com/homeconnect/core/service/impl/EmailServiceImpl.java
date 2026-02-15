@@ -1,16 +1,14 @@
 package com.homeconnect.core.service.impl;
 
 import com.homeconnect.core.service.EmailService;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
-
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 
 @Service
 @RequiredArgsConstructor
@@ -23,56 +21,70 @@ public class EmailServiceImpl implements EmailService {
     private String fromEmail;
 
     @Override
-    public void sendOtp(String toEmail, String otp) {
+    public boolean sendOtp(String toEmail, String otpCode, String fullName) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom(fromEmail);
+            helper.setFrom(fromEmail, "HomeConnect Team");
             helper.setTo(toEmail);
-            helper.setSubject("[HomeConnect] Mã xác thực OTP của bạn");
+            helper.setSubject("Mã xác thực HomeConnect - " + otpCode);
 
-            String htmlContent = buildOtpHtmlTemplate(otp);
-            helper.setText(htmlContent, true); // true = HTML
+            String htmlContent = buildOtpEmailTemplate(otpCode, fullName);
+            helper.setText(htmlContent, true);
 
             mailSender.send(message);
-            log.info("OTP email sent to {}", toEmail);
-        } catch (MessagingException | MailException e) {
-            log.error("Failed to send OTP email to {}: {}", toEmail, e.getMessage(), e);
-            // Không ném exception checked để tránh làm crash luồng chính, có thể wrap thành RuntimeException nếu muốn fail cứng
+            log.info("Đã gửi OTP {} thành công đến: {}", otpCode, toEmail);
+            return true;
+
+        } catch (MessagingException e) {
+            log.error("Lỗi gửi email OTP đến {}: {}", toEmail, e.getMessage());
+            return false;
+        } catch (Exception e) {
+            log.error("Lỗi không xác định khi gửi email: {}", e.getMessage());
+            return false;
         }
     }
 
-    private String buildOtpHtmlTemplate(String otp) {
-        // Template đơn giản, bạn có thể thay bằng file Thymeleaf/Freemarker nếu muốn
+    private String buildOtpEmailTemplate(String otpCode, String fullName) {
+        String userName = fullName != null ? fullName : "Bạn";
+
         return """
-                <html>
-                  <body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
-                    <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-                      <div style="text-align: center; margin-bottom: 16px;">
-                        <h2 style="margin: 0; color: #1f2933;">HomeConnect</h2>
-                        <p style="margin: 4px 0 0; color: #6b7280; font-size: 14px;">Xác thực tài khoản của bạn</p>
-                      </div>
-                      <p style="font-size: 14px; color: #111827;">
-                        Xin chào,<br/>
-                        Đây là mã OTP để xác thực thao tác của bạn trên hệ thống HomeConnect:
-                      </p>
-                      <div style="text-align: center; margin: 20px 0;">
-                        <span style="display: inline-block; font-size: 24px; letter-spacing: 8px; font-weight: bold; color: #111827; padding: 12px 24px; border-radius: 999px; background: #e5f0ff;">
-                          %s
-                        </span>
-                      </div>
-                      <p style="font-size: 13px; color: #6b7280;">
-                        Mã OTP này có hiệu lực trong 5 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai.
-                      </p>
-                      <p style="font-size: 12px; color: #9ca3af; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 12px;">
-                        Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email.
-                      </p>
+                <!DOCTYPE html>
+                <html lang="vi">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Xác thực HomeConnect</title>
+                </head>
+                <body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+                    <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center;">
+                            <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">🏠 HomeConnect</h1>
+                            <p style="color: #e8f2ff; margin: 5px 0 0 0; font-size: 16px;">Nền tảng dịch vụ gia đình hàng đầu</p>
+                        </div>
+                        <div style="padding: 40px 30px;">
+                            <h2 style="color: #333; margin: 0 0 20px 0; font-size: 24px;">Xin chào %s! 👋</h2>
+                            <p style="color: #666; line-height: 1.6; margin-bottom: 30px; font-size: 16px;">
+                                Cảm ơn bạn đã đăng ký tài khoản HomeConnect. Để hoàn tất quá trình đăng ký, vui lòng sử dụng mã xác thực bên dưới:
+                            </p>
+                            <div style="text-align: center; margin: 40px 0;">
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 36px; font-weight: bold; letter-spacing: 8px; padding: 20px 40px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                                    %s
+                                </div>
+                            </div>
+                            <div style="background: #f8f9fa; border-left: 4px solid #667eea; padding: 20px; margin: 30px 0; border-radius: 0 8px 8px 0;">
+                                <p style="margin: 0; color: #666; font-size: 14px;">
+                                    <strong>⚠️ Lưu ý quan trọng:</strong><br>
+                                    • Mã này chỉ có hiệu lực trong 5 phút<br>
+                                    • Không chia sẻ mã này với bất kỳ ai<br>
+                                    • Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                  </body>
+                </body>
                 </html>
-                """.formatted(otp);
+                """.formatted(userName, otpCode);
     }
 }
-
-
