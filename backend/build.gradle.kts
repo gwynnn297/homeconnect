@@ -55,8 +55,13 @@ dependencies {
 	runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.3")
 	runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.3")
 	
+<<<<<<< Updated upstream
 	// Swagger/OpenAPI Documentation
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0")
+=======
+	// SpringDoc OpenAPI (Swagger)
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
+>>>>>>> Stashed changes
 	
 	// Development
 	developmentOnly("org.springframework.boot:spring-boot-devtools")

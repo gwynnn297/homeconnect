@@ -1,12 +1,19 @@
 package com.homeconnect.core.security;
 
+<<<<<<< Updated upstream
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
+=======
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+>>>>>>> Stashed changes
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+<<<<<<< Updated upstream
 import java.util.Date;
 import java.util.Map;
 
@@ -36,10 +43,38 @@ public class JwtUtil {
                 .subject(email)
                 .issuedAt(now)
                 .expiration(expiryDate)
+=======
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.Map;
+import java.util.function.Function;
+
+@Component
+public class JwtUtil {
+
+    @Value("${jwt.secret}")
+    private String secret;
+
+    @Value("${jwt.expiration}")
+    private long expiration;
+
+    private SecretKey getSigningKey() {
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    public String generateToken(String username, Map<String, Object> extraClaims) {
+        return Jwts.builder()
+                .claims(extraClaims)
+                .subject(username)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + expiration))
+>>>>>>> Stashed changes
                 .signWith(getSigningKey())
                 .compact();
     }
 
+<<<<<<< Updated upstream
     // Tạo JWT token từ email với claims
     public String generateToken(String email, Map<String, Object> claims) {
         Date now = new Date();
@@ -76,10 +111,24 @@ public class JwtUtil {
     // Lấy email từ JWT token
     public String getEmailFromToken(String token) {
         Claims claims = Jwts.parser()
+=======
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
+
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser()
+>>>>>>> Stashed changes
                 .verifyWith(getSigningKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+<<<<<<< Updated upstream
 
         return claims.getSubject();
     }
@@ -124,5 +173,16 @@ public class JwtUtil {
     private SecretKey getSigningKey() {
         byte[] keyBytes = jwtSecret.getBytes();
         return Keys.hmacShaKeyFor(keyBytes);
+=======
+    }
+
+    public boolean isTokenValid(String token, String username) {
+        final String extractedUsername = extractUsername(token);
+        return (extractedUsername.equals(username) && !isTokenExpired(token));
+    }
+
+    private boolean isTokenExpired(String token) {
+        return extractClaim(token, Claims::getExpiration).before(new Date());
+>>>>>>> Stashed changes
     }
 }
