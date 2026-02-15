@@ -1,0 +1,139 @@
+:root {
+    --primary-color: #346252;
+    --bg-gradient: linear-gradient(135deg, #e0e7ff 0%, #f3f4f6 100%);
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+}
+
+.terms-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-gradient);
+    padding: 2rem 1rem;
+    font-family: 'Inter', sans-serif;
+}
+
+.terms-card {
+    background-color: #ffffff;
+    padding: 3rem;
+    border-radius: 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    max-width: 900px;
+    border: 1px solid #eaeaea;
+    display: flex;
+    flex-direction: column;
+}
+
+.terms-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #eaeaea;
+    padding-bottom: 1.5rem;
+}
+
+.terms-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.terms-subtitle {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.terms-content {
+    color: var(--text-primary);
+    line-height: 1.7;
+    max-height: 65vh;
+    overflow-y: auto;
+    padding-right: 1.5rem;
+    text-align: justify;
+}
+
+/* Scrollbar styling */
+.terms-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.terms-content::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.terms-content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.terms-content::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+.terms-section h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+}
+
+.terms-section h4 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.terms-section p {
+    margin-bottom: 1rem;
+}
+
+.terms-section ul {
+    list-style-type: disc;
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.terms-section li {
+    margin-bottom: 0.5rem;
+}
+
+.terms-footer {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #eaeaea;
+    text-align: center;
+}
+
+.back-button {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    background-color: var(--primary-color);
+    color: white;
+    text-decoration: none;
+    border-radius: 12px;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+
+.back-button:hover {
+    background-color: #2a4f42;
+    /* Slightly darker shade */
+}
+
+@media (max-width: 768px) {
+    .terms-card {
+        padding: 1.5rem;
+    }
+
+    .terms-title {
+        font-size: 1.5rem;
+    }
+}

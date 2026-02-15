@@ -62,6 +62,8 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui.html", "/swagger-resources/**", "/webjars/**").permitAll()
                         // Health check
                         .requestMatchers("/actuator/**").permitAll()
+                        // Endpoint KYC cho Helper
+                        .requestMatchers("/api/users/update-kyc").hasRole("HELPER")
                         // Tất cả endpoints khác cần xác thực
                         .anyRequest().authenticated())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
