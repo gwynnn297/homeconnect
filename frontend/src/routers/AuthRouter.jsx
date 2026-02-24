@@ -7,6 +7,7 @@ import PrivacyPolicyPage from '../pages/Register/PrivacyPolicyPage'
 import TermsofServicePage from '../pages/Register/TermsofServicePage'
 import CustomerDashboardPage from '../pages/Customer/CustomerDashboardPage'
 import HelperDashboardPage from '../pages/Helper/HelperDashboardPage'
+import ForgotPasswordPage from '../pages/ForgotPassword/ForgotPasswordPage'
 
 const AuthRouter = () => {
   return (
@@ -16,6 +17,7 @@ const AuthRouter = () => {
         <Route path="/home" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsofServicePage />} />
         <Route path="/customer-dashboard" element={<CustomerDashboardPage />} />
