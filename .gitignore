@@ -1,4 +1,84 @@
+############################
+# OS
+############################
+.DS_Store
+Thumbs.db
 
+############################
+# IDE
+############################
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+############################
+# Environment
+############################
+.env
+.env.*
+backend/.env
+frontend/.env
+
+############################
+# Backend - Spring Boot
+############################
+**/build/
+**/target/
+**/bin/
+**/.gradle/
+.gradle/
+backend/.gradle/
+out/
+
+# Log files
+*.log
+logs/
+backend/logs/
+
+############################
+# Frontend - React / Node
+############################
+**/node_modules/
+node_modules/
+**/dist/
+dist/
+**/build/
+frontend/build/
+
+# Cache
+.npm/
+.cache/
+.parcel-cache/
+
+############################
+# Lock files (tuỳ team quyết định)
+############################
+# Nếu team dùng npm → nên giữ package-lock.json
+# Nếu không muốn commit lock file thì mở dòng dưới
+
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+############################
+# Gradle wrapper (QUAN TRỌNG)
+############################
+# KHÔNG ignore dòng này:
+# gradle/wrapper/gradle-wrapper.jar
+# gradle/wrapper/gradle-wrapper.properties
+
+############################
+# Misc
+############################
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar
+*.rar
 
 .DS_Store
 
