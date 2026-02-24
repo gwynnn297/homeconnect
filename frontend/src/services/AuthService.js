@@ -1,34 +1,4 @@
-import axios from 'axios';
-
-// URL cơ sở cho API, lấy từ biến môi trường hoặc mặc định là http://localhost:8080
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-
-// Tạo axios instance với base config
-const apiClient = axios.create({
-    baseURL: API_URL,
-    timeout: 10000,
-    headers: {
-        'Content-Type': 'application/json',
-    },
-});
-
-// Xử lý phản hồi từ server
-apiClient.interceptors.response.use(
-    (response) => {
-        // Trả về data trực tiếp nếu có cấu trúc như mong đợi
-        if (response && response.data) {
-            return response.data;
-        }
-        return response;
-    },
-    (error) => {
-        // Xử lý lỗi
-        if (error.response && error.response.data) {
-            throw error.response.data; // Trả về lỗi từ server (CreateResponse)
-        }
-        throw error;
-    }
-);
+import apiClient from './apiClient';
 
 const AuthService = {
     /**

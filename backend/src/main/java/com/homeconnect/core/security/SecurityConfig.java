@@ -37,6 +37,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         // Các endpoint test
                         .requestMatchers("/api/v1/test/**").permitAll()
+                        // Các endpoint public (locations)
+                        .requestMatchers("/api/locations/**").permitAll()
                         // Tài liệu Swagger
                         .requestMatchers(
                                 "/api/docs/**",
