@@ -47,6 +47,7 @@ public class User {
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role;  // Vai trò: CUSTOMER, HELPER, ADMIN
     
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20)
     private UserStatus status = UserStatus.PENDING_OTP;  // Trạng thái tài khoản

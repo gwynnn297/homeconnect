@@ -57,9 +57,9 @@ public class OpenApiConfig {
                                                 new Server()
                                                                 .url("https://api.homeconnect.com")
                                                                 .description("Production Server")))
-                                .addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"))
+                                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
                                 .components(new io.swagger.v3.oas.models.Components()
-                                                .addSecuritySchemes("Bearer Authentication",
+                                                .addSecuritySchemes("bearerAuth",
                                                                 new SecurityScheme()
                                                                                 .type(SecurityScheme.Type.HTTP)
                                                                                 .scheme("bearer")

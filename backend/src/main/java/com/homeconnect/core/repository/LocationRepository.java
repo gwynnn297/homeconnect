@@ -17,4 +17,11 @@ public interface LocationRepository extends JpaRepository<Location, Integer> {
      * Tìm danh sách địa điểm theo loại (PROVINCE hoặc DISTRICT)
      */
     List<Location> findByType(LocationType type);
+
+    /**
+     * Tìm danh sách Quận/Huyện theo ID Tỉnh/Thành phố
+     */
+    List<Location> findByParent_LocationId(Integer provinceId);
 }
+
+

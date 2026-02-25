@@ -34,6 +34,8 @@ public class Service {
     @Column(name = "base_price", precision = 15, scale = 2)
     private BigDecimal basePrice;  // Giá cơ bản (VNĐ)
     
+    @Builder.Default
     @Column(name = "is_active")
     private Boolean isActive = true;  // Dịch vụ còn hoạt động không
+
 }

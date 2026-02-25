@@ -42,6 +42,10 @@ public class HelperProfile {
     @ManyToOne
     @JoinColumn(name = "hometown_id")
     private Location hometown;  // Quê quán
+
+    @Column(name = "date_of_birth")
+    private java.time.LocalDate dateOfBirth;  // Ngày sinh
+
     
     @ManyToOne
     @JoinColumn(name = "current_city_id")

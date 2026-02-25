@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Response cho API cập nhật KYC
+ * Response cho API cập nhật KYC và Đăng ký
  */
 @Data
 @Builder

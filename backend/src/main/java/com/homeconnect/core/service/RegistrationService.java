@@ -10,6 +10,7 @@ import com.homeconnect.core.entity.Wallet;
 import com.homeconnect.core.enums.KycStatus;
 import com.homeconnect.core.enums.UserRole;
 import com.homeconnect.core.enums.UserStatus;
+import com.homeconnect.core.repository.HelperProfileRepository;
 import com.homeconnect.core.repository.UserRepository;
 import com.homeconnect.core.utils.OtpUtil;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +32,7 @@ public class RegistrationService {
     private final OtpCacheService otpCacheService;
     private final PasswordEncoder passwordEncoder;
     private final WalletService walletService;
-    private final HelperProfileService helperProfileService;
+    private final HelperProfileRepository helperProfileRepository;
 
     /**
      * Bước 1: Validate form -> Check trùng Phone/Email -> Sinh OTP -> Gửi Email -> Lưu Cache
@@ -132,9 +133,14 @@ public class RegistrationService {
             
             // 5. Insert HelperProfile (nếu là Helper)
             if (cached.getRole() == UserRole.HELPER) {
-                HelperProfile helperProfile = helperProfileService.createHelperProfile(savedUser);
-                log.info("🔧 Đã tạo HelperProfile ID: {} cho User ID: {}", 
-                        helperProfile.getProfileId(), savedUser.getId());
+                HelperProfile helperProfile = HelperProfile.builder()
+                        .user(savedUser)
+                        .bio("")
+                        .experienceYears(null)
+                        .kycStatus(KycStatus.PENDING)
+                        .build();
+                helperProfileRepository.save(helperProfile);
+                log.info("🔧 Đã tạo HelperProfile cho User ID: {}", savedUser.getId());
             }
             
             // 6. Xóa cache
