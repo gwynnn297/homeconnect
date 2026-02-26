@@ -95,13 +95,11 @@
 .kyc-icon-container {
     width: 64px;
     height: 64px;
-    background: linear-gradient(135deg, #346252, #4a8a6f);
     border-radius: 18px;
     display: flex;
     justify-content: center;
     align-items: center;
     margin: 0 auto 1.25rem;
-    box-shadow: 0 6px 16px rgba(52, 98, 82, 0.25);
 }
 
 .kyc-icon-container svg {

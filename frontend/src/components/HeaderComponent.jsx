@@ -1,94 +1,111 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import logoHomeiConnect from '../assets/LogoHomeiConnect.png';
 import './HeaderComponent.css';
 
-export default function HeaderComponent() {
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [notifications, setNotifications] = useState(5);
+const HeaderComponent = () => {
+    const navigate = useNavigate();
+    const [showDropdown, setShowDropdown] = useState(false);
+    const userInfoRef = useRef(null);
+
+    const handleHome = () => {
+        navigate("/home");
+    };
 
     const toggleDropdown = () => {
-        setIsDropdownOpen(!isDropdownOpen);
+        setShowDropdown(!showDropdown);
     };
 
     const handleLogout = () => {
-        // Handle logout logic here
-        console.log('Logout');
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        navigate('/login');
     };
+
+    // Đóng dropdown khi click bên ngoài
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showDropdown && userInfoRef.current && !userInfoRef.current.contains(event.target)) {
+                setShowDropdown(false);
+            }
+        };
+
+        if (showDropdown) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showDropdown]);
+
+    // Lấy thông tin user từ localStorage
+    const storedUser = (() => {
+        try {
+            return JSON.parse(localStorage.getItem('user')) || null;
+        } catch (e) {
+            return null;
+        }
+    })();
+    const storedName = storedUser?.fullName || storedUser?.name || storedUser?.username || storedUser?.email || 'Người dùng';
+    const displayName = storedName;
+    const avatarInitial = (displayName || 'U').trim().charAt(0).toUpperCase();
 
     return (
         <header className="header">
-            <div className="header-container">
-                {/* Logo and Brand */}
-                <div className="header-logo">
-                    <Link to="/" className="logo-link">
-                        <svg className="logo-icon" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-                        </svg>
-                        <span className="logo-text">HomieConnect</span>
-                    </Link>
+            <div className="logo">
+                <img className="logo-img" src={logoHomeiConnect} alt="HomieConnectLogo" />
+            </div>          
+
+            <div className="header-user-actions">
+                {/* Notification Bell */}
+                <div className="notification-icon" title="Thông báo">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+                    </svg>
+                    <span className="notification-badge"></span>
                 </div>
 
-                {/* Right Side - Navigation & Profile */}
-                <div className="header-right">
-                    {/* Management Button */}
-                    <Link to="/management" className="nav-button">
-                        <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <path d="m21 21-4.35-4.35"></path>
+                {/* User Profile */}
+                <div className="user-info" ref={userInfoRef}>
+                    <div className="user-avatar" onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
+                        <span>{avatarInitial}</span>
+                    </div>
+                    <span className="username" onClick={toggleDropdown} style={{ cursor: 'pointer' }}>{displayName}</span>
+                    <button
+                        className="dropdown-toggle"
+                        onClick={toggleDropdown}
+                        aria-label="Toggle user menu"
+                    >
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
-                        <span>Quản lý ví</span>
-                    </Link>
-
-                    {/* Notification Bell */}
-                    <button className="notification-btn">
-                        <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                        </svg>
-                        {notifications > 0 && <span className="notification-badge">{notifications}</span>}
                     </button>
 
-                    {/* User Profile Dropdown */}
-                    <div className="profile-dropdown">
-                        <button className="profile-btn" onClick={toggleDropdown}>
-                            <div className="user-avatar">A</div>
-                            <span className="user-name">Nguyễn Phương</span>
-                            <svg className={`dropdown-arrow ${isDropdownOpen ? 'open' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                        </button>
-
-                        {/* Dropdown Menu */}
-                        {isDropdownOpen && (
-                            <div className="dropdown-menu">
-                                <Link to="/profile" className="dropdown-item">
-                                    <svg className="dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                        <circle cx="12" cy="7" r="4"></circle>
-                                    </svg>
-                                    Hồ sơ cá nhân
-                                </Link>
-                                <Link to="/settings" className="dropdown-item">
-                                    <svg className="dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <circle cx="12" cy="12" r="1"></circle>
-                                        <path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m2.12 2.12l4.24 4.24M1 12h6m6 0h6m-16.78 7.78l4.24-4.24m2.12-2.12l4.24-4.24"></path>
-                                    </svg>
-                                    Cài đặt
-                                </Link>
-                                <hr className="dropdown-divider" />
-                                <button className="dropdown-item logout" onClick={handleLogout}>
-                                    <svg className="dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                                        <polyline points="16 17 21 12 16 7"></polyline>
-                                        <line x1="21" y1="12" x2="9" y2="12"></line>
-                                    </svg>
-                                    Đăng xuất
-                                </button>
+                    {/* Dropdown Menu */}
+                    {showDropdown && (
+                        <div className="user-dropdown">
+                            <div className="dropdown-item" onClick={() => { setShowDropdown(false); }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M8 8C10.21 8 12 6.21 12 4C12 1.79 10.21 0 8 0C5.79 0 4 1.79 4 4C4 6.21 5.79 8 8 8ZM8 10C5.33 10 0 11.34 0 14V16H16V14C16 11.34 10.67 10 8 10Z" fill="currentColor" />
+                                </svg>
+                                Hồ sơ
                             </div>
-                        )}
-                    </div>
+                            <div className="dropdown-divider"></div>
+                            <div className="dropdown-item dropdown-item-danger" onClick={handleLogout}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M6 12H2V2H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path d="M10 9L14 5L10 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path d="M14 5H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                Đăng xuất
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </header>
     );
-}
+};
+
+export default HeaderComponent;
