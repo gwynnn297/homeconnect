@@ -40,7 +40,7 @@ public class RegistrationService {
      */
     public RegisterResponse registerInit(RegisterInitRequest request) {
         try {
-            log.info("🚀 Bắt đầu đăng ký init cho email: {}", request.getEmail());
+            log.info(" Bắt đầu đăng ký init cho email: {}", request.getEmail());
 
             // 1. Validate form (đã có @Valid annotation)
 
@@ -101,7 +101,7 @@ public class RegistrationService {
     @Transactional
     public RegisterResponse registerVerify(RegisterVerifyRequest request) {
         try {
-            log.info("🔍 Bắt đầu verify OTP cho email: {}", request.getEmail());
+            log.info(" Bắt đầu verify OTP cho email: {}", request.getEmail());
 
             // 1. Lấy thông tin từ cache
             OtpCache cached = otpCacheService.getOtp(request.getEmail());
@@ -140,7 +140,7 @@ public class RegistrationService {
                         .kycStatus(KycStatus.PENDING)
                         .build();
                 helperProfileRepository.save(helperProfile);
-                log.info("🔧 Đã tạo HelperProfile cho User ID: {}", savedUser.getId());
+                log.info(" Đã tạo HelperProfile cho User ID: {}", savedUser.getId());
             }
 
             // 6. Xóa cache

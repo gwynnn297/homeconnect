@@ -17,7 +17,7 @@ public class RegistrationCacheService {
 
     public void saveDraft(String email, RegistrationDraft draft) {
         draftCache.put(email.toLowerCase(), draft);
-        log.info("💾 Đã lưu registration draft cho email: {}", email);
+        log.info(" Đã lưu registration draft cho email: {}", email);
     }
 
     public RegistrationDraft getDraft(String email) {
@@ -26,6 +26,6 @@ public class RegistrationCacheService {
 
     public void removeDraft(String email) {
         draftCache.remove(email.toLowerCase());
-        log.info("🗑️ Đã xóa registration draft cho email: {}", email);
+        log.info(" Đã xóa registration draft cho email: {}", email);
     }
 }

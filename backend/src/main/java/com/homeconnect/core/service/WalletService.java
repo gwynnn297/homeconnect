@@ -22,7 +22,7 @@ public class WalletService {
      * Tạo ví mới cho user vừa đăng ký
      */
     public Wallet createWalletForUser(User user) {
-        log.info("💳 Tạo wallet cho User ID: {}", user.getId());
+        log.info(" Tạo wallet cho User ID: {}", user.getId());
 
         Wallet wallet = Wallet.builder()
                 .user(user)

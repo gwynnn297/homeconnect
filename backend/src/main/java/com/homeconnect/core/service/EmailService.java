@@ -102,7 +102,7 @@ public class EmailService {
 
                                     <div style="background: #f8f9fa; border-left: 4px solid #667eea; padding: 20px; margin: 30px 0; border-radius: 0 8px 8px 0;">
                                         <p style="margin: 0; color: #666; font-size: 14px;">
-                                            <strong>⚠️ Lưu ý quan trọng:</strong><br>
+                                            <strong>Lưu ý quan trọng:</strong><br>
                                             • Mã này chỉ có hiệu lực trong <strong>5 phút</strong><br>
                                             • Không chia sẻ mã này với bất kỳ ai<br>
                                             • Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email
@@ -114,10 +114,10 @@ public class EmailService {
                                     </p>
 
                                     <ul style="color: #666; padding-left: 20px;">
-                                        <li style="margin-bottom: 8px;">✨ Đặt dịch vụ gia đình chất lượng cao</li>
-                                        <li style="margin-bottom: 8px;">🔍 Tìm Helper uy tín trong khu vực</li>
-                                        <li style="margin-bottom: 8px;">💰 Quản lý ví tiền và thanh toán an toàn</li>
-                                        <li style="margin-bottom: 8px;">⭐ Đánh giá và nhận phản hồi từ cộng đồng</li>
+                                        <li style="margin-bottom: 8px;"> Đặt dịch vụ gia đình chất lượng cao</li>
+                                        <li style="margin-bottom: 8px;"> Tìm Helper uy tín trong khu vực</li>
+                                        <li style="margin-bottom: 8px;"> Quản lý ví tiền và thanh toán an toàn</li>
+                                        <li style="margin-bottom: 8px;"> Đánh giá và nhận phản hồi từ cộng đồng</li>
                                     </ul>
                                 </div>
 
