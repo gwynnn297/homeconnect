@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import './RegisterPage.css';
 import AuthService from '../../services/AuthService';
 
-import logoHomeiConnect from '../../assets/LogoHomeiConnect.png';
+import logoHomieConnect from '../../assets/LogoHomieConnect.png';
 import OTPVerificationModal from '../../components/OTPVerificationModal';
 
 const RegisterPage = () => {
@@ -151,7 +151,7 @@ const RegisterPage = () => {
             <div className="register-container">
                 <header className="header-register">
                     <div className="logo-register" onClick={handleHome}>
-                        <img className="logo-img-register" src={logoHomeiConnect} alt="HomieConnectLogo" />
+                        <img className="logo-img-register" src={logoHomieConnect} alt="HomieConnectLogo" />
                     </div>
                     <div className="header-buttons-register">
                         <button className="btn-login-register" onClick={handleLogin}>
@@ -167,7 +167,7 @@ const RegisterPage = () => {
                     {/* Logo Section */}
                     <div className="register-logo">
                         <div className="logo-icon-wrapper">
-                            <img className="logo-img" src={logoHomeiConnect} alt="HomieConnectLogo" />
+                            <img className="logo-img" src={logoHomieConnect} alt="HomieConnectLogo" />
                         </div>
                     </div>
 

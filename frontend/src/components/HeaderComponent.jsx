@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import logoHomeiConnect from '../assets/LogoHomeiConnect.png';
+import logoHomieConnect from '../assets/LogoHomieConnect.png';
 import './HeaderComponent.css';
 
 const HeaderComponent = () => {
@@ -54,7 +54,7 @@ const HeaderComponent = () => {
     return (
         <header className="header">
             <div className="logo">
-                <img className="logo-img" src={logoHomeiConnect} alt="HomieConnectLogo" />
+                <img className="logo-img" src={logoHomieConnect} alt="HomieConnectLogo" />
             </div>          
 
             <div className="header-user-actions">

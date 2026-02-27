@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import './HomePage.css';
-import logoHomeiConnect from '../../assets/LogoHomeiConnect.png';
+import logoHomieConnect from '../../assets/LogoHomieConnect.png';
 
 const HomePage = () => {
     const navigate = useNavigate();
@@ -21,7 +21,7 @@ const HomePage = () => {
             {/* Header */}
             <header className="header">
                 <div className="logo" onClick={handleHome}>
-                    <img className="logo-img" src={logoHomeiConnect} alt="HomieConnectLogo" />         
+                    <img className="logo-img" src={logoHomieConnect} alt="HomieConnectLogo" />         
                 </div>
                 <nav className="nav">
                     <a href="#services">Dịch vụ</a>

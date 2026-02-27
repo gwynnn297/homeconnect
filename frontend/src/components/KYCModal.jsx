@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import './KYCModal.css';
 import HelperRegistrationService from '../services/HelperRegistrationService';
 import CloudinaryService from '../services/CloudinaryService';
-import logoHomeiConnect from '../assets/LogoHomeiConnect.png';
+import logoHomieConnect from '../assets/LogoHomieConnect.png';
 
 const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     const [currentStage, setCurrentStage] = useState(1);
@@ -338,7 +338,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                 {/* Header */}
                 <div className="kyc-header">
                     <div className="kyc-icon-container">
-                        <img src={logoHomeiConnect} alt="HomieConnect Logo" style={{ height: '48px', objectFit: 'contain' }} />
+                        <img src={logoHomieConnect} alt="HomieConnect Logo" style={{ height: '48px', objectFit: 'contain' }} />
                     </div>
                     <h2 className="kyc-title">Đăng ký Helper - Giai đoạn {currentStage}/2</h2>
                     <p className="kyc-subtitle">

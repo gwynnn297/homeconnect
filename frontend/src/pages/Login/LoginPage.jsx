@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './LoginPage.css';
-import logoHomeiConnect from '../../assets/LogoHomeiConnect.png';
+import logoHomieConnect from '../../assets/LogoHomieConnect.png';
 import AuthService from '../../services/AuthService';
 
 const LoginPage = () => {
@@ -50,7 +50,7 @@ const LoginPage = () => {
         <div className="login-container">
             <header className="header-login">
                 <div className="logo-login" onClick={handleHome}>
-                    <img className="logo-img-login" src={logoHomeiConnect} alt="HomieConnectLogo" />
+                    <img className="logo-img-login" src={logoHomieConnect} alt="HomieConnectLogo" />
                 </div>
                 <div className="header-buttons-login">
                     <button className="btn-login-login" onClick={() => navigate('/login')}>
@@ -66,7 +66,7 @@ const LoginPage = () => {
                 {/* Logo Section - Adapted from HeaderComponent */}
                 <div className="login-logo">
                     <div className="logo-icon-wrapper">
-                        <img className="logo-img" src={logoHomeiConnect} alt="HomieConnectLogo" />
+                        <img className="logo-img" src={logoHomieConnect} alt="HomieConnectLogo" />
                     </div>
                 </div>
 
