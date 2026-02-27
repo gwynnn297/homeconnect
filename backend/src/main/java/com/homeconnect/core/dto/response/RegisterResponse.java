@@ -19,7 +19,7 @@ public class RegisterResponse {
     private String message;
     private LocalDateTime timestamp;
     private Object data; // Chứa user info hoặc null
-    
+
     public static RegisterResponse success(String message) {
         return RegisterResponse.builder()
                 .success(true)
@@ -27,7 +27,7 @@ public class RegisterResponse {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     public static RegisterResponse success(String message, Object data) {
         return RegisterResponse.builder()
                 .success(true)
@@ -36,7 +36,7 @@ public class RegisterResponse {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     public static RegisterResponse error(String message) {
         return RegisterResponse.builder()
                 .success(false)

@@ -8,10 +8,9 @@ import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 
-/**
- * Force Flyway Migration Runner
- * Đảm bảo migration chạy khi ứng dụng khởi động
- */
+// Force Flyway Migration Runner
+// Đảm bảo migration chạy khi ứng dụng khởi động
+
 @Component
 public class FlywayMigrationRunner implements ApplicationRunner {
 

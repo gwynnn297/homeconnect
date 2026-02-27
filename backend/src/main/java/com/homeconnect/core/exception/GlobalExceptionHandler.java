@@ -52,7 +52,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex,
+            HttpServletRequest request) {
         String message = ex.getBindingResult().getFieldErrors().stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.joining(", "));
@@ -68,7 +69,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(RegistrationIncompleteException.class)
-    public ResponseEntity<ErrorResponse> handleRegistrationIncomplete(RegistrationIncompleteException ex, HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleRegistrationIncomplete(RegistrationIncompleteException ex,
+            HttpServletRequest request) {
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())

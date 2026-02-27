@@ -30,13 +30,13 @@ public class MailConfig {
     @Bean
     public JavaMailSender javaMailSender() {
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
-        
+
         // Cấu hình SMTP server
         mailSender.setHost(mailHost);
         mailSender.setPort(mailPort);
         mailSender.setUsername(mailUsername);
         mailSender.setPassword(mailPassword);
-        
+
         // Cấu hình properties
         Properties props = mailSender.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");
@@ -48,7 +48,7 @@ public class MailConfig {
         props.put("mail.smtp.timeout", "5000");
         props.put("mail.smtp.writetimeout", "5000");
         props.put("mail.debug", "false"); // Set true để debug
-        
+
         return mailSender;
     }
 }

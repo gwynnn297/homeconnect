@@ -26,7 +26,7 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 @Slf4j
 public class RegistrationService {
-    
+
     private final UserRepository userRepository;
     private final EmailService emailService;
     private final OtpCacheService otpCacheService;
@@ -35,60 +35,59 @@ public class RegistrationService {
     private final HelperProfileRepository helperProfileRepository;
 
     /**
-     * Bước 1: Validate form -> Check trùng Phone/Email -> Sinh OTP -> Gửi Email -> Lưu Cache
+     * Bước 1: Validate form -> Check trùng Phone/Email -> Sinh OTP -> Gửi Email ->
+     * Lưu Cache
      */
     public RegisterResponse registerInit(RegisterInitRequest request) {
         try {
             log.info("🚀 Bắt đầu đăng ký init cho email: {}", request.getEmail());
-            
+
             // 1. Validate form (đã có @Valid annotation)
-            
+
             // 2. Check trùng Phone/Email
             if (userRepository.findByEmail(request.getEmail()).isPresent()) {
                 return RegisterResponse.error("Email đã được đăng ký");
             }
-            
+
             if (userRepository.findByPhone(request.getPhone()).isPresent()) {
                 return RegisterResponse.error("Số điện thoại đã được đăng ký");
             }
-            
+
             // 3. Sinh OTP
             String otpCode = OtpUtil.generateOtp();
             log.info("🔢 Generated OTP {} cho email: {}", otpCode, request.getEmail());
-            
+
             // 4. Gửi Email OTP
             boolean emailSent = emailService.sendOtp(
-                request.getEmail(), 
-                otpCode, 
-                request.getFullName()
-            );
-            
+                    request.getEmail(),
+                    otpCode,
+                    request.getFullName());
+
             if (!emailSent) {
                 return RegisterResponse.error("Lỗi gửi email OTP. Vui lòng thử lại.");
             }
-            
+
             // 5. Lưu Cache với thông tin đăng ký
             OtpCache otpCache = OtpCache.builder()
-                .email(request.getEmail())
-                .otpCode(otpCode)
-                .expiryTime(OtpUtil.generateOtpExpiry())
-                .fullName(request.getFullName())
-                .phone(request.getPhone())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .role(request.getRole())
-                .attemptCount(0)
-                .isUsed(false)
-                .build();
-            
+                    .email(request.getEmail())
+                    .otpCode(otpCode)
+                    .expiryTime(OtpUtil.generateOtpExpiry())
+                    .fullName(request.getFullName())
+                    .phone(request.getPhone())
+                    .passwordHash(passwordEncoder.encode(request.getPassword()))
+                    .role(request.getRole())
+                    .attemptCount(0)
+                    .isUsed(false)
+                    .build();
+
             otpCacheService.saveOtp(request.getEmail(), otpCache);
-            
+
             log.info("Đã gửi OTP thành công đến email: {}", request.getEmail());
-            
+
             return RegisterResponse.success(
-                "Mã xác thực đã được gửi đến email " + request.getEmail() + 
-                ". Vui lòng kiểm tra và nhập mã OTP trong vòng 5 phút."
-            );
-            
+                    "Mã xác thực đã được gửi đến email " + request.getEmail() +
+                            ". Vui lòng kiểm tra và nhập mã OTP trong vòng 5 phút.");
+
         } catch (Exception e) {
             log.error("Lỗi registerInit cho email {}: {}", request.getEmail(), e.getMessage());
             return RegisterResponse.error("Có lỗi xảy ra. Vui lòng thử lại.");
@@ -96,25 +95,26 @@ public class RegistrationService {
     }
 
     /**
-     * Bước 2: Check OTP -> Insert User -> Insert Wallet -> Insert HelperProfile (nếu Helper)
+     * Bước 2: Check OTP -> Insert User -> Insert Wallet -> Insert HelperProfile
+     * (nếu Helper)
      */
     @Transactional
     public RegisterResponse registerVerify(RegisterVerifyRequest request) {
         try {
             log.info("🔍 Bắt đầu verify OTP cho email: {}", request.getEmail());
-            
+
             // 1. Lấy thông tin từ cache
             OtpCache cached = otpCacheService.getOtp(request.getEmail());
-            
+
             if (cached == null) {
                 return RegisterResponse.error("Mã OTP không tồn tại hoặc đã hết hạn");
             }
-            
+
             // 2. Verify OTP
             if (!otpCacheService.verifyOtp(request.getEmail(), request.getOtpCode())) {
                 return RegisterResponse.error("Mã OTP không chính xác");
             }
-            
+
             // 3. Insert User
             User user = new User();
             user.setFullName(cached.getFullName());
@@ -123,14 +123,14 @@ public class RegistrationService {
             user.setPasswordHash(cached.getPasswordHash());
             user.setRole(cached.getRole());
             user.setStatus(UserStatus.ACTIVE); // Active ngay sau khi verify OTP
-            
+
             User savedUser = userRepository.save(user);
             log.info("Đã tạo User ID: {} cho email: {}", savedUser.getId(), request.getEmail());
-            
+
             // 4. Insert Wallet (tự động cho mọi user)
             Wallet wallet = walletService.createWalletForUser(savedUser);
             log.info("Đã tạo Wallet ID: {} cho User ID: {}", wallet.getWalletId(), savedUser.getId());
-            
+
             // 5. Insert HelperProfile (nếu là Helper)
             if (cached.getRole() == UserRole.HELPER) {
                 HelperProfile helperProfile = HelperProfile.builder()
@@ -142,17 +142,16 @@ public class RegistrationService {
                 helperProfileRepository.save(helperProfile);
                 log.info("🔧 Đã tạo HelperProfile cho User ID: {}", savedUser.getId());
             }
-            
+
             // 6. Xóa cache
             otpCacheService.removeOtp(request.getEmail());
-            
+
             log.info("Đăng ký hoàn tất thành công cho email: {}", request.getEmail());
-            
+
             return RegisterResponse.success(
-                "Đăng ký tài khoản thành công! Chào mừng bạn đến với HomeConnect.",
-                savedUser.getId()
-            );
-            
+                    "Đăng ký tài khoản thành công! Chào mừng bạn đến với HomeConnect.",
+                    savedUser.getId());
+
         } catch (Exception e) {
             log.error("Lỗi registerVerify cho email {}: {}", request.getEmail(), e.getMessage());
             return RegisterResponse.error("Có lỗi xảy ra khi tạo tài khoản. Vui lòng thử lại.");

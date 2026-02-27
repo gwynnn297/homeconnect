@@ -23,7 +23,7 @@ public class WalletService {
      */
     public Wallet createWalletForUser(User user) {
         log.info("💳 Tạo wallet cho User ID: {}", user.getId());
-        
+
         Wallet wallet = Wallet.builder()
                 .user(user)
                 .availableBalance(BigDecimal.ZERO)
@@ -31,7 +31,7 @@ public class WalletService {
                 .debtBalance(BigDecimal.ZERO)
                 .isFrozen(false)
                 .build();
-        
+
         return walletRepository.save(wallet);
     }
 }

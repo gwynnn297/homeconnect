@@ -22,7 +22,7 @@ public class EmailService {
     private String fromEmail;
 
     // Gửi OTP qua email
-    // @param otpCode  Mã OTP (6 chữ số)
+    // @param otpCode Mã OTP (6 chữ số)
     // @param fullName Tên đầy đủ người nhận
     // @return true nếu gửi thành công, false nếu lỗi
     public boolean sendOtp(String toEmail, String otpCode, String fullName) {
