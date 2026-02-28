@@ -9,4 +9,6 @@ import org.springframework.stereotype.Repository;
 public interface HelperServiceRepository extends JpaRepository<HelperService, Integer> {
     @Modifying
     void deleteByHelper_Id(Long helperId);
+
+    java.util.List<HelperService> findByHelper_Id(Long helperId);
 }

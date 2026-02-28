@@ -42,8 +42,15 @@ public class HelperRegistrationService {
         }
 
         // Kiểm tra tuổi (>= 18)
-        if (Period.between(request.getDateOfBirth(), LocalDate.now()).getYears() < 18) {
+        int age = Period.between(request.getDateOfBirth(), LocalDate.now()).getYears();
+        if (age < 18) {
             throw new RuntimeException("Helper phải từ 18 tuổi trở lên");
+        }
+
+        // Kiểm tra tính hợp lệ của kinh nghiệm (Ví dụ: 20 tuổi không thể có 10 năm kinh nghiệm chuyên nghiệp)
+        // Giả sử bắt đầu làm việc sớm nhất từ năm 15 tuổi.
+        if (request.getExperienceYears() > (age - 15)) {
+            throw new RuntimeException("Số năm kinh nghiệm không hợp lệ so với tuổi của bạn");
         }
 
         // Lấy hoặc tạo mới draft

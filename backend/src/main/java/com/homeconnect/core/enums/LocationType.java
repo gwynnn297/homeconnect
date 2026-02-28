@@ -6,7 +6,8 @@ package com.homeconnect.core.enums;
  */
 public enum LocationType {
     PROVINCE("Tỉnh/Thành phố"),
-    DISTRICT("Quận/Huyện");
+    DISTRICT("Quận/Huyện"),
+    WARD("Phường/Xã");
     
     private final String displayName;
     
