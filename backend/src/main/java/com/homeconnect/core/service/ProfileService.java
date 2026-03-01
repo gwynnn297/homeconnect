@@ -146,7 +146,10 @@ public class ProfileService {
         // 4. Update Skills
         if (request.getSkills() != null) {
             helperServiceRepository.deleteByHelper_Id(user.getId());
+            helperServiceRepository.flush(); // Cập nhật ngay để tránh Duplicate Entry khi insert lại
+            
             List<HelperService> newSkills = request.getSkills().stream()
+                    .distinct()
                     .map(serviceId -> {
                         com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
                                 .orElseThrow(() -> new ApiException("Dịch vụ ID " + serviceId + " không tồn tại", HttpStatus.BAD_REQUEST));
