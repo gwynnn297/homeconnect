@@ -2,6 +2,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "GenerateAdminPassword",
+            "request": "launch",
+            "mainClass": "com.homeconnect.core.util.GenerateAdminPassword",
+            "projectName": "backend"
+        },
+        {
+            "type": "java",
             "name": "Spring Boot-MaidBookingBackendApplication<backend>",
             "request": "launch",
             "cwd": "${workspaceFolder}",

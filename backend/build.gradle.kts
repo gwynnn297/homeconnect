@@ -74,3 +74,11 @@ dependencies {
 tasks.withType<Test> {
 	useJUnitPlatform()
 }
+
+// Task để generate admin password hash
+tasks.register<JavaExec>("generateAdminPassword") {
+	group = "application"
+	description = "Generate BCrypt password hash for admin account"
+	mainClass.set("com.homeconnect.core.util.GenerateAdminPassword")
+	classpath = sourceSets["main"].runtimeClasspath
+}
