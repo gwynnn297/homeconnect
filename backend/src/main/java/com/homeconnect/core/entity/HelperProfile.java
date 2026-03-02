@@ -33,26 +33,16 @@ public class HelperProfile {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;  // Liên kết 1-1 với User
     
-    @Column(name = "bio", columnDefinition = "TEXT")
+    @Column(name = "bio", columnDefinition = "TEXT", nullable = false)
     private String bio;  // Giới thiệu bản thân
     
-    @Column(name = "experience_years")
+    @Column(name = "experience_years", nullable = false)
     private Integer experienceYears;  // Số năm kinh nghiệm
     
     @ManyToOne
-    @JoinColumn(name = "hometown_id")
+    @JoinColumn(name = "hometown_id", nullable = false)
     private Location hometown;  // Quê quán
 
-    @Column(name = "date_of_birth")
-    private java.time.LocalDate dateOfBirth;  // Ngày sinh
-
-    
-    @ManyToOne
-    @JoinColumn(name = "current_city_id")
-    private Location currentCity;  // Nơi ở hiện tại
-    
-    
-    
     @Column(name = "identity_number", unique = true, length = 20)
     private String identityNumber;  // Số CMND/CCCD
     
@@ -81,11 +71,6 @@ public class HelperProfile {
     
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;  // Lý do từ chối KYC (nếu bị từ chối)
-    
-    // ========== THÔNG TIN KHÁC ==========
-    
-    @Column(name = "address_detail", columnDefinition = "TEXT")
-    private String addressDetail;  // Địa chỉ cụ thể nơi ở
     
     @UpdateTimestamp
     @Column(name = "updated_at")

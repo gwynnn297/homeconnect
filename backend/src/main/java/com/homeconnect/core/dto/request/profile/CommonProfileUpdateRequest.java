@@ -1,5 +1,6 @@
 package com.homeconnect.core.dto.request.profile;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.*;
@@ -28,4 +29,7 @@ public class CommonProfileUpdateRequest {
     private Integer wardId;
     private Integer districtId;
     private Integer provinceId;
+
+    @Schema(description = "Loại địa chỉ hoặc nhãn hiển thị", example = "HOME")
+    private String addressLabel; // HOME, OFFICE, hoặc tên tự đặt
 }

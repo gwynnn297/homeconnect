@@ -102,4 +102,13 @@ public class ProfileController {
                 .data(profileService.getPublicHelperProfile(id))
                 .build());
     }
+
+    @GetMapping("/address-labels")
+    @Operation(summary = "Lấy danh sách các nhãn địa chỉ", description = "Dùng để hiển thị trong dropdown cho FE chọn (HOME, OFFICE, vv)")
+    public ResponseEntity<ApiResponse<java.util.List<String>>> getAddressLabels() {
+        return ResponseEntity.ok(ApiResponse.<java.util.List<String>>builder()
+                .message("Lấy danh sách nhãn địa chỉ thành công")
+                .data(profileService.getAddressLabels())
+                .build());
+    }
 }

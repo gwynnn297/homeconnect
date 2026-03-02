@@ -36,6 +36,7 @@ public class AdminService {
     private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
     private final ServiceRepository serviceRepository;
     private final LocationRepository locationRepository;
+    private final AddressRepository addressRepository;
     private final EmailService emailService;
 
     /**
@@ -252,8 +253,9 @@ public class AdminService {
                 .profileId(helperProfile.getProfileId())
                 .bio(helperProfile.getBio())
                 .experienceYears(helperProfile.getExperienceYears())
-                .dateOfBirth(helperProfile.getDateOfBirth())
-                .addressDetail(helperProfile.getAddressDetail())
+                .dateOfBirth(helper.getDateOfBirth())
+                .addressDetail(addressRepository.findByUser_IdAndIsDefaultTrue(helperId)
+                        .map(Address::getAddressDetail).orElse(null))
 
                 // Location
                 .hometown(helperProfile.getHometown() != null ? HelperDetailResponse.LocationInfo.builder()
@@ -261,11 +263,13 @@ public class AdminService {
                         .name(helperProfile.getHometown().getName())
                         .type(helperProfile.getHometown().getType().name())
                         .build() : null)
-                .currentCity(helperProfile.getCurrentCity() != null ? HelperDetailResponse.LocationInfo.builder()
-                        .locationId(helperProfile.getCurrentCity().getLocationId())
-                        .name(helperProfile.getCurrentCity().getName())
-                        .type(helperProfile.getCurrentCity().getType().name())
-                        .build() : null)
+                .currentCity(addressRepository.findByUser_IdAndIsDefaultTrue(helperId)
+                        .map(Address::getProvince)
+                        .map(p -> HelperDetailResponse.LocationInfo.builder()
+                                .locationId(p.getLocationId())
+                                .name(p.getName())
+                                .type(p.getType().name())
+                                .build()).orElse(null))
 
                 // KYC info
                 .kycStatus(helperProfile.getKycStatus())
@@ -404,10 +408,11 @@ public class AdminService {
 
                 .kycStatus(helperProfile.getKycStatus())
                 .identityNumber(helperProfile.getIdentityNumber())
-                .dateOfBirth(helperProfile.getDateOfBirth())
+                .dateOfBirth(helper.getDateOfBirth())
 
-                .currentCityName(
-                        helperProfile.getCurrentCity() != null ? helperProfile.getCurrentCity().getName() : null)
+                .currentCityName(addressRepository.findByUser_IdAndIsDefaultTrue(helper.getId())
+                        .map(Address::getProvince)
+                        .map(Location::getName).orElse(null))
 
                 .experienceYears(helperProfile.getExperienceYears())
                 .bio(helperProfile.getBio())

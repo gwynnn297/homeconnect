@@ -14,8 +14,10 @@ import java.util.List;
 public class RegistrationDraft {
     // Data from Stage 1
     private LocalDate dateOfBirth;
-    private Integer hometownProvinceId;
-    private Integer currentCityId;
+    private Integer hometownId;
+    private Integer provinceId;
+    private Integer districtId;
+    private Integer wardId;
     private String currentAddress;
     private List<Integer> workingDistrictIds;
     private String bio;
@@ -29,8 +31,9 @@ public class RegistrationDraft {
     private String selfieUrl;
 
     public boolean isStage1Complete() {
-        return dateOfBirth != null && hometownProvinceId != null && 
-               currentCityId != null && currentAddress != null && 
+        return dateOfBirth != null && hometownId != null && 
+               provinceId != null && districtId != null && 
+               wardId != null && currentAddress != null && 
                workingDistrictIds != null && !workingDistrictIds.isEmpty() &&
                bio != null && experienceYears != null && 
                serviceIds != null && !serviceIds.isEmpty();

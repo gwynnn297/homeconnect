@@ -23,4 +23,7 @@ public interface HelperProfileRepository extends JpaRepository<HelperProfile, In
 
     // Admin: đếm số lượng helper theo KYC status
     long countByKycStatus(KycStatus status);
+
+    // Kiểm tra tồn tại số CCCD
+    boolean existsByIdentityNumber(String identityNumber);
 }

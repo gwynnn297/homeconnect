@@ -55,8 +55,8 @@ public class User {
     @Column(name = "gender", length = 20)
     private String gender; // MALE, FEMALE, OTHER
 
-    @Column(name = "is_verified")
-    private Boolean isVerified; // Trạng thái xác minh (V7)
+    @Column(name = "date_of_birth")
+    private java.time.LocalDate dateOfBirth; // Ngày sinh (Chuyển từ HelperProfile sang)
 
     @Column(name = "avatar_url", columnDefinition = "TEXT")
     private String avatarUrl; // Đường dẫn ảnh đại diện

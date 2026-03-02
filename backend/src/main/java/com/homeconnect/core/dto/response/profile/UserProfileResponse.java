@@ -15,7 +15,6 @@ public class UserProfileResponse {
     private String avatarUrl;
     private String role;
     private String gender;
-    private Boolean isVerified;
     private String status;
     
     // Thông tin địa chỉ mặc định (PB-20)
@@ -23,4 +22,5 @@ public class UserProfileResponse {
     private String wardName;
     private String districtName;
     private String provinceName;
+    private String addressLabel;
 }

@@ -20,11 +20,19 @@ public class HelperRegistrationStage1Request {
     // --- Khu vực làm việc & Quê quán ---
     @NotNull(message = "Quê quán không được để trống")
     @Schema(description = "ID của Tỉnh/Thành phố quê quán", example = "41")
-    private Integer hometownProvinceId;
+    private Integer hometownId;
 
-    @NotNull(message = "Thành phố hiện tại không được để trống")
-    @Schema(description = "ID của Tỉnh/Thành phố hiện tại đang sinh sống", example = "41")
-    private Integer currentCityId;
+    @NotNull(message = "Tỉnh/Thành phố hiện tại không được để trống")
+    @Schema(description = "ID của Tỉnh/Thành phố hiện tại", example = "43")
+    private Integer provinceId;
+    
+    @NotNull(message = "Quận/Huyện hiện tại không được để trống")
+    @Schema(description = "ID của Quận/Huyện hiện tại", example = "168")
+    private Integer districtId;
+
+    @NotNull(message = "Phường/Xã hiện tại không được để trống")
+    @Schema(description = "ID của Phường/Xã hiện tại", example = "381")
+    private Integer wardId;
 
     @NotBlank(message = "Địa chỉ hiện tại không được để trống")
     @Schema(description = "Địa chỉ tạm trú hiện tại: Số nhà, tên đường...", example = "Số 123, đường Nguyễn Huệ")

@@ -29,25 +29,19 @@ public class Address {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "contact_name", length = 100)
-    private String contactName;
-
-    @Column(name = "contact_phone", length = 15)
-    private String contactPhone;
-
     @Column(name = "address_detail", columnDefinition = "TEXT")
     private String addressDetail;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ward_id")
+    @JoinColumn(name = "ward_id", nullable = false)
     private Location ward;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "district_id")
+    @JoinColumn(name = "district_id", nullable = false)
     private Location district;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "province_id")
+    @JoinColumn(name = "province_id", nullable = false)
     private Location province;
 
     @Column(name = "latitude", precision = 10, scale = 8)
