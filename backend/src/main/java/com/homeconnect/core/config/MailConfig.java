@@ -9,7 +9,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 /**
- * ⚙️ Cấu hình Email Service cho HomeConnect
+ * Cấu hình Email Service cho HomeConnect
  * Setup JavaMailSender với SMTP Gmail
  */
 @Configuration

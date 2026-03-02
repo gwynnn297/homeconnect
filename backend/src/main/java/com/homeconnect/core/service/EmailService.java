@@ -50,6 +50,34 @@ public class EmailService {
         }
     }
 
+    // Gửi email đơn giản với subject và content
+    // @param toEmail Email người nhận
+    // @param subject Tiêu đề email
+    // @param content Nội dung email (có thể là HTML hoặc text)
+    // @return true nếu gửi thành công, false nếu lỗi
+    public boolean sendSimpleMessage(String toEmail, String subject, String content) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail, "HomeConnect Team");
+            helper.setTo(toEmail);
+            helper.setSubject(subject);
+            helper.setText(content, false); // false = plain text, true = HTML
+
+            mailSender.send(message);
+            log.info("Đã gửi email thành công đến: {} với subject: {}", toEmail, subject);
+            return true;
+
+        } catch (MessagingException e) {
+            log.error("Lỗi gửi email đến {}: {}", toEmail, e.getMessage());
+            return false;
+        } catch (Exception e) {
+            log.error("Lỗi không xác định khi gửi email: {}", e.getMessage());
+            return false;
+        }
+    }
+
     // Tạo template HTML cho email OTP
     private String buildOtpEmailTemplate(String otpCode, String fullName) {
         String userName = fullName != null ? fullName : "Bạn";

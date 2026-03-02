@@ -5,11 +5,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface HelperServiceRepository extends JpaRepository<HelperService, Integer> {
-    @Modifying(clearAutomatically = true)
-    @org.springframework.data.jpa.repository.Query("DELETE FROM HelperService hs WHERE hs.helper.id = :helperId")
+    @Modifying
     void deleteByHelper_Id(Long helperId);
 
-    java.util.List<HelperService> findByHelper_Id(Long helperId);
+    // Admin: lấy danh sách service của helper
+    List<HelperService> findByHelper_Id(Long helperId);
+
+    // Admin: đếm số lượng service của helper
+    long countByHelper_Id(Long helperId);
 }
