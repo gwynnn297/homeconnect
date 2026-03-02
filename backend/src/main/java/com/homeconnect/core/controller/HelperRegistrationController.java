@@ -44,6 +44,12 @@ public class HelperRegistrationController {
         return ResponseEntity.ok(formatLocationList(locationRepository.findByParent_LocationId(provinceId)));
     }
 
+    @GetMapping("/wards/{districtId}")
+    @Operation(summary = "Lấy danh sách phường/xã theo quận", description = "Dùng để fill vào chọn địa chỉ ở Stage 1")
+    public ResponseEntity<List<Map<String, Object>>> getWards(@PathVariable Integer districtId) {
+        return ResponseEntity.ok(formatLocationList(locationRepository.findByParent_LocationId(districtId)));
+    }
+
     @GetMapping("/services")
     @Operation(summary = "Lấy danh sách dịch vụ", description = "Dùng để chọn dịch vụ đăng ký ở Stage 1")
     public ResponseEntity<List<Map<String, Object>>> getServices() {

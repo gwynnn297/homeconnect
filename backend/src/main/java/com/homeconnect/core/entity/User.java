@@ -52,6 +52,12 @@ public class User {
     @Column(name = "status", length = 20)
     private UserStatus status = UserStatus.PENDING_OTP; // Trạng thái tài khoản
 
+    @Column(name = "gender", length = 20)
+    private String gender; // MALE, FEMALE, OTHER
+
+    @Column(name = "is_verified")
+    private Boolean isVerified; // Trạng thái xác minh (V7)
+
     @Column(name = "avatar_url", columnDefinition = "TEXT")
     private String avatarUrl; // Đường dẫn ảnh đại diện
 
