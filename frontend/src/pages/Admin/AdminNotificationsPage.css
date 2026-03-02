@@ -1,0 +1,121 @@
+/* Admin Notifications - Responsive Page Styles */
+.admin-notifications-page {
+    padding: 2.5rem 1rem;
+    background: #f8fafc;
+    min-height: 100%;
+}
+
+.container {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.notifications-header {
+    margin-bottom: 1.25rem;
+    text-align: center;
+}
+
+.notifications-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.25rem;
+}
+
+.notifications-header .subtitle {
+    color: #475569;
+    font-size: 0.95rem;
+}
+
+.notifications-grid {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 2rem;
+    align-items: start;
+}
+
+.notifications-form-card .notification-form {
+    background: #fff;
+    padding: 1.75rem;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(2,6,23,0.06);
+}
+
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 0.5rem;
+}
+
+.required { color: #ef4444; }
+.optional { color: #94a3b8; font-weight: 400; }
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 0.85rem 1rem;
+    border: 1px solid #e6eef6;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    transition: border 0.15s, box-shadow 0.15s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #346252;
+    box-shadow: 0 0 0 4px rgba(52,98,82,0.06);
+}
+
+.char-count { display:block; font-size:0.8rem; color:#9ca3af; text-align:right; margin-top:0.25rem; }
+.help-text { font-size:0.88rem; color:#6b7280; margin-top:0.4rem; }
+
+.alert { padding: 0.9rem; border-radius: 8px; margin-bottom: 1rem; }
+.alert-error { background:#fff5f5; color:#7f1d1d; border-left:4px solid #ef4444; }
+.alert-success { background:#ecfdf5; color:#065f46; border-left:4px solid #10b981; }
+
+.email-preview { border:1px solid #eef6fb; border-radius:8px; overflow:hidden; background:#fff; }
+.email-header { background:#f8fafc; padding:0.75rem 1rem; border-bottom:1px solid #eef2f7; color:#475569; }
+.email-content { padding:1rem; color:#334155; }
+.preview-title { font-weight:600; color:#0f172a; padding:0.6rem; background:#f8fafc; border-radius:4px; }
+.preview-message { margin-top:0.5rem; white-space:pre-wrap; color:#334155; padding:0.6rem; background:#fbfdff; border-radius:4px; }
+
+.notifications-preview-card { background:#fff; border-radius:12px; padding:1rem; box-shadow:0 6px 20px rgba(2,6,23,0.06); }
+.preview-header h3 { margin:0 0 0.25rem 0; font-size:1rem; color:#0f172a; }
+.preview-sub { margin:0 0 1rem 0; color:#64748b; font-size:0.88rem; }
+.preview-stats { margin-top:1rem; font-size:0.9rem; color:#475569; }
+.small-stats { display:flex; gap:1rem; margin-top:0.5rem; }
+
+.form-actions { display:flex; gap:0.75rem; margin-top:1rem; }
+.btn-reset, .btn-send { flex:1; padding:0.7rem 1rem; border-radius:8px; font-weight:600; cursor:pointer; }
+.btn-reset { background:#f1f5f9; border:1px solid #e6eef6; color:#334155; }
+.btn-send { background:#0f766e; color:#fff; border:none; }
+.btn-send:disabled, .btn-reset:disabled { opacity:0.6; cursor:not-allowed; }
+
+/* Make inputs and content full width on small screens */
+@media (max-width: 900px) {
+    .notifications-grid { grid-template-columns: 1fr; }
+    .notifications-header { text-align:left; }
+    .notifications-preview-card { order: 2; }
+    .notifications-form-card { order: 1; }
+}
+
+@media (max-width: 480px) {
+    .admin-notifications-page { padding: 1rem; }
+    .notifications-header h1 { font-size:1.25rem; }
+    .preview-sub { font-size:0.8rem; }
+    .form-actions { flex-direction: column; }
+}
+
+/* Small utility */
+.text-success { color:#059669; }
+.text-fail { color:#dc2626; }

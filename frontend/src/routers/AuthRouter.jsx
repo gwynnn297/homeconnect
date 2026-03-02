@@ -7,6 +7,10 @@ import PrivacyPolicyPage from '../pages/Register/PrivacyPolicyPage'
 import TermsofServicePage from '../pages/Register/TermsofServicePage'
 import CustomerDashboardPage from '../pages/Customer/CustomerDashboardPage'
 import HelperDashboardPage from '../pages/Helper/HelperDashboardPage'
+import AdminDashboardPage from '../pages/Admin/AdminDashboardPage'
+import AdminHelpersPage from '../pages/Admin/AdminHelpersPage'
+import AdminHelperDetailPage from '../pages/Admin/AdminHelperDetailPage'
+import AdminNotificationsPage from '../pages/Admin/AdminNotificationsPage'
 
 const AuthRouter = () => {
   return (
@@ -19,7 +23,13 @@ const AuthRouter = () => {
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsofServicePage />} />
         <Route path="/customer-dashboard" element={<CustomerDashboardPage />} />
+        <Route path="/helper/dashboard" element={<HelperDashboardPage />} />
+        {/* legacy path kept for compatibility */}
         <Route path="/helper-dashboard" element={<HelperDashboardPage />} />
+        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+        <Route path="/admin/helpers" element={<AdminHelpersPage />} />
+        <Route path="/admin/helpers/:helperId" element={<AdminHelperDetailPage />} />
+        <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
       </Routes>
     </BrowserRouter>
   )

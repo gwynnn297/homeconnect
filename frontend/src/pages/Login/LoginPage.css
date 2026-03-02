@@ -196,14 +196,13 @@ body {
 
 /* Input Wrappers */
 .input-with-icon {
-    position: relative;
     display: flex;
     align-items: center;
 }
 
 .input-icon {
-    position: absolute;
-    left: 1rem;
+    margin-right: 0.75rem;
+    flex-shrink: 0;
     width: 20px;
     height: 20px;
     color: #94a3b8;
@@ -211,11 +210,9 @@ body {
 
 .form-input {
     width: 100%;
-    padding: 0.85rem 1rem 0.85rem 3rem;
-    /* Left padding for icon */
+    padding: 0.85rem 1rem;
     font-size: 1rem;
     border: 1px solid transparent;
-    /* No border by default like the image seems to imply? Or subtle border */
     border-radius: var(--border-radius);
     background-color: var(--input-bg);
     color: #333;

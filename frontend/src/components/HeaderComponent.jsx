@@ -8,8 +8,33 @@ const HeaderComponent = () => {
     const [showDropdown, setShowDropdown] = useState(false);
     const userInfoRef = useRef(null);
 
+    // Lấy thông tin user từ localStorage (phải dưới cùng của component function)
+    const storedUser = (() => {
+        try {
+            return JSON.parse(localStorage.getItem('user')) || null;
+        } catch (e) {
+            return null;
+        }
+    })();
+    const storedName = storedUser?.fullName || storedUser?.name || storedUser?.username || storedUser?.email || 'Người dùng';
+    const displayName = storedName;
+    const avatarInitial = (displayName || 'U').trim().charAt(0).toUpperCase();
+
     const handleHome = () => {
         navigate("/home");
+    };
+
+    const handleDashboard = () => {
+        // redirect user to appropriate dashboard based on role
+        if (storedUser?.role === 'ADMIN') {
+            navigate('/admin/dashboard');
+        } else if (storedUser?.role === 'HELPER') {
+            navigate('/helper/dashboard');
+        } else if (storedUser?.role === 'CUSTOMER') {
+            navigate('/customer-dashboard');
+        } else {
+            navigate('/home');
+        }
     };
 
     const toggleDropdown = () => {
@@ -38,18 +63,6 @@ const HeaderComponent = () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [showDropdown]);
-
-    // Lấy thông tin user từ localStorage
-    const storedUser = (() => {
-        try {
-            return JSON.parse(localStorage.getItem('user')) || null;
-        } catch (e) {
-            return null;
-        }
-    })();
-    const storedName = storedUser?.fullName || storedUser?.name || storedUser?.username || storedUser?.email || 'Người dùng';
-    const displayName = storedName;
-    const avatarInitial = (displayName || 'U').trim().charAt(0).toUpperCase();
 
     return (
         <header className="header">

@@ -27,8 +27,10 @@ const LoginPage = () => {
                     navigate('/customer-dashboard');
                 } else if (role === 'HELPER') {
                     navigate('/helper-dashboard');
+                } else if (role === 'ADMIN') {
+                    navigate('/admin/dashboard');
                 } else {
-                    // Fallback hoặc role khác (như ADMIN)
+                    // Fallback hoặc role khác
                     setError('Vai trò người dùng không hợp lệ');
                 }
             } else {
