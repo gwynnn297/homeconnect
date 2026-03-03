@@ -33,29 +33,55 @@ public class AuthService {
     private final EmailService emailService;
 
     public void registerInit(RegisterInitRequest request) {
-        // Validate duplicates
-        userRepository.findByEmail(request.getEmail()).ifPresent(u -> {
-            throw new RuntimeException("Email đã được sử dụng");
-        });
-        userRepository.findByPhone(request.getPhone()).ifPresent(u -> {
-            throw new RuntimeException("Số điện thoại đã được sử dụng");
-        });
-
         UserRole role = request.getRole();
         if (role == null) {
             throw new RuntimeException("Role không hợp lệ (CUSTOMER | HELPER | ADMIN)");
         }
 
-        // Create user in PENDING_OTP
-        User user = User.builder()
-                .fullName(request.getFullName())
-                .email(request.getEmail())
-                .phone(request.getPhone())
-                // temporary password; will be replaced at verify step
-                .passwordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()))
-                .role(role)
-                .status(UserStatus.PENDING_OTP)
-                .build();
+        User user = null;
+
+        // Check if email already exists
+        var existingEmailUser = userRepository.findByEmail(request.getEmail());
+        if (existingEmailUser.isPresent()) {
+            if (existingEmailUser.get().getStatus() == UserStatus.PENDING_OTP) {
+                user = existingEmailUser.get();
+            } else {
+                throw new RuntimeException("Email đã được sử dụng");
+            }
+        }
+
+        // Check if phone already exists (if a different user has this phone)
+        var existingPhoneUser = userRepository.findByPhone(request.getPhone());
+        if (existingPhoneUser.isPresent()) {
+            if (user == null && existingPhoneUser.get().getStatus() == UserStatus.PENDING_OTP) {
+                user = existingPhoneUser.get();
+            } else if (user != null && !existingPhoneUser.get().getId().equals(user.getId())) {
+                // Phone belongs to another user
+                throw new RuntimeException("Số điện thoại đã được sử dụng");
+            } else if (user == null) {
+                throw new RuntimeException("Số điện thoại đã được sử dụng");
+            }
+        }
+
+        if (user == null) {
+            // Create new user in PENDING_OTP
+            user = User.builder()
+                    .fullName(request.getFullName())
+                    .email(request.getEmail())
+                    .phone(request.getPhone())
+                    // temporary password; will be replaced at verify step
+                    .passwordHash(passwordEncoder.encode(java.util.UUID.randomUUID().toString()))
+                    .role(role)
+                    .status(UserStatus.PENDING_OTP)
+                    .build();
+        } else {
+            // Update existing pending user info
+            user.setFullName(request.getFullName());
+            user.setEmail(request.getEmail());
+            user.setPhone(request.getPhone());
+            user.setRole(role);
+        }
+        
         userRepository.save(user);
 
         // Generate 6-digit OTP

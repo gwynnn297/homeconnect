@@ -1,45 +1,81 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logoHomieConnect from '../assets/LogoHomieConnect.png';
+import ProfileService from '../services/ProfileService';
 import './HeaderComponent.css';
+
+const getInitials = (name) => {
+    if (!name) return '?';
+    return name.split(' ').map((w) => w[0]).filter(Boolean).slice(-2).join('').toUpperCase();
+};
 
 const HeaderComponent = () => {
     const navigate = useNavigate();
     const [showDropdown, setShowDropdown] = useState(false);
     const userInfoRef = useRef(null);
 
-    // Lấy thông tin user từ localStorage (phải dưới cùng của component function)
-    const storedUser = (() => {
+    // Reactive user info state
+    const [userInfo, setUserInfo] = useState(() => {
         try {
-            return JSON.parse(localStorage.getItem('user')) || null;
-        } catch (e) {
-            return null;
-        }
-    })();
-    const storedName = storedUser?.fullName || storedUser?.name || storedUser?.username || storedUser?.email || 'Người dùng';
-    const displayName = storedName;
-    const avatarInitial = (displayName || 'U').trim().charAt(0).toUpperCase();
+            return JSON.parse(localStorage.getItem('user')) || {};
+        } catch { return {}; }
+    });
 
-    const handleHome = () => {
-        navigate("/home");
-    };
+    // Hàm fetch avatar + name từ API — dùng khi mount và khi có 'profile:updated'
+    const fetchUserProfile = useCallback(() => {
+        ProfileService.getMyProfile()
+            .then((res) => {
+                const data = res?.data;
+                if (!data) return;
+                setUserInfo((prev) => ({
+                    ...prev,
+                    fullName: data.fullName || prev.fullName,
+                    avatarUrl: data.avatarUrl ?? prev.avatarUrl,
+                }));
+                // Sync to localStorage
+                try {
+                    const stored = JSON.parse(localStorage.getItem('user') || '{}');
+                    if (data.avatarUrl !== undefined) stored.avatarUrl = data.avatarUrl;
+                    if (data.fullName) stored.fullName = data.fullName;
+                    localStorage.setItem('user', JSON.stringify(stored));
+                } catch { /* ignore */ }
+            })
+            .catch(() => { /* silent fail */ });
+    }, []);
+
+    // Fetch khi mount
+    useEffect(() => { fetchUserProfile(); }, [fetchUserProfile]);
+
+    // Lắng nghe CustomEvent 'profile:updated' từ cùng tab (Profile page dispatch sau khi lưu)
+    useEffect(() => {
+        window.addEventListener('profile:updated', fetchUserProfile);
+        return () => window.removeEventListener('profile:updated', fetchUserProfile);
+    }, [fetchUserProfile]);
+
+    // Lắng nghe storage event từ tab khác
+    useEffect(() => {
+        const onStorage = () => {
+            try {
+                const u = JSON.parse(localStorage.getItem('user') || '{}');
+                setUserInfo(u);
+            } catch { /* ignore */ }
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+    }, []);
+
+    const displayName = userInfo?.fullName || userInfo?.name || userInfo?.username || userInfo?.email || 'Người dùng';
+    const avatarUrl = userInfo?.avatarUrl || null;
+    const avatarInitials = getInitials(displayName);
 
     const handleDashboard = () => {
-        // redirect user to appropriate dashboard based on role
-        if (storedUser?.role === 'ADMIN') {
-            navigate('/admin/dashboard');
-        } else if (storedUser?.role === 'HELPER') {
-            navigate('/helper/dashboard');
-        } else if (storedUser?.role === 'CUSTOMER') {
-            navigate('/customer-dashboard');
-        } else {
-            navigate('/home');
-        }
+        if (userInfo?.role === 'ADMIN') navigate('/admin/dashboard');
+        else if (userInfo?.role === 'HELPER') navigate('/helper/dashboard');
+        else if (userInfo?.role === 'CUSTOMER') navigate('/customer-dashboard');
+        else navigate('/home');
     };
 
-    const toggleDropdown = () => {
-        setShowDropdown(!showDropdown);
-    };
+    const toggleDropdown = () => setShowDropdown((v) => !v);
 
     const handleLogout = () => {
         localStorage.removeItem('user');
@@ -47,28 +83,23 @@ const HeaderComponent = () => {
         navigate('/login');
     };
 
-    // Đóng dropdown khi click bên ngoài
+    // Close dropdown on outside click
     useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (showDropdown && userInfoRef.current && !userInfoRef.current.contains(event.target)) {
+        if (!showDropdown) return;
+        const handleClickOutside = (e) => {
+            if (userInfoRef.current && !userInfoRef.current.contains(e.target)) {
                 setShowDropdown(false);
             }
         };
-
-        if (showDropdown) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showDropdown]);
 
     return (
         <header className="header">
             <div className="logo">
                 <img className="logo-img" src={logoHomieConnect} alt="HomieConnectLogo" />
-            </div>          
+            </div>
 
             <div className="header-user-actions">
                 {/* Notification Bell */}
@@ -81,16 +112,21 @@ const HeaderComponent = () => {
 
                 {/* User Profile */}
                 <div className="user-info" ref={userInfoRef}>
-                    <div className="user-avatar" onClick={() => { navigate('/profile'); setShowDropdown(false); }}>
-                        <span>{avatarInitial}</span>
-                    </div>
-                    <span className="username" onClick={toggleDropdown} style={{ cursor: 'pointer' }}>{displayName}</span>
-                    <button
-                        className="dropdown-toggle"
-                        onClick={toggleDropdown}
-                        aria-label="Toggle user menu"
+                    <div
+                        className="user-avatar"
+                        onClick={() => { navigate('/helper/profile'); setShowDropdown(false); }}
+                        title="Hồ sơ cá nhân"
                     >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        {avatarUrl
+                            ? <img src={avatarUrl} alt="Avatar" className="user-avatar-img" />
+                            : <span>{avatarInitials}</span>
+                        }
+                    </div>
+                    <span className="username" onClick={toggleDropdown} style={{ cursor: 'pointer' }}>
+                        {displayName}
+                    </span>
+                    <button className="dropdown-toggle" onClick={toggleDropdown} aria-label="Toggle user menu">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                             <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                     </button>
@@ -98,15 +134,15 @@ const HeaderComponent = () => {
                     {/* Dropdown Menu */}
                     {showDropdown && (
                         <div className="user-dropdown">
-                            <div className="dropdown-item" onClick={() => { setShowDropdown(false); }}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <div className="dropdown-item" onClick={() => { navigate('/helper/profile'); setShowDropdown(false); }}>
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                     <path d="M8 8C10.21 8 12 6.21 12 4C12 1.79 10.21 0 8 0C5.79 0 4 1.79 4 4C4 6.21 5.79 8 8 8ZM8 10C5.33 10 0 11.34 0 14V16H16V14C16 11.34 10.67 10 8 10Z" fill="currentColor" />
                                 </svg>
                                 Hồ sơ
                             </div>
                             <div className="dropdown-divider"></div>
                             <div className="dropdown-item dropdown-item-danger" onClick={handleLogout}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                     <path d="M6 12H2V2H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                     <path d="M10 9L14 5L10 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                     <path d="M14 5H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -122,3 +158,4 @@ const HeaderComponent = () => {
 };
 
 export default HeaderComponent;
+

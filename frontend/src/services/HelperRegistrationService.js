@@ -21,6 +21,15 @@ const HelperRegistrationService = {
     },
 
     /**
+     * Lấy danh sách phường/xã theo quận
+     * @param {number} districtId - ID của quận/huyện
+     * @returns {Promise<Array>} Danh sách các phường/xã
+     */
+    getWards: async (districtId) => {
+        return await apiClient.get(`${BASE_URL}/wards/${districtId}`);
+    },
+
+    /**
      * Lấy danh sách dịch vụ
      * @returns {Promise<Array>} Danh sách các dịch vụ có sẵn
      */
