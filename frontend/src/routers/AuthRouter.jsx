@@ -6,12 +6,14 @@ import RegisterPage from '../pages/Register/RegisterPage'
 import PrivacyPolicyPage from '../pages/Register/PrivacyPolicyPage'
 import TermsofServicePage from '../pages/Register/TermsofServicePage'
 import CustomerDashboardPage from '../pages/Customer/CustomerDashboardPage'
+import CustomerProfilePage from '../pages/Customer/CustomerProfilePage'
 import HelperDashboardPage from '../pages/Helper/HelperDashboardPage'
 import HelperProfilePage from '../pages/Helper/HelperProfilePage'
 import AdminDashboardPage from '../pages/Admin/AdminDashboardPage'
 import AdminHelpersPage from '../pages/Admin/AdminHelpersPage'
 import AdminHelperDetailPage from '../pages/Admin/AdminHelperDetailPage'
 import AdminNotificationsPage from '../pages/Admin/AdminNotificationsPage'
+import HelperSchedulePage from '../pages/Helper/HelperSchedulePage'
 
 const AuthRouter = () => {
   return (
@@ -24,8 +26,10 @@ const AuthRouter = () => {
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsofServicePage />} />
         <Route path="/customer-dashboard" element={<CustomerDashboardPage />} />
+        <Route path="/customer/profile" element={<CustomerProfilePage />} />
         <Route path="/helper/dashboard" element={<HelperDashboardPage />} />
         <Route path="/helper/profile" element={<HelperProfilePage />} />
+        <Route path="/helper/schedule" element={<HelperSchedulePage />} />
         {/* legacy path kept for compatibility */}
         <Route path="/helper-dashboard" element={<HelperDashboardPage />} />
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />

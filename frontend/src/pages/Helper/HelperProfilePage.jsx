@@ -1020,13 +1020,11 @@ const HelperProfilePage = () => {
             <div className="hpp-page">
                 {/* Page header */}
                 <div className="hpp-page-header">
-                    <div className="hpp-page-header-left">
+                    <div className="hpp-page-header">
                         <h1 className="hpp-page-title">Hồ sơ cá nhân</h1>
                         <p className="hpp-page-subtitle">Quản lý thông tin cá nhân và hồ sơ nghề nghiệp của bạn</p>
                     </div>
-                    {!loadingBasic && basicProfile?.role && (
-                        <span className="hpp-role-tag">{basicProfile.role}</span>
-                    )}
+                    
                 </div>
 
                 {/* Tabs */}

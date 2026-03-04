@@ -1,0 +1,29 @@
+/* CustomerLayout.css */
+.customer-layout-wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.customer-layout-body {
+    display: flex;
+    flex: 1;
+}
+
+.customer-content {
+    flex: 1;
+    padding: 2rem;
+    background-color: #f8fafc;
+    max-width: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .customer-layout-body {
+        flex-direction: column;
+    }
+
+    .customer-content {
+        padding: 1rem;
+    }
+}

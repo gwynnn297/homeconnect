@@ -1,0 +1,294 @@
+.schedule-container {
+    padding: 10px;
+    max-width: 1200px;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #fbfbf9;
+}
+
+.schedule-header {
+    font-size: 28px;
+    font-weight: bold;
+    color: #1b4332;
+    margin-bottom: 32px;
+    text-align: center;
+}
+
+.schedule-filters {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 32px;
+    background-color: #ffffff;
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+}
+
+
+.date-range-picker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    width: 100%;
+}
+
+.date-input-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.date-input-group label {
+    color: #1b4332;
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.date-input-group input {
+    padding: 10px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
+    font-size: 14px;
+    color: #334155;
+    transition: border-color 0.2s;
+}
+
+.date-input-group input:focus {
+    border-color: #1b4332;
+}
+
+.info-banner {
+    background-color: #edf5f0;
+    padding: 20px 32px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 40px;
+    color: #1b4332;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.info-banner:hover {
+    transform: translateY(-2px);
+}
+
+.banner-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.banner-icon {
+    width: 24px;
+    height: 24px;
+    background-color: #cbd5e1;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1b4332;
+    font-weight: bold;
+    background-color: #cbe6d8;
+}
+
+.banner-title {
+    font-weight: 600;
+    font-size: 18px;
+    margin: 0;
+}
+
+.banner-subtitle {
+    font-size: 15px;
+    color: #64748b;
+    margin: 4px 0 0 0;
+}
+
+.banner-arrow {
+    color: #1b4332;
+    font-weight: bold;
+    font-size: 20px;
+}
+
+.section-title {
+    font-size: 20px;
+    font-weight: bold;
+    color: #1b4332;
+    margin-bottom: 20px;
+}
+
+.days-overview-container {
+    margin-bottom: 40px;
+}
+
+.days-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 16px;
+}
+
+.day-item {
+    padding: 16px 12px;
+    border-radius: 16px;
+    border: 2px solid transparent;
+    text-align: center;
+    background-color: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.day-item:hover {
+    border-color: #e2e8f0;
+}
+
+.day-item.active {
+    border-color: #1b4332;
+    background-color: #fdfdfd;
+}
+
+.day-name {
+    font-size: 15px;
+    color: #64748b;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.day-date {
+    font-size: 22px;
+    font-weight: bold;
+    color: #334155;
+}
+
+.day-item.active .day-name,
+.day-item.active .day-date {
+    color: #1b4332;
+}
+
+.schedule-details {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.day-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    overflow: hidden;
+    background-color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.day-card-header {
+    background-color: #edf5f0;
+    padding: 20px 24px;
+    color: #1b4332;
+    font-weight: 700;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid #dcfce7;
+}
+
+.header-icon {
+    font-size: 20px;
+}
+
+.shift-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.shift-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background-color 0.2s;
+}
+
+.shift-item:hover {
+    background-color: #f8fafc;
+}
+
+.shift-item:last-child {
+    border-bottom: none;
+}
+
+.shift-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-top: 6px;
+}
+
+.status-dot.committed {
+    background-color: #1b4332;
+}
+
+.status-dot.unregistered {
+    background-color: #94a3b8;
+}
+
+.status-dot.accepted {
+    background-color: #fbbd23;
+}
+
+.shift-time-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.shift-time {
+    font-weight: 700;
+    font-size: 18px;
+    color: #334155;
+    margin-bottom: 4px;
+}
+
+.shift-status-text {
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.shift-status-text.committed {
+    color: #1b4332;
+}
+
+.shift-status-text.unregistered {
+    color: #94a3b8;
+}
+
+.shift-status-text.accepted {
+    color: #f59e0b;
+}
+
+.shift-action {
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    font-size: 24px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.shift-action:hover {
+    background-color: #f1f5f9;
+    color: #334155;
+}
