@@ -2,7 +2,13 @@ package com.homeconnect.core.service;
 
 import com.homeconnect.core.dto.request.BroadcastNotificationRequest;
 import com.homeconnect.core.dto.request.HelperReviewRequest;
+import com.homeconnect.core.dto.request.admin.CreateCategoryRequest;
+import com.homeconnect.core.dto.request.admin.CreateServiceRequest;
+import com.homeconnect.core.dto.request.admin.UpdateCategoryRequest;
+import com.homeconnect.core.dto.request.admin.UpdateServiceRequest;
 import com.homeconnect.core.dto.response.*;
+import com.homeconnect.core.dto.response.admin.ServiceCategoryResponse;
+import com.homeconnect.core.dto.response.admin.ServiceResponse;
 import com.homeconnect.core.entity.*;
 import com.homeconnect.core.enums.KycStatus;
 import com.homeconnect.core.enums.UserRole;
@@ -20,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.math.BigDecimal;
 
 /**
  * AdminService - Xử lý các chức năng Admin liên quan Helper
@@ -29,12 +36,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class AdminService {
+    // Giá tối thiểu cho phép để tránh lỗi nhập liệu (VD: 20,000 VNĐ)
+    private static final BigDecimal MIN_SERVICE_PRICE = new BigDecimal("20000");
 
     private final UserRepository userRepository;
     private final HelperProfileRepository helperProfileRepository;
     private final HelperServiceRepository helperServiceRepository;
     private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
     private final ServiceRepository serviceRepository;
+    private final ServiceCategoryRepository serviceCategoryRepository;
     private final LocationRepository locationRepository;
     private final AddressRepository addressRepository;
     private final EmailService emailService;
@@ -386,6 +396,263 @@ public class AdminService {
                 .totalRecipients(totalRecipients)
                 .successCount(successCount)
                 .failureCount(failureCount)
+                .build();
+    }
+
+    /**
+     * BE-Admin-01: Lấy danh sách danh mục dịch vụ
+     * Dùng cho Admin chọn khi tạo mới Service
+     */
+    @Transactional(readOnly = true)
+    public List<ServiceCategoryResponse> getServiceCategories() {
+        return serviceCategoryRepository.findAll().stream()
+                .filter(ServiceCategory::getIsActive)
+                .map(cat -> ServiceCategoryResponse.builder()
+                        .categoryId(cat.getCategoryId())
+                        .name(cat.getName())
+                        .iconUrl(cat.getIconUrl())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * BE-Admin-01: Tạo Danh mục lớn cùng với các dịch vụ nhỏ (nếu có)
+     */
+    @Transactional
+    public ServiceCategoryResponse createCategoryWithServices(CreateCategoryRequest request) {
+        // 1. Kiểm tra tên danh mục duy nhất
+        if (serviceCategoryRepository.existsByName(request.getName())) {
+            throw new BadRequestException("Tên danh mục '" + request.getName() + "' đã tồn tại");
+        }
+
+        // 2. Tạo Category
+        ServiceCategory category = serviceCategoryRepository.save(ServiceCategory.builder()
+                .name(request.getName())
+                .iconUrl(request.getIconUrl())
+                .isActive(true)
+                .build());
+
+        // 3. Kiểm tra trùng lặp dịch vụ (trong Request và trong DB)
+        if (request.getServices() != null && !request.getServices().isEmpty()) {
+            // Kiểm tra trùng lặp ngay trong chính danh sách gửi lên
+            java.util.Set<String> serviceNamesInRequest = new java.util.HashSet<>();
+            for (var item : request.getServices()) {
+                if (!serviceNamesInRequest.add(item.getName().toLowerCase())) {
+                    throw new BadRequestException("Tên dịch vụ '" + item.getName() + "' bị trùng lặp trong danh sách gửi lên");
+                }
+                
+                if (serviceRepository.existsByName(item.getName())) {
+                    throw new BadRequestException("Dịch vụ '" + item.getName() + "' đã tồn tại trong hệ thống");
+                }
+
+                validateServicePrice(item.getBasePrice());
+            }
+
+            // 4. Lưu các dịch vụ nhỏ
+            for (var item : request.getServices()) {
+                serviceRepository.save(com.homeconnect.core.entity.Service.builder()
+                        .category(category)
+                        .name(item.getName())
+                        .basePrice(item.getBasePrice())
+                        .unit(item.getUnit())
+                        .iconUrl(item.getIconUrl())
+                        .description(item.getDescription())
+                        .isActive(item.getIsActive() == null || item.getIsActive())
+                        .build());
+            }
+        }
+
+        return ServiceCategoryResponse.builder()
+                .categoryId(category.getCategoryId())
+                .name(category.getName())
+                .iconUrl(category.getIconUrl())
+                .build();
+    }
+
+    /**
+     * BE-Admin-01: Cập nhật thông tin danh mục lớn
+     */
+    @Transactional
+    public ServiceCategoryResponse updateCategory(Integer id, UpdateCategoryRequest request) {
+        ServiceCategory category = serviceCategoryRepository.findById(id)
+                .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại"));
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            if (!category.getName().equals(request.getName()) && serviceCategoryRepository.existsByName(request.getName())) {
+                throw new BadRequestException("Tên danh mục đã tồn tại");
+            }
+            category.setName(request.getName());
+        }
+
+        if (request.getIconUrl() != null) {
+            category.setIconUrl(request.getIconUrl());
+        }
+
+        if (request.getIsActive() != null) {
+            category.setIsActive(request.getIsActive());
+        }
+
+        serviceCategoryRepository.save(category);
+
+        return ServiceCategoryResponse.builder()
+                .categoryId(category.getCategoryId())
+                .name(category.getName())
+                .iconUrl(category.getIconUrl())
+                .build();
+    }
+
+    /**
+     * BE-Admin-01: Xóa danh mục lớn
+     * Lưu ý: Trong thực tế thường dùng Soft Delete (is_active = false)
+     * Nhưng ở đây triển khai Hard Delete theo yêu cầu quản trị.
+     */
+    @Transactional
+    public void deleteCategory(Integer id) {
+        ServiceCategory category = serviceCategoryRepository.findById(id)
+                .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại"));
+        
+        // Nhờ CascadeType.ALL và orphanRemoval=true, các service con sẽ tự động bị xóa
+        serviceCategoryRepository.delete(category);
+    }
+
+    /**
+     * BE-Admin-01: Lấy danh sách dịch vụ nhỏ trong một danh mục lớn
+     */
+    @Transactional(readOnly = true)
+    public List<ServiceResponse> getServicesByCategory(Integer categoryId) {
+        if (!serviceCategoryRepository.existsById(categoryId)) {
+            throw new BadRequestException("Danh mục ID " + categoryId + " không tồn tại");
+        }
+        return serviceRepository.findByCategoryCategoryId(categoryId).stream()
+                .map(this::mapToServiceResponse)
+                .collect(Collectors.toList());
+    }
+
+    private ServiceResponse mapToServiceResponse(com.homeconnect.core.entity.Service service) {
+        return ServiceResponse.builder()
+                .serviceId(service.getServiceId())
+                .name(service.getName())
+                .categoryId(service.getCategory().getCategoryId())
+                .description(service.getDescription())
+                .iconUrl(service.getIconUrl())
+                .basePrice(service.getBasePrice())
+                .unit(service.getUnit())
+                .isActive(service.getIsActive())
+                .createdAt(service.getCreatedAt())
+                .updatedAt(service.getUpdatedAt())
+                .build();
+    }
+
+    /**
+     * BE-Admin-01: Xóa dịch vụ nhỏ
+     */
+    @Transactional
+    public void deleteService(Integer id) {
+        if (!serviceRepository.existsById(id)) {
+            throw new BadRequestException("Dịch vụ không tồn tại");
+        }
+        serviceRepository.deleteById(id);
+    }
+
+    private void validateServicePrice(BigDecimal price) {
+        if (price != null && price.compareTo(MIN_SERVICE_PRICE) < 0) {
+            throw new BadRequestException("Giá dịch vụ quá thấp (Tối thiểu phải từ " + 
+                String.format("%,d", MIN_SERVICE_PRICE.longValue()) + " VNĐ). Vui lòng kiểm tra lại!");
+        }
+    }
+    /**
+     * BE-Admin-01: Lấy thông tin chi tiết của một dịch vụ lẻ
+     */
+    @Transactional(readOnly = true)
+    public ServiceResponse getServiceDetail(Integer serviceId) {
+        com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
+                .orElseThrow(() -> new BadRequestException("Dịch vụ ID " + serviceId + " không tồn tại"));
+        return mapToServiceResponse(service);
+    }
+
+    /**
+     * BE-Admin-01: Cập nhật thông tin dịch vụ (Patch)
+     */
+    @Transactional
+    public ServiceResponse updateService(Integer serviceId, UpdateServiceRequest request) {
+        com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
+                .orElseThrow(() -> new BadRequestException("Dịch vụ ID " + serviceId + " không tồn tại"));
+
+        if (request.getName() != null && !request.getName().equals(service.getName())) {
+            if (serviceRepository.existsByName(request.getName())) {
+                throw new BadRequestException("Tên dịch vụ '" + request.getName() + "' đã tồn tại");
+            }
+            service.setName(request.getName());
+        }
+
+        if (request.getBasePrice() != null) {
+            validateServicePrice(request.getBasePrice());
+            service.setBasePrice(request.getBasePrice());
+        }
+
+        if (request.getUnit() != null) {
+            service.setUnit(request.getUnit());
+        }
+
+        if (request.getIconUrl() != null) {
+            service.setIconUrl(request.getIconUrl());
+        }
+
+        if (request.getDescription() != null) {
+            service.setDescription(request.getDescription());
+        }
+
+        if (request.getIsActive() != null) {
+            service.setIsActive(request.getIsActive());
+        }
+
+        return mapToServiceResponse(serviceRepository.save(service));
+    }
+
+    /**
+     * BE-Admin-01: Manage Service & Price
+     * Tạo mới dịch vụ và giá sàn
+     */
+    @Transactional
+    public ServiceResponse createService(CreateServiceRequest request) {
+        // 1. Kiểm tra tên dịch vụ duy nhất
+        if (serviceRepository.existsByName(request.getName())) {
+            throw new BadRequestException("Tên dịch vụ '" + request.getName() + "' đã tồn tại");
+        }
+
+        validateServicePrice(request.getBasePrice());
+
+        // 2. Tìm danh mục dịch vụ
+        ServiceCategory category = serviceCategoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy danh mục dịch vụ với ID: " + request.getCategoryId()));
+
+        // 3. Map DTO sang Entity
+        com.homeconnect.core.entity.Service service = com.homeconnect.core.entity.Service.builder()
+                .name(request.getName())
+                .category(category)
+                .description(request.getDescription())
+                .iconUrl(request.getIconUrl())
+                .basePrice(request.getBasePrice())
+                .unit(request.getUnit())
+                .isActive(request.getIsActive() == null || request.getIsActive())
+                .build();
+
+        // 4. Lưu entity
+        service = serviceRepository.save(service);
+
+        log.info("Admin đã tạo mới dịch vụ: {} (ID: {})", service.getName(), service.getServiceId());
+
+        // 5. Trả về response
+        return ServiceResponse.builder()
+                .serviceId(service.getServiceId())
+                .name(service.getName())
+                .description(service.getDescription())
+                .iconUrl(service.getIconUrl())
+                .basePrice(service.getBasePrice())
+                .unit(service.getUnit())
+                .categoryName(category.getName())
+                .isActive(service.getIsActive())
+                .createdAt(service.getCreatedAt())
                 .build();
     }
 

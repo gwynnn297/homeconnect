@@ -2,9 +2,17 @@ package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.BroadcastNotificationRequest;
 import com.homeconnect.core.dto.request.HelperReviewRequest;
+import com.homeconnect.core.dto.request.admin.CreateCategoryRequest;
+import com.homeconnect.core.dto.request.admin.CreateServiceRequest;
+import com.homeconnect.core.dto.request.admin.UpdateCategoryRequest;
+import com.homeconnect.core.dto.request.admin.UpdateServiceRequest;
 import com.homeconnect.core.dto.response.*;
+import com.homeconnect.core.dto.response.admin.ServiceCategoryResponse;
+import com.homeconnect.core.dto.response.admin.ServiceResponse;
 import com.homeconnect.core.enums.KycStatus;
 import com.homeconnect.core.service.AdminService;
+
+import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -110,5 +118,140 @@ public class AdminController {
 
         BroadcastNotificationResponse response = adminService.broadcastNotification(request);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * GET /api/v1/admin/service-categories
+     * BE-Admin-01: Lấy danh sách danh mục dịch vụ để Admin lựa chọn
+     */
+    @Operation(summary = "Danh sách danh mục dịch vụ", description = "Lấy danh sách các nhóm dịch vụ (Vệ sinh, Sửa chữa...)")
+    @GetMapping("/service-categories")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<ServiceCategoryResponse>>> getServiceCategories() {
+        List<ServiceCategoryResponse> response = adminService.getServiceCategories();
+        return ResponseEntity.ok(ApiResponse.<List<ServiceCategoryResponse>>builder()
+                .message("Lấy danh sách danh mục thành công")
+                .data(response)
+                .build());
+    }
+
+    /**
+     * POST /api/v1/admin/service-categories
+     * BE-Admin-01: Admin thêm mục lớn (Category) và các dịch vụ nhỏ bên trong
+     */
+    @Operation(summary = "Tạo Danh mục & Dịch vụ", description = "Admin thêm danh mục lớn kèm danh sách các dịch vụ con bên trong")
+    @PostMapping("/service-categories")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<ServiceCategoryResponse>> createCategory(
+            @Valid @RequestBody CreateCategoryRequest request) {
+        return ResponseEntity.status(201)
+                .body(ApiResponse.<ServiceCategoryResponse>builder()
+                        .message("Tạo danh mục và dịch vụ thành công")
+                        .data(adminService.createCategoryWithServices(request))
+                        .build());
+    }
+
+    @Operation(summary = "Cập nhật danh mục dịch vụ", description = "Admin cập nhật thông tin của một danh mục dịch vụ")
+    @PatchMapping("/service-categories/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<ServiceCategoryResponse>> updateCategory(
+            @PathVariable Integer id,
+            @Valid @RequestBody UpdateCategoryRequest request) {
+        return ResponseEntity.ok(ApiResponse.<ServiceCategoryResponse>builder()
+                .message("Cập nhật danh mục thành công")
+                .data(adminService.updateCategory(id, request))
+                .build());
+    }
+
+    @Operation(summary = "Xóa danh mục dịch vụ", description = "Admin xóa một danh mục dịch vụ")
+    @DeleteMapping("/service-categories/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deleteCategory(@PathVariable Integer id) {
+        adminService.deleteCategory(id);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Xóa danh mục thành công")
+                .build());
+    }
+
+    /**
+     * GET /api/v1/admin/service-categories/{categoryId}/services
+     * BE-Admin-01: Liệt kê các dịch vụ nhỏ thuộc một danh mục lớn
+     */
+    @Operation(summary = "Danh sách dịch vụ theo danh mục", description = "Lấy toàn bộ dịch vụ nhỏ thuộc một danh mục cụ thể")
+    @GetMapping("/service-categories/{categoryId}/services")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<List<ServiceResponse>>> getServicesByCategory(
+            @PathVariable Integer categoryId) {
+        
+        List<ServiceResponse> response = adminService.getServicesByCategory(categoryId);
+        return ResponseEntity.ok(ApiResponse.<List<ServiceResponse>>builder()
+                .message("Lấy danh sách dịch vụ thành công")
+                .data(response)
+                .build());
+    }
+
+    /**
+     * POST /api/v1/admin/services
+     * BE-Admin-01: Tạo mới dịch vụ hệ thống
+     */
+    @Operation(summary = "Tạo mới dịch vụ hệ thống", description = "Admin thêm dịch vụ mới, quy định đơn vị tính và giá cơ bản")
+    @PostMapping("/services")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<ServiceResponse>> createService(
+            @Valid @RequestBody CreateServiceRequest request) {
+
+        ServiceResponse response = adminService.createService(request);
+
+        return ResponseEntity.status(201)
+                .body(ApiResponse.<ServiceResponse>builder()
+                        .message("Tạo danh mục dịch vụ mới thành công")
+                        .data(response)
+                        .build());
+    }
+
+    /**
+     * GET /api/v1/admin/services/{serviceId}
+     * BE-Admin-01: Xem chi tiết cấu hình của một dịch vụ lẻ
+     */
+    @Operation(summary = "Chi tiết dịch vụ", description = "Xem cấu hình chi tiết (giá, đơn vị, trạng thái) của một dịch vụ")
+    @GetMapping("/services/{serviceId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<ServiceResponse>> getServiceDetail(
+            @PathVariable Integer serviceId) {
+
+        ServiceResponse response = adminService.getServiceDetail(serviceId);
+        return ResponseEntity.ok(ApiResponse.<ServiceResponse>builder()
+                .message("Lấy thông tin dịch vụ thành công")
+                .data(response)
+                .build());
+    }
+
+    /**
+     * PATCH /api/v1/admin/services/{serviceId}
+     * BE-Admin-01: Cập nhật thông tin dịch vụ (Giá sàn, Tên, Trạng thái...)
+     */
+    @Operation(summary = "Cập nhật dịch vụ", description = "Admin thay đổi giá sàn, đơn vị tính hoặc bật/tắt dịch vụ")
+    @PatchMapping("/services/{serviceId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<ServiceResponse>> updateService(
+            @PathVariable Integer serviceId,
+            @Valid @RequestBody UpdateServiceRequest request) {
+
+        ServiceResponse response = adminService.updateService(serviceId, request);
+
+        return ResponseEntity.ok(ApiResponse.<ServiceResponse>builder()
+                .message("Cập nhật dịch vụ thành công")
+                .data(response)
+                .build());
+    }
+
+    @Operation(summary = "Xóa dịch vụ nhỏ", description = "Admin xóa một dịch vụ khỏi hệ thống")
+    @DeleteMapping("/services/{serviceId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deleteService(@PathVariable Integer serviceId) {
+        adminService.deleteService(serviceId);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Xóa dịch vụ thành công")
+                .build());
     }
 }
