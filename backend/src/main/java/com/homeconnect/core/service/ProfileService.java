@@ -7,7 +7,6 @@ import com.homeconnect.core.dto.response.profile.LocationResponse;
 import com.homeconnect.core.dto.response.profile.ServiceSimpleResponse;
 import com.homeconnect.core.dto.response.profile.UserProfileResponse;
 import com.homeconnect.core.entity.*;
-import com.homeconnect.core.enums.LocationType;
 import com.homeconnect.core.exception.ApiException;
 import com.homeconnect.core.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -28,11 +27,13 @@ public class ProfileService {
 
     private final UserRepository userRepository;
     private final HelperProfileRepository helperProfileRepository;
-    private final LocationRepository locationRepository;
     private final ServiceRepository serviceRepository;
     private final HelperServiceRepository helperServiceRepository;
     private final AddressRepository addressRepository;
     private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
+
+    private final ExternalLocationService externalLocationService;
+    private final GeocodingService geocodingService;
 
     private static final Pattern PHONE_PATTERN = Pattern.compile(".*\\d{8,}.*");
 
@@ -69,40 +70,26 @@ public class ProfileService {
                         .build());
         
         address.setAddressDetail(request.getAddressDetail());
-        
-        // Validation phân cấp địa chỉ
-        if (request.getProvinceId() != null) {
-            Location province = locationRepository.findById(request.getProvinceId())
-                    .orElseThrow(() -> new ApiException("Tỉnh/Thành phố không tồn tại", HttpStatus.BAD_REQUEST));
-            if (province.getType() != com.homeconnect.core.enums.LocationType.PROVINCE) {
-                throw new ApiException("ID Tỉnh/Thành phố không đúng loại", HttpStatus.BAD_REQUEST);
-            }
-            address.setProvince(province);
+        address.setWardName(request.getWardName());
+        address.setDistrictName(request.getDistrictName());
+        address.setProvinceName(request.getProvinceName());
 
-            if (request.getDistrictId() != null) {
-                Location district = locationRepository.findById(request.getDistrictId())
-                        .orElseThrow(() -> new ApiException("Quận/Huyện không tồn tại", HttpStatus.BAD_REQUEST));
-                if (district.getParent() == null || !district.getParent().getLocationId().equals(province.getLocationId())) {
-                    throw new ApiException("Quận/Huyện không thuộc Tỉnh/Thành phố đã chọn", HttpStatus.BAD_REQUEST);
-                }
-                if (district.getType() != com.homeconnect.core.enums.LocationType.DISTRICT) {
-                    throw new ApiException("ID Quận/Huyện không đúng loại", HttpStatus.BAD_REQUEST);
-                }
-                address.setDistrict(district);
-
-                if (request.getWardId() != null) {
-                    Location ward = locationRepository.findById(request.getWardId())
-                            .orElseThrow(() -> new ApiException("Phường/Xã không tồn tại", HttpStatus.BAD_REQUEST));
-                    if (ward.getParent() == null || !ward.getParent().getLocationId().equals(district.getLocationId())) {
-                        throw new ApiException("Phường/Xã không thuộc Quận/Huyện đã chọn", HttpStatus.BAD_REQUEST);
-                    }
-                    address.setWard(ward);
-                }
-            } else if (request.getWardId() != null) {
-                throw new ApiException("Cần chọn Quận/Huyện trước khi chọn Phường/Xã", HttpStatus.BAD_REQUEST);
+        // Tích hợp Geocoding (Nominatim)
+        if (request.getAddressDetail() != null && request.getProvinceName() != null) {
+            try {
+                GeocodingService.GeoResult geo = geocodingService.geocode(
+                        request.getAddressDetail(),
+                        request.getWardName(),
+                        request.getDistrictName(),
+                        request.getProvinceName()
+                );
+                address.setLatitude(geo.getLatitude());
+                address.setLongitude(geo.getLongitude());
+            } catch (Exception e) {
+                log.error("Geocoding failed for profile update of user {}: {}", user.getEmail(), e.getMessage());
+                // Quy tắc: Nếu geocode fail thì reject request
+                throw new ApiException("Không thể định vị địa chỉ này. Vui lòng kiểm tra lại.", HttpStatus.BAD_REQUEST);
             }
-        } else if (request.getDistrictId() != null || request.getWardId() != null) {
-            throw new ApiException("Cần chọn Tỉnh/Thành phố trước", HttpStatus.BAD_REQUEST);
         }
 
         if (request.getAddressLabel() != null) {
@@ -111,7 +98,7 @@ public class ProfileService {
         
         addressRepository.save(address);
         
-        log.info("Updated common profile and address for user: {}", user.getEmail());
+        log.info("Updated common profile and geocoded address for user: {}", user.getEmail());
         return mapToUserResponse(savedUser, address);
     }
 
@@ -161,23 +148,25 @@ public class ProfileService {
         }
         
         // 3. Update Hometown
-        if (request.getHometownId() != null) {
-            Location hometown = locationRepository.findById(request.getHometownId())
-                    .orElseThrow(() -> new ApiException("Mã tỉnh thành quê quán không hợp lệ", HttpStatus.BAD_REQUEST));
-            profile.setHometown(hometown);
+        if (request.getHometownName() != null) {
+            profile.setHometownName(request.getHometownName());
         }
 
         // 4. Update Working Districts
-        if (request.getWorkingDistrictIds() != null) {
+        if (request.getWorkingDistricts() != null) {
             helperWorkingDistrictRepository.deleteByHelper_Id(user.getId());
             helperWorkingDistrictRepository.flush();
             
-            for (Integer districtId : new java.util.HashSet<>(request.getWorkingDistrictIds())) {
-                Location district = locationRepository.findById(districtId)
-                        .orElseThrow(() -> new ApiException("Quận/Huyện không hợp lệ: " + districtId, HttpStatus.BAD_REQUEST));
+            for (HelperProfessionalProfileRequest.WorkingDistrictRequest wdReq : request.getWorkingDistricts()) {
+                // Backend Validate districtCode
+                if (!externalLocationService.validateDistrict(wdReq.getCode(), wdReq.getName())) {
+                    throw new ApiException(" Quận/Huyện không hợp lệ: " + wdReq.getName(), HttpStatus.BAD_REQUEST);
+                }
+                
                 helperWorkingDistrictRepository.save(HelperWorkingDistrict.builder()
                         .helper(user)
-                        .location(district)
+                        .districtName(wdReq.getName())
+                        .districtCode(wdReq.getCode())
                         .build());
             }
         }
@@ -225,9 +214,9 @@ public class ProfileService {
                 .gender(user.getGender())
                 .status(user.getStatus() != null ? user.getStatus().name() : null)
                 .addressDetail(address != null ? address.getAddressDetail() : null)
-                .provinceName(address != null && address.getProvince() != null ? address.getProvince().getName() : null)
-                .districtName(address != null && address.getDistrict() != null ? address.getDistrict().getName() : null)
-                .wardName(address != null && address.getWard() != null ? address.getWard().getName() : null)
+                .provinceName(address != null ? address.getProvinceName() : null)
+                .districtName(address != null ? address.getDistrictName() : null)
+                .wardName(address != null ? address.getWardName() : null)
                 .addressLabel(address != null ? address.getType() : null)
                 .build();
     }
@@ -237,8 +226,7 @@ public class ProfileService {
                 .bio(profile.getBio())
                 .dateOfBirth(profile.getUser().getDateOfBirth())
                 .experienceYears(profile.getExperienceYears())
-                .hometownId(profile.getHometown() != null ? profile.getHometown().getLocationId() : null)
-                .hometownName(profile.getHometown() != null ? profile.getHometown().getName() : null)
+                .hometownName(profile.getHometownName())
                 .kycStatus(profile.getKycStatus() != null ? profile.getKycStatus().name() : null)
                 .isOnline(profile.getIsOnline())
                 .ratingAverage(profile.getRatingAverage())
@@ -251,9 +239,9 @@ public class ProfileService {
     private List<LocationResponse> getWorkingDistrictsForHelper(Long userId) {
         return helperWorkingDistrictRepository.findByHelper_Id(userId).stream()
                 .map(wd -> LocationResponse.builder()
-                        .id(wd.getLocation().getLocationId())
-                        .name(wd.getLocation().getName())
-                        .type(wd.getLocation().getType() != null ? wd.getLocation().getType().name() : null)
+                        .name(wd.getDistrictName())
+                        .code(wd.getDistrictCode())
+                        .type("DISTRICT")
                         .build())
                 .collect(Collectors.toList());
     }
@@ -265,36 +253,6 @@ public class ProfileService {
                         .name(hs.getService().getName())
                         .build())
                 .collect(Collectors.toList());
-    }
-
-    // ========== LOCATION APIs (PB-20) ==========
-
-    public List<LocationResponse> getProvinces() {
-        return locationRepository.findByType(LocationType.PROVINCE).stream()
-                .map(this::mapToLocationResponse)
-                .collect(Collectors.toList());
-    }
-
-    public List<LocationResponse> getDistricts(Integer provinceId) {
-        return locationRepository.findByParent_LocationId(provinceId).stream()
-                .filter(l -> l.getType() == LocationType.DISTRICT)
-                .map(this::mapToLocationResponse)
-                .collect(Collectors.toList());
-    }
-
-    public List<LocationResponse> getWards(Integer districtId) {
-        return locationRepository.findByParent_LocationId(districtId).stream()
-                .filter(l -> l.getType() == LocationType.WARD)
-                .map(this::mapToLocationResponse)
-                .collect(Collectors.toList());
-    }
-
-    private LocationResponse mapToLocationResponse(Location location) {
-        return LocationResponse.builder()
-                .id(location.getLocationId())
-                .name(location.getName())
-                .type(location.getType().name())
-                .build();
     }
 
     public List<com.homeconnect.core.dto.response.profile.ServiceResponse> getActiveServices() {
@@ -315,5 +273,19 @@ public class ProfileService {
                 .basePrice(service.getBasePrice())
                 .unit(service.getUnit() != null ? service.getUnit().name() : null)
                 .build();
+    }
+
+    // --- External Location Service Proxies ---
+
+    public java.util.List<java.util.Map<String, Object>> getProvinces() {
+        return externalLocationService.getProvinces();
+    }
+
+    public java.util.Map<String, Object> getDistricts(String provinceCode) {
+        return externalLocationService.getDistrictsByProvince(provinceCode);
+    }
+
+    public java.util.Map<String, Object> getWards(String districtCode) {
+        return externalLocationService.getWardsByDistrict(districtCode);
     }
 }

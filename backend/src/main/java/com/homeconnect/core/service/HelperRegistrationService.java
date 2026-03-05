@@ -27,9 +27,11 @@ public class HelperRegistrationService {
     private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
     private final UserRepository userRepository;
     private final HelperProfileRepository helperProfileRepository;
-    private final LocationRepository locationRepository;
     private final ServiceRepository serviceRepository;
     private final AddressRepository addressRepository;
+
+    private final ExternalLocationService externalLocationService;
+    private final GeocodingService geocodingService;
 
     @Transactional
     public void registerStage1(String email, HelperRegistrationStage1Request request) {
@@ -48,8 +50,6 @@ public class HelperRegistrationService {
             throw new RuntimeException("Helper phải từ 18 tuổi trở lên");
         }
 
-        // Kiểm tra tính hợp lệ của kinh nghiệm (Ví dụ: 20 tuổi không thể có 10 năm kinh nghiệm chuyên nghiệp)
-        // Giả sử bắt đầu làm việc sớm nhất từ năm 15 tuổi.
         if (request.getExperienceYears() > (age - 15)) {
             throw new RuntimeException("Số năm kinh nghiệm không hợp lệ so với tuổi của bạn");
         }
@@ -60,43 +60,11 @@ public class HelperRegistrationService {
             draft = new RegistrationDraft();
         }
 
-        // Kiểm tra tính hợp lệ của Quê quán
-        Location hometown = locationRepository.findById(request.getHometownId())
-                .orElseThrow(() -> new RuntimeException("Mã tỉnh thành quê quán không hợp lệ"));
-        if (hometown.getType() != com.homeconnect.core.enums.LocationType.PROVINCE) {
-            throw new RuntimeException("Quê quán phải là Tỉnh/Thành phố");
-        }
 
-        // Kiểm tra tính hợp lệ của Tỉnh/Thành phố hiện tại
-        Location province = locationRepository.findById(request.getProvinceId())
-                .orElseThrow(() -> new RuntimeException("Tỉnh/Thành phố hiện tại không hợp lệ"));
-        if (province.getType() != com.homeconnect.core.enums.LocationType.PROVINCE) {
-            throw new RuntimeException("ID Tỉnh/Thành phố hiện tại không đúng loại");
-        }
-
-        // Kiểm tra Quận/Huyện hiện tại
-        Location district = locationRepository.findById(request.getDistrictId())
-                .orElseThrow(() -> new RuntimeException("Quận/Huyện hiện tại không hợp lệ"));
-        if (district.getParent() == null || !district.getParent().getLocationId().equals(province.getLocationId())) {
-            throw new RuntimeException("Quận/Huyện chọn không thuộc Tỉnh/Thành phố đã chọn");
-        }
-        if (district.getType() != com.homeconnect.core.enums.LocationType.DISTRICT) {
-            throw new RuntimeException("ID Quận/Huyện hiện tại không đúng loại");
-        }
-
-        // Kiểm tra Phường/Xã hiện tại
-        Location ward = locationRepository.findById(request.getWardId())
-                .orElseThrow(() -> new RuntimeException(" Phường/Xã hiện tại không hợp lệ"));
-        if (ward.getParent() == null || !ward.getParent().getLocationId().equals(district.getLocationId())) {
-            throw new RuntimeException("Phường/Xã chọn không thuộc Quận/Huyện đã chọn");
-        }
-
-        // Kiểm tra danh sách Quận làm việc (Phải thuộc cùng Tỉnh với địa chỉ hiện tại)
-        for (Integer dId : request.getWorkingDistrictIds()) {
-            Location workingDistrict = locationRepository.findById(dId)
-                    .orElseThrow(() -> new RuntimeException("Quận/Huyện làm việc không hợp lệ: " + dId));
-            if (workingDistrict.getParent() == null || !workingDistrict.getParent().getLocationId().equals(province.getLocationId())) {
-                throw new RuntimeException("Quận làm việc " + workingDistrict.getName() + " không thuộc Tỉnh/Thành phố hiện tại");
+        // Kiểm tra danh sách Quận làm việc
+        for (com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest.WorkingDistrictRequest wdReq : request.getWorkingDistricts()) {
+            if (!externalLocationService.validateDistrict(wdReq.getCode(), wdReq.getName())) {
+                throw new RuntimeException("Quận/Huyện làm việc không hợp lệ: " + wdReq.getName());
             }
         }
 
@@ -109,12 +77,12 @@ public class HelperRegistrationService {
 
         // Update draft với Stage 1 data
         draft.setDateOfBirth(request.getDateOfBirth());
-        draft.setHometownId(request.getHometownId());
-        draft.setProvinceId(request.getProvinceId());
-        draft.setDistrictId(request.getDistrictId());
-        draft.setWardId(request.getWardId());
+        draft.setHometownName(request.getHometownName());
+        draft.setProvinceName(request.getProvinceName());
+        draft.setDistrictName(request.getDistrictName());
+        draft.setWardName(request.getWardName());
         draft.setCurrentAddress(request.getCurrentAddress());
-        draft.setWorkingDistrictIds(request.getWorkingDistrictIds());
+        draft.setWorkingDistricts(request.getWorkingDistricts());
         draft.setBio(request.getBio());
         draft.setExperienceYears(request.getExperienceYears());
         draft.setServiceIds(request.getServiceIds());
@@ -181,20 +149,16 @@ public class HelperRegistrationService {
         profile.setIdentityBackUrl(draft.getCccdBackUrl());
         profile.setSelfieUrl(draft.getSelfieUrl());
         profile.setKycStatus(KycStatus.WAITING_APPROVAL);
-
-        Location hometown = locationRepository.findById(draft.getHometownId())
-                .orElseThrow(() -> new RuntimeException("Quê quán không hợp lệ"));
-        profile.setHometown(hometown);
+        profile.setHometownName(draft.getHometownName());
 
         // 2. Lưu Working Districts
         helperWorkingDistrictRepository.deleteByHelper_Id(user.getId());
         helperWorkingDistrictRepository.flush();
-        for (Integer districtId : new java.util.HashSet<>(draft.getWorkingDistrictIds())) {
-            Location district = locationRepository.findById(districtId)
-                    .orElseThrow(() -> new RuntimeException("Quận/Huyện không hợp lệ: " + districtId));
+        for (com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest.WorkingDistrictRequest wdReq : draft.getWorkingDistricts()) {
             helperWorkingDistrictRepository.save(HelperWorkingDistrict.builder()
                     .helper(user)
-                    .location(district)
+                    .districtName(wdReq.getName())
+                    .districtCode(wdReq.getCode())
                     .build());
         }
 
@@ -216,22 +180,7 @@ public class HelperRegistrationService {
         user.setAvatarUrl(draft.getSelfieUrl());
         user.setDateOfBirth(draft.getDateOfBirth());
 
-        // 5. Save Default Address
-        Location province = locationRepository.findById(draft.getProvinceId())
-                .orElseThrow(() -> new RuntimeException("Tỉnh/Thành phố hiện tại không hợp lệ"));
-        
-        Location district = null;
-        if (draft.getDistrictId() != null) {
-            district = locationRepository.findById(draft.getDistrictId())
-                    .orElseThrow(() -> new RuntimeException("Quận/Huyện hiện tại không hợp lệ"));
-        }
-
-        Location ward = null;
-        if (draft.getWardId() != null) {
-            ward = locationRepository.findById(draft.getWardId())
-                    .orElseThrow(() -> new RuntimeException("Phường/Xã không hợp lệ"));
-        }
-        
+        // 5. Save Default Address & Geocode
         Address address = addressRepository.findByUser_IdAndIsDefaultTrue(user.getId())
                 .orElse(Address.builder()
                         .user(user)
@@ -240,18 +189,33 @@ public class HelperRegistrationService {
                         .build());
         
         address.setAddressDetail(draft.getCurrentAddress());
-        address.setProvince(province);
-        address.setDistrict(district);
-        address.setWard(ward);
-        addressRepository.save(address);
+        address.setProvinceName(draft.getProvinceName());
+        address.setDistrictName(draft.getDistrictName());
+        address.setWardName(draft.getWardName());
 
+        // Geocoding
+        try {
+            GeocodingService.GeoResult geo = geocodingService.geocode(
+                    draft.getCurrentAddress(),
+                    draft.getWardName(),
+                    draft.getDistrictName(),
+                    draft.getProvinceName()
+            );
+            address.setLatitude(geo.getLatitude());
+            address.setLongitude(geo.getLongitude());
+        } catch (Exception e) {
+            log.error("Geocoding failed during submission for helper {}: {}", email, e.getMessage());
+            throw new RuntimeException("Không thể định vị địa chỉ của bạn. Vui lòng kiểm tra lại thông tin địa chỉ.");
+        }
+        
+        addressRepository.save(address);
         helperProfileRepository.save(profile);
         userRepository.save(user);
 
-        // 5. Xóa Cache
+        // 6. Xóa Cache
         registrationCacheService.removeDraft(email);
 
-        log.info("Registration successfully persisted for helper: {}", email);
+        log.info("Registration successfully persisted and geocoded for helper: {}", email);
     }
 
 }

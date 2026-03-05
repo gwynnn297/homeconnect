@@ -22,8 +22,6 @@ public class ServiceResponse {
     
     private String name;
     
-    @JsonProperty("category_id")
-    private Integer categoryId;
     
     private String description;
     
@@ -35,8 +33,6 @@ public class ServiceResponse {
     
     private ServiceUnit unit;
     
-    @JsonProperty("category_name")
-    private String categoryName;
     
     @JsonProperty("is_active")
     private Boolean isActive;

@@ -8,7 +8,7 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class LocationResponse {
-    private Integer id;
     private String name;
-    private String type;
+    private String code;
+    private String type; // PROVINCE, DISTRICT, WARD
 }

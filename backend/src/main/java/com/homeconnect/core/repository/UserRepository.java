@@ -15,6 +15,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByPhone(String phone);
 
+
     Optional<User> findByEmailOrPhone(String email, String phone);
 
     // Admin: đếm số lượng user theo role

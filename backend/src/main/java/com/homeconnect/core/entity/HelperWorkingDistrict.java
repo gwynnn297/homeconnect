@@ -10,11 +10,11 @@ import lombok.*;
 @Entity
 @Table(name = "helper_working_districts", 
     uniqueConstraints = {
-        @UniqueConstraint(name = "unique_helper_location", columnNames = {"helper_id", "location_id"})
+        @UniqueConstraint(name = "unique_helper_district", columnNames = {"helper_id", "district_code"})
     },
     indexes = {
         @Index(name = "idx_helper_id", columnList = "helper_id"),
-        @Index(name = "idx_location_id", columnList = "location_id")
+        @Index(name = "idx_district_code", columnList = "district_code")
     }
 )
 @Getter
@@ -32,7 +32,9 @@ public class HelperWorkingDistrict {
     @JoinColumn(name = "helper_id", nullable = false)
     private User helper;  // Helper (User có role = HELPER)
     
-    @ManyToOne
-    @JoinColumn(name = "location_id", nullable = false)
-    private Location location;  // Khu vực làm việc (Quận/Huyện)
+    @Column(name = "district_name", nullable = false)
+    private String districtName; // Tên Quận/Huyện
+
+    @Column(name = "district_code", nullable = false)
+    private String districtCode; // Mã Quận/Huyện từ API
 }

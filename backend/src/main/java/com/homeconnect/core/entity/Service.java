@@ -33,9 +33,6 @@ public class Service {
     @Column(name = "name", nullable = false, unique = true, length = 100)
     private String name;  // Tên dịch vụ (VD: Dọn nhà theo giờ)
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
-    private ServiceCategory category; // Thuộc danh mục nào (PB-29 Requirement)
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;

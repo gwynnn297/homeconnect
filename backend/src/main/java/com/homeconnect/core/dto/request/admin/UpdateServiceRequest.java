@@ -30,6 +30,8 @@ public class UpdateServiceRequest {
 
     private String description;
 
+    private String note;
+    
     @JsonProperty("is_active")
     private Boolean isActive;
 }

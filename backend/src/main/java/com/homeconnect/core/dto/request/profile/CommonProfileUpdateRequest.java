@@ -26,10 +26,10 @@ public class CommonProfileUpdateRequest {
 
     // Thông tin địa chỉ (PB-20)
     private String addressDetail;
-    private Integer wardId;
-    private Integer districtId;
-    private Integer provinceId;
-
+    private String wardName;
+    private String districtName;
+    private String provinceName;
+    
     @Schema(description = "Loại địa chỉ hoặc nhãn hiển thị", example = "HOME")
     private String addressLabel; // HOME, OFFICE, hoặc tên tự đặt
 }

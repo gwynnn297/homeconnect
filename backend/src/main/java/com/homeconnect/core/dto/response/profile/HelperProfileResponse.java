@@ -12,7 +12,6 @@ public class HelperProfileResponse {
     private String bio;
     private java.time.LocalDate dateOfBirth;
     private Integer experienceYears;
-    private Integer hometownId;
     private String hometownName;
     private List<ServiceSimpleResponse> services;
     private List<LocationResponse> workingDistricts;

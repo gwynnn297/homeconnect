@@ -6,7 +6,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -39,10 +38,6 @@ public class CreateServiceRequest {
     @Schema(description = "Đơn vị tính (PER_HOUR, PER_SERVICE, PER_METERS, PER_ROOM)", example = "PER_HOUR")
     private ServiceUnit unit;
 
-    @NotNull(message = "Danh mục dịch vụ không được để trống")
-    @JsonProperty("category_id")
-    @Schema(description = "ID của danh mục dịch vụ", example = "1")
-    private Integer categoryId;
 
     @Schema(description = "Mô tả dịch vụ", example = "Dịch vụ dọn dẹp nhà cửa cơ bản theo giờ")
     private String description;
