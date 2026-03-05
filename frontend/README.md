@@ -77,3 +77,5 @@ npm run preview
 - **Lỗi khi npm install:** Xóa `node_modules` và `package-lock.json`, rồi chạy lại `npm install`
 - **Port 5173 đã được sử dụng:** Vite sẽ tự động sử dụng port khác
 - **Module không tìm thấy:** Chạy `npm install` lại và xóa cache với `npm cache clean --force`
+
+# npm install leaflet react-leaflet

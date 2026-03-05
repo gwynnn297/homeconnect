@@ -8,25 +8,25 @@ const HelperRegistrationService = {
      * @returns {Promise<Array>} Danh sách các tỉnh/thành phố
      */
     getProvinces: async () => {
-        return await apiClient.get(`${BASE_URL}/provinces`);
+        return await apiClient.get(`/api/v1/locations/provinces`);
     },
 
     /**
      * Lấy danh sách quận/huyện theo tỉnh
-     * @param {number} provinceId - ID của tỉnh/thành phố
+     * @param {string} provinceCode - Mã của tỉnh/thành phố
      * @returns {Promise<Array>} Danh sách các quận/huyện
      */
-    getDistricts: async (provinceId) => {
-        return await apiClient.get(`${BASE_URL}/districts/${provinceId}`);
+    getDistricts: async (provinceCode) => {
+        return await apiClient.get(`/api/v1/locations/provinces/${provinceCode}/districts`);
     },
 
     /**
      * Lấy danh sách phường/xã theo quận
-     * @param {number} districtId - ID của quận/huyện
+     * @param {string} districtCode - Mã của quận/huyện
      * @returns {Promise<Array>} Danh sách các phường/xã
      */
-    getWards: async (districtId) => {
-        return await apiClient.get(`${BASE_URL}/wards/${districtId}`);
+    getWards: async (districtCode) => {
+        return await apiClient.get(`/api/v1/locations/districts/${districtCode}/wards`);
     },
 
     /**
@@ -40,12 +40,15 @@ const HelperRegistrationService = {
     /**
      * Giai đoạn 1: Thông tin cá nhân & Dịch vụ
      * @param {Object} request - Thông tin giai đoạn 1
-     * @param {string} request.fullName - Họ và tên
-     * @param {string} request.phoneNumber - Số điện thoại
+     * @param {string} request.dateOfBirth - Ngày sinh (YYYY-MM-DD)
+     * @param {string} request.hometownName - Tên Tỉnh/Thành phố quê quán
+     * @param {string} request.provinceName - Tên Tỉnh/Thành phố hiện tại
+     * @param {string} request.districtName - Tên Quận/Huyện hiện tại
+     * @param {string} request.wardName - Tên Phường/Xã hiện tại
+     * @param {string} request.currentAddress - Địa chỉ hiện tại (Số nhà, đường...)
+     * @param {Array<Object>} request.workingDistricts - Danh sách khu vực làm việc [{ districtName, priority }]
      * @param {string} request.bio - Giới thiệu bản thân
-     * @param {number} request.yearsOfExperience - Số năm kinh nghiệm
-     * @param {number} request.provinceId - ID tỉnh/thành phố quê quán
-     * @param {Array<number>} request.districtIds - Danh sách ID quận/huyện làm việc
+     * @param {number} request.experienceYears - Số năm kinh nghiệm
      * @param {Array<number>} request.serviceIds - Danh sách ID dịch vụ đăng ký
      * @returns {Promise<Object>} Kết quả đăng ký giai đoạn 1
      */
@@ -56,10 +59,10 @@ const HelperRegistrationService = {
     /**
      * Giai đoạn 2: Xác thực danh tính (CCCD)
      * @param {Object} request - Thông tin giai đoạn 2
-     * @param {string} request.idCardNumber - Số CCCD
-     * @param {string} request.idCardFrontImageUrl - URL ảnh mặt trước CCCD
-     * @param {string} request.idCardBackImageUrl - URL ảnh mặt sau CCCD
-     * @param {string} request.portraitImageUrl - URL ảnh chân dung
+     * @param {string} request.identityNumber - Số CCCD
+     * @param {string} request.cccdFrontUrl - URL ảnh mặt trước CCCD
+     * @param {string} request.cccdBackUrl - URL ảnh mặt sau CCCD
+     * @param {string} request.selfieUrl - URL ảnh chân dung
      * @returns {Promise<Object>} Kết quả đăng ký giai đoạn 2
      */
     registerStage2: async (request) => {

@@ -1,0 +1,417 @@
+/* ─────────────────────────────────────────────
+   Customer Dashboard Page — Desktop Layout
+───────────────────────────────────────────── */
+
+.cdb-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    max-width: 100%;
+}
+
+/* ── Search Bar ── */
+.cdb-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cdb-search-input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #ffffff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px 20px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.cdb-search-input-wrap:focus-within {
+    border-color: #346252;
+    box-shadow: 0 0 0 3px rgba(52, 98, 82, 0.1);
+}
+
+.cdb-search-icon {
+    width: 18px;
+    height: 18px;
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+
+.cdb-search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 15px;
+    color: #1e293b;
+    background: transparent;
+}
+
+.cdb-search-input::placeholder {
+    color: #94a3b8;
+}
+
+.cdb-filter-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    border: none;
+    background: #346252;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.25s ease, transform 0.15s ease;
+    box-shadow: 0 4px 12px rgba(52, 98, 82, 0.25);
+    flex-shrink: 0;
+}
+
+.cdb-filter-btn:hover {
+    background: #27533f;
+    transform: scale(1.04);
+}
+
+.cdb-filter-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* ── Section header ── */
+.cdb-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.cdb-section-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.cdb-section-link {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #346252;
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.cdb-section-link:hover {
+    opacity: 0.75;
+}
+
+/* ── Service Categories Grid ── */
+.cdb-categories-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 16px;
+}
+
+.cdb-category-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.2s ease;
+}
+
+.cdb-category-card:hover {
+    transform: translateY(-3px);
+}
+
+.cdb-category-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow 0.2s ease;
+}
+
+.cdb-category-card:hover .cdb-category-icon {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.cdb-category-icon svg {
+    width: 30px;
+    height: 30px;
+}
+
+.cdb-category-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #475569;
+    text-align: center;
+    line-height: 1.3;
+}
+
+/* ── Hot Deal Banner ── */
+.cdb-hotdeal-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, #c0392b 0%, #e74c3c 50%, #e8594a 100%);
+    border-radius: 20px;
+    padding: 32px 40px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 8px 24px rgba(192, 57, 43, 0.3);
+}
+
+/* subtle decorative circle behind */
+.cdb-hotdeal-banner::before {
+    content: '';
+    position: absolute;
+    right: -60px;
+    top: -60px;
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.cdb-hotdeal-banner::after {
+    content: '';
+    position: absolute;
+    right: 80px;
+    bottom: -80px;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.cdb-hotdeal-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 1;
+}
+
+.cdb-hotdeal-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 30px;
+    padding: 4px 12px;
+    width: fit-content;
+    letter-spacing: 0.05em;
+}
+
+.cdb-hotdeal-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    margin: 0;
+    line-height: 1.2;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.cdb-hotdeal-subtitle {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
+}
+
+.cdb-hotdeal-btn {
+    margin-top: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #ffffff;
+    color: #c0392b;
+    font-size: 14px;
+    font-weight: 700;
+    border: none;
+    border-radius: 30px;
+    padding: 10px 24px;
+    cursor: pointer;
+    width: fit-content;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.cdb-hotdeal-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.cdb-hotdeal-right {
+    z-index: 1;
+    flex-shrink: 0;
+}
+
+.cdb-hotdeal-sun {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(6px);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: cdb-spin-slow 12s linear infinite;
+}
+
+.cdb-hotdeal-sun svg {
+    width: 64px;
+    height: 64px;
+}
+
+@keyframes cdb-spin-slow {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── Featured Helpers Grid ── */
+.cdb-helpers-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.cdb-helper-card {
+    background: #ffffff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    cursor: pointer;
+}
+
+.cdb-helper-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
+    border-color: #346252;
+}
+
+.cdb-helper-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.cdb-helper-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cdb-helper-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.cdb-helper-service {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+}
+
+.cdb-helper-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.cdb-helper-rating {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.cdb-helper-jobs {
+    font-size: 12.5px;
+    color: #94a3b8;
+}
+
+.cdb-helper-book-btn {
+    width: 100%;
+    padding: 9px 0;
+    border-radius: 10px;
+    border: 1.5px solid #346252;
+    background: transparent;
+    color: #346252;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.cdb-helper-book-btn:hover {
+    background: #346252;
+    color: #fff;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+    .cdb-categories-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .cdb-helpers-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .cdb-categories-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .cdb-helpers-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .cdb-hotdeal-banner {
+        padding: 24px;
+    }
+
+    .cdb-hotdeal-title {
+        font-size: 22px;
+    }
+
+    .cdb-hotdeal-right {
+        display: none;
+    }
+}

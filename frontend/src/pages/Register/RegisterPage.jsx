@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './RegisterPage.css';
 import AuthService from '../../services/AuthService';
-
 import logoHomieConnect from '../../assets/LogoHomieConnect.png';
 import OTPVerificationModal from '../../components/OTPVerificationModal';
+import NotificationModal from '../../components/NotificationModal';
 
 const RegisterPage = () => {
     const navigate = useNavigate();
@@ -22,7 +22,7 @@ const RegisterPage = () => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isOTPModalOpen, setIsOTPModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [notification, setNotification] = useState(null); // { type, message }
 
     // State cho checkbox điều khoản
     const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -47,33 +47,31 @@ const RegisterPage = () => {
             ...prev,
             [name]: value
         }));
-        // Xóa lỗi khi user nhập liệu
-        if (error) setError('');
+        // Xóa thông báo khi user nhập liệu
+        if (notification) setNotification(null);
     };
 
     const validateForm = () => {
         if (!formData.fullName || !formData.phone || !formData.email || !formData.password || !formData.confirmPassword) {
-            setError('Vui lòng điền đầy đủ thông tin');
+            setNotification({ type: 'error', message: 'Vui lòng điền đầy đủ thông tin' });
             return false;
         }
         if (formData.password !== formData.confirmPassword) {
-            setError('Mật khẩu nhập lại không khớp');
+            setNotification({ type: 'error', message: 'Mật khẩu nhập lại không khớp' });
             return false;
         }
-        // Validate password regex (client side check matches server requirement: 8-50 chars, lower, upper, digit)
         const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,50}$/;
         if (!passwordRegex.test(formData.password)) {
-            setError('Mật khẩu phải từ 8-50 ký tự, bao gồm chữ hoa, chữ thường và số');
+            setNotification({ type: 'error', message: 'Mật khẩu phải từ 8-50 ký tự, bao gồm chữ hoa, chữ thường và số' });
             return false;
         }
-        // Validate phone regex
         const phoneRegex = /^(0[3|5|7|8|9])+([0-9]{8})$/;
         if (!phoneRegex.test(formData.phone)) {
-            setError('Số điện thoại không hợp lệ');
+            setNotification({ type: 'error', message: 'Số điện thoại không hợp lệ' });
             return false;
         }
         if (!agreedToTerms) {
-            setError('Bạn cần đồng ý với điều khoản dịch vụ');
+            setNotification({ type: 'error', message: 'Bạn cần đồng ý với điều khoản dịch vụ' });
             return false;
         }
         return true;
@@ -85,7 +83,7 @@ const RegisterPage = () => {
         if (!validateForm()) return;
 
         setIsLoading(true);
-        setError('');
+        setNotification(null);
 
         try {
             const registerData = {
@@ -93,16 +91,14 @@ const RegisterPage = () => {
                 phone: formData.phone,
                 email: formData.email,
                 password: formData.password,
-                role: role.toUpperCase() // API mong đợi 'CUSTOMER' hoặc 'HELPER'
+                role: role.toUpperCase()
             };
 
             await AuthService.registerInit(registerData);
-
-            // Nếu thành công, mở modal OTP
             setIsOTPModalOpen(true);
         } catch (err) {
             console.error('Registration init error:', err);
-            setError(err.message || 'Có lỗi xảy ra, vui lòng thử lại');
+            setNotification({ type: 'error', message: err.message || 'Có lỗi xảy ra, vui lòng thử lại' });
         } finally {
             setIsLoading(false);
         }
@@ -116,21 +112,16 @@ const RegisterPage = () => {
                 password: formData.password
             });
 
-            // Thành công
             setIsOTPModalOpen(false);
-            alert('Đăng ký tài khoản thành công!');
-            navigate('/login');
-
+            setNotification({ type: 'success', message: 'Đăng ký tài khoản thành công! Đang chuyển hướng...' });
+            setTimeout(() => navigate('/login'), 2000);
         } catch (err) {
             console.error('OTP verification error:', err);
-            // Có thể ném lỗi ra để modal hiển thị hoặc alert
-            alert(err.message || 'Mã OTP không chính xác hoặc đã hết hạn');
-            // Nếu muốn Modal xử lý lỗi chi tiết hơn thì cần update logic ở Modal
+            setNotification({ type: 'error', message: err.message || 'Mã OTP không chính xác hoặc đã hết hạn' });
         }
     };
 
     const handleResendOTP = async () => {
-        // Có thể gọi lại API registerInit để gửi lại OTP
         try {
             await AuthService.registerInit({
                 fullName: formData.fullName,
@@ -139,15 +130,22 @@ const RegisterPage = () => {
                 password: formData.password,
                 role: role.toUpperCase()
             });
-            alert('Đã gửi lại mã OTP');
+            setNotification({ type: 'success', message: 'Đã gửi lại mã OTP thành công' });
         } catch (err) {
             console.error('Resend OTP error:', err);
-            alert(err.message || 'Không thể gửi lại mã OTP');
+            setNotification({ type: 'error', message: err.message || 'Không thể gửi lại mã OTP' });
         }
     };
 
     return (
         <>
+            {notification && (
+                <NotificationModal
+                    type={notification.type}
+                    message={notification.message}
+                    onClose={() => setNotification(null)}
+                />
+            )}
             <div className="register-container">
                 <header className="header-register">
                     <div className="logo-register" onClick={handleHome}>
@@ -352,8 +350,6 @@ const RegisterPage = () => {
                                 <span>Tôi đồng ý với <Link to="/terms">Điều khoản dịch vụ</Link> và <Link to="/privacy-policy">Chính sách bảo mật</Link></span>
                             </label>
                         </div>
-
-                        {error && <div className="error-message" style={{ color: 'red', marginTop: '10px', textAlign: 'center' }}>{error}</div>}
 
                         <button type="submit" className="register-button" disabled={isLoading}>
                             {isLoading ? 'Đang xử lý...' : 'Đăng ký ngay'}

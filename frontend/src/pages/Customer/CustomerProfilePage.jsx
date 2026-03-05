@@ -2,7 +2,38 @@ import React, { useState, useEffect, useCallback } from 'react';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import ProfileService from '../../services/ProfileService';
 import HelperRegistrationService from '../../services/HelperRegistrationService';
+import NotificationModal from '../../components/NotificationModal';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import './CustomerProfilePage.css';
+
+// Fix Leaflet marker icon issue
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+const LocationMarker = ({ position, setPosition }) => {
+    const map = useMapEvents({
+        click(e) {
+            setPosition(e.latlng);
+            map.flyTo(e.latlng, map.getZoom());
+        },
+    });
+
+    useEffect(() => {
+        if (position?.lat && position?.lng) {
+            map.flyTo(position, map.getZoom());
+        }
+    }, [position, map]);
+
+    return position?.lat && position?.lng ? (
+        <Marker position={position}></Marker>
+    ) : null;
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const GENDER_OPTIONS = [
@@ -16,30 +47,7 @@ const getInitials = (name) => {
     return name.split(' ').map((w) => w[0]).slice(-2).join('').toUpperCase();
 };
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
-const Toast = ({ message, type, onClose }) => {
-    useEffect(() => {
-        const t = setTimeout(onClose, 3500);
-        return () => clearTimeout(t);
-    }, [onClose]);
-
-    return (
-        <div className={`cpp-toast cpp-toast--${type}`}>
-            {type === 'success' ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12" />
-                </svg>
-            ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-            )}
-            <span>{message}</span>
-        </div>
-    );
-};
+// Toast → replaced by shared NotificationModal component
 
 // ─── Reusable Select ──────────────────────────────────────────────────────────
 const SelectField = ({ id, label, value, onChange, options, placeholder, disabled, required }) => (
@@ -74,10 +82,17 @@ const CustomerProfilePage = () => {
         avatarUrl: '',
         gender: '',
         addressDetail: '',
-        wardId: '',
-        districtId: '',
-        provinceId: '',
+        // Backend expects names, not IDs
+        wardName: '',
+        districtName: '',
+        provinceName: '',
         addressLabel: 'HOME',
+        // UI-only: codes for cascading dropdowns
+        provinceCode: '',
+        districtCode: '',
+        wardCode: '',
+        latitude: 16.0544, // Default Da Nang
+        longitude: 108.2022,
     });
 
     // Dropdown data
@@ -94,11 +109,11 @@ const CustomerProfilePage = () => {
     const [toast, setToast] = useState(null);
 
     const toOptions = (arr) =>
-        arr.map((item) => ({ value: String(item.id ?? item), label: item.name ?? item }));
+        arr.map((item) => ({ value: String(item.code ?? item.id ?? item), label: item.name ?? item }));
 
     // Fetch Profile
-    const fetchBasic = useCallback(() => {
-        setLoadingBasic(true);
+    const fetchBasic = useCallback((isBackground = false) => {
+        if (!isBackground) setLoadingBasic(true);
         ProfileService.getMyProfile()
             .then((res) => {
                 const basic = res.data || null;
@@ -118,7 +133,9 @@ const CustomerProfilePage = () => {
                 console.error('[CustomerProfilePage] fetchBasic failed:', err);
                 setToast({ message: 'Không thể tải thông tin cá nhân', type: 'error' });
             })
-            .finally(() => setLoadingBasic(false));
+            .finally(() => {
+                if (!isBackground) setLoadingBasic(false);
+            });
     }, []);
 
     useEffect(() => { fetchBasic(); }, [fetchBasic]);
@@ -135,6 +152,11 @@ const CustomerProfilePage = () => {
             gender: profile.gender || '',
             addressDetail: profile.addressDetail || '',
             addressLabel: profile.addressLabel || 'HOME',
+            provinceName: profile.provinceName || '',
+            districtName: profile.districtName || '',
+            wardName: profile.wardName || '',
+            latitude: profile.latitude || 16.0544,
+            longitude: profile.longitude || 108.2022,
         }));
 
         // 2. Load address-label options
@@ -142,46 +164,50 @@ const CustomerProfilePage = () => {
             .then((res) => setAddressLabels(res.data || []))
             .catch(() => { });
 
-        // 3. Load provinces → resolve province ID from saved provinceName → cascade
+        // 3. Load provinces → resolve CODE from saved provinceName → cascade
         setLoadingProv(true);
-        HelperRegistrationService.getProvinces()
+        ProfileService.getProvinces()
             .then(async (res) => {
-                const rawProv = Array.isArray(res) ? res : (res?.data || []);
-                setProvinces(toOptions(rawProv));
+                const raw = res?.data || res;
+                const provList = Array.isArray(raw) ? raw : [];
+                setProvinces(toOptions(provList));
 
-                // --- resolve province by name ---
                 if (!profile.provinceName) return;
-                const matchedProv = rawProv.find((p) => p.name === profile.provinceName);
+                const matchedProv = provList.find((p) => p.name === profile.provinceName);
                 if (!matchedProv) return;
 
-                const resolvedProvId = String(matchedProv.id);
-                setForm((f) => ({ ...f, provinceId: resolvedProvId }));
+                const resolvedProvCode = String(matchedProv.code ?? matchedProv.id);
+                setForm((f) => ({ ...f, provinceCode: resolvedProvCode }));
 
                 // --- load & resolve district ---
                 setLoadingDist(true);
                 try {
-                    const dRes = await HelperRegistrationService.getDistricts(resolvedProvId);
-                    const rawDist = Array.isArray(dRes) ? dRes : (dRes?.data || []);
-                    setDistricts(toOptions(rawDist));
+                    const dRes = await ProfileService.getDistricts(resolvedProvCode);
+                    const dPayload = dRes?.data ?? dRes;
+                    const rawDist = Array.isArray(dPayload) ? dPayload : (Array.isArray(dPayload?.districts) ? dPayload.districts : []);
+                    const distList = rawDist.map((d) => ({ ...d, code: String(d.code) }));
+                    setDistricts(toOptions(distList));
 
                     if (!profile.districtName) return;
-                    const matchedDist = rawDist.find((d) => d.name === profile.districtName);
+                    const matchedDist = distList.find((d) => d.name === profile.districtName);
                     if (!matchedDist) return;
 
-                    const resolvedDistId = String(matchedDist.id);
-                    setForm((f) => ({ ...f, districtId: resolvedDistId }));
+                    const resolvedDistCode = String(matchedDist.code);
+                    setForm((f) => ({ ...f, districtCode: resolvedDistCode }));
 
                     // --- load & resolve ward ---
                     setLoadingWard(true);
                     try {
-                        const wRes = await HelperRegistrationService.getWards(resolvedDistId);
-                        const rawWard = Array.isArray(wRes) ? wRes : (wRes?.data || []);
-                        setWards(toOptions(rawWard));
+                        const wRes = await ProfileService.getWards(resolvedDistCode);
+                        const wPayload = wRes?.data ?? wRes;
+                        const rawWard = Array.isArray(wPayload) ? wPayload : (Array.isArray(wPayload?.wards) ? wPayload.wards : []);
+                        const wardList = rawWard.map((w) => ({ ...w, code: String(w.code) }));
+                        setWards(toOptions(wardList));
 
                         if (!profile.wardName) return;
-                        const matchedWard = rawWard.find((w) => w.name === profile.wardName);
+                        const matchedWard = wardList.find((w) => w.name === profile.wardName);
                         if (matchedWard) {
-                            setForm((f) => ({ ...f, wardId: String(matchedWard.id) }));
+                            setForm((f) => ({ ...f, wardCode: String(matchedWard.code) }));
                         }
                     } catch { /* ignore */ }
                     finally { setLoadingWard(false); }
@@ -195,31 +221,80 @@ const CustomerProfilePage = () => {
 
     // Province → Districts (user-initiated change)
     const handleProvinceChange = async (e) => {
-        const provId = e.target.value;
-        setForm((f) => ({ ...f, provinceId: provId, districtId: '', wardId: '' }));
+        const provCode = e.target.value;
+        const provName = provinces.find((p) => p.value === provCode)?.label || '';
+        setForm((f) => ({ ...f, provinceCode: provCode, provinceName: provName, districtCode: '', districtName: '', wardCode: '', wardName: '' }));
         setDistricts([]);
         setWards([]);
-        if (!provId) return;
+        if (!provCode) return;
         setLoadingDist(true);
         try {
-            const res = await HelperRegistrationService.getDistricts(provId);
-            setDistricts(toOptions(Array.isArray(res) ? res : (res?.data || [])));
+            const res = await ProfileService.getDistricts(provCode);
+            const payload = res?.data ?? res;
+            const rawDist = Array.isArray(payload) ? payload : (Array.isArray(payload?.districts) ? payload.districts : []);
+            setDistricts(rawDist.map((d) => ({ value: String(d.code), label: d.name })));
         } catch { /* ignore */ }
         finally { setLoadingDist(false); }
     };
 
     // District → Wards (user-initiated change)
     const handleDistrictChange = async (e) => {
-        const distId = e.target.value;
-        setForm((f) => ({ ...f, districtId: distId, wardId: '' }));
+        const distCode = e.target.value;
+        const distName = districts.find((d) => d.value === distCode)?.label || '';
+        setForm((f) => ({ ...f, districtCode: distCode, districtName: distName, wardCode: '', wardName: '' }));
         setWards([]);
-        if (!distId) return;
+        if (!distCode) return;
         setLoadingWard(true);
         try {
-            const res = await HelperRegistrationService.getWards(distId);
-            setWards(toOptions(Array.isArray(res) ? res : (res?.data || [])));
+            const res = await ProfileService.getWards(distCode);
+            const payload = res?.data ?? res;
+            const rawWard = Array.isArray(payload) ? payload : (Array.isArray(payload?.wards) ? payload.wards : []);
+            setWards(rawWard.map((w) => ({ value: String(w.code), label: w.name })));
         } catch { /* ignore */ }
         finally { setLoadingWard(false); }
+    };
+
+    // ── Auto Geocoding ────────────────────────────────────────────────────────
+    useEffect(() => {
+        // Only geocode if there's at least a province selected
+        if (!form.provinceCode) return;
+
+        const timer = setTimeout(() => {
+            const provinceName = provinces.find(p => p.value == form.provinceCode)?.label;
+            const districtName = districts.find(d => d.value == form.districtCode)?.label;
+            const wardName = wards.find(w => w.value == form.wardCode)?.label;
+            const street = form.addressDetail?.trim();
+
+            const queryParts = [street, wardName, districtName, provinceName, "Vietnam"]
+                .filter(part => part && String(part).trim() !== "")
+                .map(part => part.replace(/^(Tỉnh|Thành phố|Quận|Huyện|Phường|Xã)\s+/i, ''))
+                .join(", ");
+
+            if (queryParts) {
+                fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryParts)}&format=json&limit=1`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.length > 0) {
+                            setForm(prev => ({
+                                ...prev,
+                                latitude: parseFloat(data[0].lat),
+                                longitude: parseFloat(data[0].lon)
+                            }));
+                        }
+                    })
+                    .catch(err => console.error("Geocoding failed:", err));
+            }
+        }, 1500); // Debounce for 1.5 seconds
+
+        return () => clearTimeout(timer);
+    }, [form.provinceCode, form.districtCode, form.wardCode, form.addressDetail, provinces, districts, wards]);
+
+    const handleMapLocationChange = (latlng) => {
+        setForm(prev => ({
+            ...prev,
+            latitude: latlng.lat,
+            longitude: latlng.lng
+        }));
     };
 
     const handleChange = (e) =>
@@ -275,15 +350,21 @@ const CustomerProfilePage = () => {
         }
         setSaving(true);
         try {
+            // Resolve ward name if user just switched the ward dropdown
+            const wardName = form.wardCode
+                ? (wards.find((w) => w.value === form.wardCode)?.label || form.wardName)
+                : form.wardName;
             const payload = {
                 fullName: form.fullName,
                 avatarUrl: form.avatarUrl || null,
                 gender: form.gender || null,
                 addressDetail: form.addressDetail || null,
-                wardId: form.wardId ? parseInt(form.wardId, 10) : null,
-                districtId: form.districtId ? parseInt(form.districtId, 10) : null,
-                provinceId: form.provinceId ? parseInt(form.provinceId, 10) : null,
+                wardName: wardName || null,
+                districtName: form.districtName || null,
+                provinceName: form.provinceName || null,
                 addressLabel: form.addressLabel || 'HOME',
+                latitude: form.latitude,
+                longitude: form.longitude,
             };
             await ProfileService.updateProfile(payload);
 
@@ -297,7 +378,7 @@ const CustomerProfilePage = () => {
             window.dispatchEvent(new CustomEvent('profile:updated'));
 
             setToast({ message: 'Cập nhật thông tin thành công!', type: 'success' });
-            fetchBasic();
+            fetchBasic(true);
         } catch (err) {
             setToast({
                 message: err?.message || 'Có lỗi xảy ra, vui lòng thử lại',
@@ -327,7 +408,7 @@ const CustomerProfilePage = () => {
                         </div>
                     ) : (
                         <div className="cpp-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-                            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+                            {toast && <NotificationModal message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
                             {/* Avatar card (No KYC badge) */}
                             <div className="cpp-avatar-card">
@@ -358,7 +439,7 @@ const CustomerProfilePage = () => {
                                 <div className="cpp-avatar-info">
                                     <h2 className="cpp-avatar-name">{profile?.fullName || '—'}</h2>
                                     <p className="cpp-avatar-email">{profile?.email || '—'}</p>
-                                    
+
                                 </div>
                                 {profile?.phone && (
                                     <div className="cpp-avatar-phone">
@@ -455,12 +536,14 @@ const CustomerProfilePage = () => {
                                     </div>
                                 </div>
 
+                               
+
                                 <div className="cpp-form-row cpp-form-row--3">
                                     <div className="cpp-field">
                                         <label className="cpp-label" htmlFor="basic-province">Tỉnh / Thành phố</label>
                                         <select
                                             id="basic-province"
-                                            value={form.provinceId}
+                                            value={form.provinceCode}
                                             onChange={handleProvinceChange}
                                             disabled={loadingProv}
                                             className={`cpp-select ${loadingProv ? 'cpp-select--disabled' : ''}`}
@@ -476,13 +559,13 @@ const CustomerProfilePage = () => {
                                         <label className="cpp-label" htmlFor="basic-district">Quận / Huyện</label>
                                         <select
                                             id="basic-district"
-                                            value={form.districtId}
+                                            value={form.districtCode}
                                             onChange={handleDistrictChange}
-                                            disabled={!form.provinceId || loadingDist}
-                                            className={`cpp-select ${(!form.provinceId || loadingDist) ? 'cpp-select--disabled' : ''}`}
+                                            disabled={!form.provinceCode || loadingDist}
+                                            className={`cpp-select ${(!form.provinceCode || loadingDist) ? 'cpp-select--disabled' : ''}`}
                                         >
                                             <option value="">
-                                                {loadingDist ? 'Đang tải...' : !form.provinceId ? '-- Chọn Tỉnh/TP trước --' : '-- Chọn Quận/Huyện --'}
+                                                {loadingDist ? 'Đang tải...' : !form.provinceCode ? '-- Chọn Tỉnh/TP trước --' : '-- Chọn Quận/Huyện --'}
                                             </option>
                                             {districts.map((d) => (
                                                 <option key={d.value} value={d.value}>{d.label}</option>
@@ -494,18 +577,46 @@ const CustomerProfilePage = () => {
                                         <label className="cpp-label" htmlFor="basic-ward">Phường / Xã</label>
                                         <select
                                             id="basic-ward"
-                                            value={form.wardId}
-                                            onChange={(e) => setForm((f) => ({ ...f, wardId: e.target.value }))}
-                                            disabled={!form.districtId || loadingWard}
-                                            className={`cpp-select ${(!form.districtId || loadingWard) ? 'cpp-select--disabled' : ''}`}
+                                            value={form.wardCode}
+                                            onChange={(e) => {
+                                                const wardCode = e.target.value;
+                                                const wardName = wards.find((w) => w.value === wardCode)?.label || '';
+                                                setForm((f) => ({ ...f, wardCode, wardName }));
+                                            }}
+                                            disabled={!form.districtCode || loadingWard}
+                                            className={`cpp-select ${(!form.districtCode || loadingWard) ? 'cpp-select--disabled' : ''}`}
                                         >
                                             <option value="">
-                                                {loadingWard ? 'Đang tải...' : !form.districtId ? '-- Chọn Quận/Huyện trước --' : '-- Chọn Phường/Xã --'}
+                                                {loadingWard ? 'Đang tải...' : !form.districtCode ? '-- Chọn Quận/Huyện trước --' : '-- Chọn Phường/Xã --'}
                                             </option>
                                             {wards.map((w) => (
                                                 <option key={w.value} value={w.value}>{w.label}</option>
                                             ))}
                                         </select>
+                                    </div>
+                                </div>
+                                
+                                 {/* Bản đồ chọn vị trí */}
+                                <div className="cpp-field" style={{ marginTop: '1rem' }}>
+                                    <label className="cpp-label" style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '16px', height: '16px' }}>
+                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                                        </svg>
+                                        Ghim vị trí chính xác
+                                    </label>
+                                    <div style={{ height: '300px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1.5px solid #e2e8f0', zIndex: 1 }}>
+                                        <MapContainer
+                                            center={[form.latitude, form.longitude]}
+                                            zoom={14}
+                                            style={{ height: '100%', width: '100%' }}
+                                            scrollWheelZoom={false}
+                                        >
+                                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                                            <LocationMarker
+                                                position={{ lat: form.latitude, lng: form.longitude }}
+                                                setPosition={handleMapLocationChange}
+                                            />
+                                        </MapContainer>
                                     </div>
                                 </div>
 

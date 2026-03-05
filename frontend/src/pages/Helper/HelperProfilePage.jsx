@@ -2,7 +2,38 @@ import React, { useState, useEffect, useCallback } from 'react';
 import HelperLayout from '../../layouts/HelperLayout';
 import ProfileService from '../../services/ProfileService';
 import HelperRegistrationService from '../../services/HelperRegistrationService';
+import NotificationModal from '../../components/NotificationModal';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import './HelperProfilePage.css';
+
+// Fix Leaflet marker icon issue
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+const LocationMarker = ({ position, setPosition }) => {
+    const map = useMapEvents({
+        click(e) {
+            setPosition(e.latlng);
+            map.flyTo(e.latlng, map.getZoom());
+        },
+    });
+
+    useEffect(() => {
+        if (position?.lat && position?.lng) {
+            map.flyTo(position, map.getZoom());
+        }
+    }, [position, map]);
+
+    return position?.lat && position?.lng ? (
+        <Marker position={position}></Marker>
+    ) : null;
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const GENDER_OPTIONS = [
@@ -24,30 +55,7 @@ const getInitials = (name) => {
     return name.split(' ').map((w) => w[0]).slice(-2).join('').toUpperCase();
 };
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
-const Toast = ({ message, type, onClose }) => {
-    useEffect(() => {
-        const t = setTimeout(onClose, 3500);
-        return () => clearTimeout(t);
-    }, [onClose]);
-
-    return (
-        <div className={`hpp-toast hpp-toast--${type}`}>
-            {type === 'success' ? (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12" />
-                </svg>
-            ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-            )}
-            <span>{message}</span>
-        </div>
-    );
-};
+// Toast → replaced by shared NotificationModal component
 
 // ─── Reusable Select ──────────────────────────────────────────────────────────
 const SelectField = ({ id, label, value, onChange, options, placeholder, disabled, required }) => (
@@ -121,10 +129,17 @@ const BasicInfoTab = ({ profile, onSaved }) => {
         avatarUrl: '',
         gender: '',
         addressDetail: '',
-        wardId: '',
-        districtId: '',
-        provinceId: '',
+        // Store names (strings) — backend expects names, not IDs
+        wardName: '',
+        districtName: '',
+        provinceName: '',
         addressLabel: 'HOME',
+        // UI-only: codes for cascading dropdowns
+        provinceCode: '',
+        districtCode: '',
+        wardCode: '',
+        latitude: 16.0544, // Default Da Nang
+        longitude: 108.2022,
     });
 
     // Dropdown data
@@ -141,11 +156,11 @@ const BasicInfoTab = ({ profile, onSaved }) => {
     const [toast, setToast] = useState(null);
 
     const toOptions = (arr) =>
-        arr.map((item) => ({ value: String(item.id ?? item), label: item.name ?? item }));
+        arr.map((item) => ({ value: String(item.code ?? item.id ?? item), label: item.name ?? item }));
 
     // ── Bootstrap: load provinces + address labels, then cascade districts & wards.
-    // Backend UserProfileResponse only returns *names* (provinceName, districtName, wardName),
-    // not IDs → we resolve IDs by matching names against the loaded dropdown lists.
+    // Backend UserProfileResponse returns *names* (provinceName, districtName, wardName)
+    // We match name→code to pre-select the dropdowns, but store names in form.
     useEffect(() => {
         if (!profile) return;
 
@@ -157,6 +172,11 @@ const BasicInfoTab = ({ profile, onSaved }) => {
             gender: profile.gender || '',
             addressDetail: profile.addressDetail || '',
             addressLabel: profile.addressLabel || 'HOME',
+            provinceName: profile.provinceName || '',
+            districtName: profile.districtName || '',
+            wardName: profile.wardName || '',
+            latitude: profile.latitude || 16.0544,
+            longitude: profile.longitude || 108.2022,
         }));
 
         // 2. Load address-label options
@@ -164,48 +184,50 @@ const BasicInfoTab = ({ profile, onSaved }) => {
             .then((res) => setAddressLabels(res.data || []))
             .catch(() => { });
 
-        // 3. Load provinces → resolve province ID from saved provinceName → cascade
+        // 3. Load provinces → resolve province CODE from saved provinceName → cascade
         setLoadingProv(true);
-        HelperRegistrationService.getProvinces()
+        ProfileService.getProvinces()
             .then(async (res) => {
-                // HelperRegistrationController returns plain List (not ApiResponse wrapper)
-                // so apiClient gives us the array directly
-                const rawProv = Array.isArray(res) ? res : (res?.data || []);
-                setProvinces(toOptions(rawProv));
+                const rawProv = res?.data || res;
+                const provList = Array.isArray(rawProv) ? rawProv : [];
+                setProvinces(toOptions(provList));
 
-                // --- resolve province by name ---
                 if (!profile.provinceName) return;
-                const matchedProv = rawProv.find((p) => p.name === profile.provinceName);
+                const matchedProv = provList.find((p) => p.name === profile.provinceName);
                 if (!matchedProv) return;
 
-                const resolvedProvId = String(matchedProv.id);
-                setForm((f) => ({ ...f, provinceId: resolvedProvId }));
+                const resolvedProvCode = String(matchedProv.code ?? matchedProv.id);
+                setForm((f) => ({ ...f, provinceCode: resolvedProvCode }));
 
                 // --- load & resolve district ---
                 setLoadingDist(true);
                 try {
-                    const dRes = await HelperRegistrationService.getDistricts(resolvedProvId);
-                    const rawDist = Array.isArray(dRes) ? dRes : (dRes?.data || []);
-                    setDistricts(toOptions(rawDist));
+                    const dRes = await ProfileService.getDistricts(resolvedProvCode);
+                    const payload = dRes?.data ?? dRes;
+                    const rawDist = Array.isArray(payload) ? payload : (Array.isArray(payload?.districts) ? payload.districts : []);
+                    const distList = rawDist.map((d) => ({ ...d, code: String(d.code) }));
+                    setDistricts(toOptions(distList));
 
                     if (!profile.districtName) return;
-                    const matchedDist = rawDist.find((d) => d.name === profile.districtName);
+                    const matchedDist = distList.find((d) => d.name === profile.districtName);
                     if (!matchedDist) return;
 
-                    const resolvedDistId = String(matchedDist.id);
-                    setForm((f) => ({ ...f, districtId: resolvedDistId }));
+                    const resolvedDistCode = String(matchedDist.code);
+                    setForm((f) => ({ ...f, districtCode: resolvedDistCode }));
 
                     // --- load & resolve ward ---
                     setLoadingWard(true);
                     try {
-                        const wRes = await HelperRegistrationService.getWards(resolvedDistId);
-                        const rawWard = Array.isArray(wRes) ? wRes : (wRes?.data || []);
-                        setWards(toOptions(rawWard));
+                        const wRes = await ProfileService.getWards(resolvedDistCode);
+                        const wPayload = wRes?.data ?? wRes;
+                        const rawWard = Array.isArray(wPayload) ? wPayload : (Array.isArray(wPayload?.wards) ? wPayload.wards : []);
+                        const wardList = rawWard.map((w) => ({ ...w, code: String(w.code) }));
+                        setWards(toOptions(wardList));
 
                         if (!profile.wardName) return;
-                        const matchedWard = rawWard.find((w) => w.name === profile.wardName);
+                        const matchedWard = wardList.find((w) => w.name === profile.wardName);
                         if (matchedWard) {
-                            setForm((f) => ({ ...f, wardId: String(matchedWard.id) }));
+                            setForm((f) => ({ ...f, wardCode: String(matchedWard.code) }));
                         }
                     } catch { /* ignore */ }
                     finally { setLoadingWard(false); }
@@ -219,31 +241,80 @@ const BasicInfoTab = ({ profile, onSaved }) => {
 
     // Province → Districts (user-initiated change)
     const handleProvinceChange = async (e) => {
-        const provId = e.target.value;
-        setForm((f) => ({ ...f, provinceId: provId, districtId: '', wardId: '' }));
+        const provCode = e.target.value;
+        const provName = provinces.find((p) => p.value === provCode)?.label || '';
+        setForm((f) => ({ ...f, provinceCode: provCode, provinceName: provName, districtCode: '', districtName: '', wardCode: '', wardName: '' }));
         setDistricts([]);
         setWards([]);
-        if (!provId) return;
+        if (!provCode) return;
         setLoadingDist(true);
         try {
-            const res = await HelperRegistrationService.getDistricts(provId);
-            setDistricts(toOptions(Array.isArray(res) ? res : (res?.data || [])));
+            const res = await ProfileService.getDistricts(provCode);
+            const payload = res?.data ?? res;
+            const rawDist = Array.isArray(payload) ? payload : (Array.isArray(payload?.districts) ? payload.districts : []);
+            setDistricts(rawDist.map((d) => ({ value: String(d.code), label: d.name })));
         } catch { /* ignore */ }
         finally { setLoadingDist(false); }
     };
 
     // District → Wards (user-initiated change)
     const handleDistrictChange = async (e) => {
-        const distId = e.target.value;
-        setForm((f) => ({ ...f, districtId: distId, wardId: '' }));
+        const distCode = e.target.value;
+        const distName = districts.find((d) => d.value === distCode)?.label || '';
+        setForm((f) => ({ ...f, districtCode: distCode, districtName: distName, wardCode: '', wardName: '' }));
         setWards([]);
-        if (!distId) return;
+        if (!distCode) return;
         setLoadingWard(true);
         try {
-            const res = await HelperRegistrationService.getWards(distId);
-            setWards(toOptions(Array.isArray(res) ? res : (res?.data || [])));
+            const res = await ProfileService.getWards(distCode);
+            const payload = res?.data ?? res;
+            const rawWard = Array.isArray(payload) ? payload : (Array.isArray(payload?.wards) ? payload.wards : []);
+            setWards(rawWard.map((w) => ({ value: String(w.code), label: w.name })));
         } catch { /* ignore */ }
         finally { setLoadingWard(false); }
+    };
+
+    // ── Auto Geocoding ────────────────────────────────────────────────────────
+    useEffect(() => {
+        // Only geocode if there's at least a province selected
+        if (!form.provinceCode) return;
+
+        const timer = setTimeout(() => {
+            const provinceName = provinces.find(p => p.value == form.provinceCode)?.label;
+            const districtName = districts.find(d => d.value == form.districtCode)?.label;
+            const wardName = wards.find(w => w.value == form.wardCode)?.label;
+            const street = form.addressDetail?.trim();
+
+            const queryParts = [street, wardName, districtName, provinceName, "Vietnam"]
+                .filter(part => part && String(part).trim() !== "")
+                .map(part => part.replace(/^(Tỉnh|Thành phố|Quận|Huyện|Phường|Xã)\s+/i, ''))
+                .join(", ");
+
+            if (queryParts) {
+                fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryParts)}&format=json&limit=1`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.length > 0) {
+                            setForm(prev => ({
+                                ...prev,
+                                latitude: parseFloat(data[0].lat),
+                                longitude: parseFloat(data[0].lon)
+                            }));
+                        }
+                    })
+                    .catch(err => console.error("Geocoding failed:", err));
+            }
+        }, 1500); // Debounce for 1.5 seconds
+
+        return () => clearTimeout(timer);
+    }, [form.provinceCode, form.districtCode, form.wardCode, form.addressDetail, provinces, districts, wards]);
+
+    const handleMapLocationChange = (latlng) => {
+        setForm(prev => ({
+            ...prev,
+            latitude: latlng.lat,
+            longitude: latlng.lng
+        }));
     };
 
     const handleChange = (e) =>
@@ -303,15 +374,21 @@ const BasicInfoTab = ({ profile, onSaved }) => {
         }
         setSaving(true);
         try {
+            // Resolve ward name if user just changed ward dropdown
+            const wardName = form.wardCode
+                ? (wards.find((w) => w.value === form.wardCode)?.label || form.wardName)
+                : form.wardName;
             const payload = {
                 fullName: form.fullName,
                 avatarUrl: form.avatarUrl || null,
                 gender: form.gender || null,
                 addressDetail: form.addressDetail || null,
-                wardId: form.wardId ? parseInt(form.wardId, 10) : null,
-                districtId: form.districtId ? parseInt(form.districtId, 10) : null,
-                provinceId: form.provinceId ? parseInt(form.provinceId, 10) : null,
+                wardName: wardName || null,
+                districtName: form.districtName || null,
+                provinceName: form.provinceName || null,
                 addressLabel: form.addressLabel || 'HOME',
+                latitude: form.latitude,
+                longitude: form.longitude,
             };
             await ProfileService.updateProfile(payload);
 
@@ -344,7 +421,7 @@ const BasicInfoTab = ({ profile, onSaved }) => {
 
     return (
         <div className="hpp-tab-content">
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {toast && <NotificationModal message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* Avatar card – click avatar to change photo */}
             <div className="hpp-avatar-card">
@@ -481,14 +558,13 @@ const BasicInfoTab = ({ profile, onSaved }) => {
                         />
                     </div>
                 </div>
-
-                {/* Tỉnh/Thành phố */}
+               
                 <div className="hpp-form-row hpp-form-row--3">
                     <div className="hpp-field">
                         <label className="hpp-label" htmlFor="basic-province">Tỉnh / Thành phố</label>
                         <select
                             id="basic-province"
-                            value={form.provinceId}
+                            value={form.provinceCode}
                             onChange={handleProvinceChange}
                             disabled={loadingProv}
                             className={`hpp-select ${loadingProv ? 'hpp-select--disabled' : ''}`}
@@ -505,13 +581,13 @@ const BasicInfoTab = ({ profile, onSaved }) => {
                         <label className="hpp-label" htmlFor="basic-district">Quận / Huyện</label>
                         <select
                             id="basic-district"
-                            value={form.districtId}
+                            value={form.districtCode}
                             onChange={handleDistrictChange}
-                            disabled={!form.provinceId || loadingDist}
-                            className={`hpp-select ${(!form.provinceId || loadingDist) ? 'hpp-select--disabled' : ''}`}
+                            disabled={!form.provinceCode || loadingDist}
+                            className={`hpp-select ${(!form.provinceCode || loadingDist) ? 'hpp-select--disabled' : ''}`}
                         >
                             <option value="">
-                                {loadingDist ? 'Đang tải...' : !form.provinceId ? '-- Chọn Tỉnh/TP trước --' : '-- Chọn Quận/Huyện --'}
+                                {loadingDist ? 'Đang tải...' : !form.provinceCode ? '-- Chọn Tỉnh/TP trước --' : '-- Chọn Quận/Huyện --'}
                             </option>
                             {districts.map((d) => (
                                 <option key={d.value} value={d.value}>{d.label}</option>
@@ -524,18 +600,46 @@ const BasicInfoTab = ({ profile, onSaved }) => {
                         <label className="hpp-label" htmlFor="basic-ward">Phường / Xã</label>
                         <select
                             id="basic-ward"
-                            value={form.wardId}
-                            onChange={(e) => setForm((f) => ({ ...f, wardId: e.target.value }))}
-                            disabled={!form.districtId || loadingWard}
-                            className={`hpp-select ${(!form.districtId || loadingWard) ? 'hpp-select--disabled' : ''}`}
+                            value={form.wardCode}
+                            onChange={(e) => {
+                                const wardCode = e.target.value;
+                                const wardName = wards.find((w) => w.value === wardCode)?.label || '';
+                                setForm((f) => ({ ...f, wardCode, wardName }));
+                            }}
+                            disabled={!form.districtCode || loadingWard}
+                            className={`hpp-select ${(!form.districtCode || loadingWard) ? 'hpp-select--disabled' : ''}`}
                         >
                             <option value="">
-                                {loadingWard ? 'Đang tải...' : !form.districtId ? '-- Chọn Quận/Huyện trước --' : '-- Chọn Phường/Xã --'}
+                                {loadingWard ? 'Đang tải...' : !form.districtCode ? '-- Chọn Quận/Huyện trước --' : '-- Chọn Phường/Xã --'}
                             </option>
                             {wards.map((w) => (
                                 <option key={w.value} value={w.value}>{w.label}</option>
                             ))}
                         </select>
+                    </div>
+                </div>
+
+                {/* Bản đồ chọn vị trí */}
+                <div className="hpp-field" style={{ marginTop: '1rem' }}>
+                    <label className="hpp-label" style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '16px', height: '16px' }}>
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                        </svg>
+                        Ghim vị trí chính xác
+                    </label>
+                    <div style={{ height: '300px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1.5px solid #e2e8f0', zIndex: 1 }}>
+                        <MapContainer
+                            center={[form.latitude, form.longitude]}
+                            zoom={14}
+                            style={{ height: '100%', width: '100%' }}
+                            scrollWheelZoom={false}
+                        >
+                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                            <LocationMarker
+                                position={{ lat: form.latitude, lng: form.longitude }}
+                                setPosition={handleMapLocationChange}
+                            />
+                        </MapContainer>
                     </div>
                 </div>
 
@@ -595,9 +699,9 @@ const ProfessionalProfileTab = () => {
         bio: '',
         experienceYears: 0,
         dateOfBirth: '',
-        hometownProvinceId: '',  // → sent as hometownId
-        workProvinceId: '',   // UI-only: filter for working districts
-        workingDistrictIds: [],
+        hometownName: '',          // sent as hometownName to backend
+        workProvinceCode: '',      // UI-only: filter for working districts
+        workingDistricts: [],      // array of { code, name } objects
         serviceIds: [],
     });
 
@@ -606,7 +710,7 @@ const ProfessionalProfileTab = () => {
 
     const toOptionsArr = (res) => {
         const arr = Array.isArray(res) ? res : (res?.data || []);
-        return arr.map((item) => ({ value: String(item.id ?? item), label: item.name ?? item }));
+        return arr.map((item) => ({ value: String(item.code ?? item.id ?? item), label: item.name ?? item }));
     };
 
     // ── Bootstrap: fetch profile + master data ────────────────────────────────
@@ -622,9 +726,10 @@ const ProfessionalProfileTab = () => {
                     bio: data.bio || '',
                     experienceYears: data.experienceYears ?? 0,
                     dateOfBirth: data.dateOfBirth || '',
-                    hometownProvinceId: data.hometownId ? String(data.hometownId) : '',
-                    workingDistrictIds: data.workingDistricts?.map((d) => d.id) || [],
-                    serviceIds: data.services?.map((s) => s.id) || [],
+                    hometownName: data.hometownName || '',
+                    // workingDistricts from backend: [{ code, name, type }]
+                    workingDistricts: data.workingDistricts?.map((d) => ({ code: String(d.code), name: d.name })) || [],
+                    serviceIds: data.services?.map((s) => String(s.id)) || [],
                 }));
             })
             .catch((err) => console.error('[ProfessionalTab] fetch failed:', err))
@@ -636,8 +741,12 @@ const ProfessionalProfileTab = () => {
     // Load provinces once
     useEffect(() => {
         setLoadingProv(true);
-        HelperRegistrationService.getProvinces()
-            .then((res) => setAllProvinces(toOptionsArr(res)))
+        ProfileService.getProvinces()
+            .then((res) => {
+                const data = res?.data || res;
+                const arr = Array.isArray(data) ? data : [];
+                setAllProvinces(arr.map((p) => ({ value: String(p.code), label: p.name })));
+            })
             .catch(() => { })
             .finally(() => setLoadingProv(false));
     }, []);
@@ -646,32 +755,36 @@ const ProfessionalProfileTab = () => {
     useEffect(() => {
         setLoadingSvc(true);
         HelperRegistrationService.getServices()
-            .then((res) => setAllServices(toOptionsArr(res)))
+            .then((res) => {
+                const arr = Array.isArray(res) ? res : (res?.data || []);
+                setAllServices(arr.map((s) => ({ value: String(s.id), label: s.name })));
+            })
             .catch(() => { })
             .finally(() => setLoadingSvc(false));
     }, []);
 
-    // When workingDistricts loaded from profile, detect which province they belong to
-    // by loading all provinces' districts until we find a match → set workProvinceId
+    // When workingDistricts loaded from profile, detect workProvinceCode
+    // by finding first saved district's code in each province's district list
     useEffect(() => {
-        if (!form.workingDistrictIds.length || !allProvinces.length) return;
-        if (form.workProvinceId) return; // already set
+        if (!form.workingDistricts.length || !allProvinces.length) return;
+        if (form.workProvinceCode) return; // already set
 
-        // Try to find province by loading districts per province until matching
-        const firstSavedDistId = String(form.workingDistrictIds[0]);
+        const firstCode = form.workingDistricts[0]?.code;
+        if (!firstCode) return;
         let cancelled = false;
 
         (async () => {
             for (const prov of allProvinces) {
                 if (cancelled) break;
                 try {
-                    const res = await HelperRegistrationService.getDistricts(prov.value);
-                    const dists = Array.isArray(res) ? res : (res?.data || []);
-                    const found = dists.some((d) => String(d.id) === firstSavedDistId);
+                    const res = await ProfileService.getDistricts(prov.value);
+                    const payload = res?.data ?? res;
+                    const dists = Array.isArray(payload) ? payload : (Array.isArray(payload?.districts) ? payload.districts : []);
+                    const found = dists.some((d) => String(d.code) === String(firstCode));
                     if (found && !cancelled) {
-                        setForm((f) => ({ ...f, workProvinceId: prov.value }));
+                        setForm((f) => ({ ...f, workProvinceCode: prov.value }));
                         setAllWorkDistricts(
-                            dists.map((d) => ({ value: String(d.id), label: d.name }))
+                            dists.map((d) => ({ value: String(d.code), label: d.name }))
                         );
                         break;
                     }
@@ -681,18 +794,20 @@ const ProfessionalProfileTab = () => {
 
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [form.workingDistrictIds, allProvinces]);
+    }, [form.workingDistricts, allProvinces]);
 
     // When user manually changes the work-province filter
     const handleWorkProvinceChange = async (e) => {
-        const provId = e.target.value;
-        setForm((f) => ({ ...f, workProvinceId: provId }));
+        const provCode = e.target.value;
+        setForm((f) => ({ ...f, workProvinceCode: provCode }));
         setAllWorkDistricts([]);
-        if (!provId) return;
+        if (!provCode) return;
         setLoadingWorkDist(true);
         try {
-            const res = await HelperRegistrationService.getDistricts(provId);
-            setAllWorkDistricts(toOptionsArr(res));
+            const res = await ProfileService.getDistricts(provCode);
+            const payload = res?.data ?? res;
+            const dists = Array.isArray(payload) ? payload : (Array.isArray(payload?.districts) ? payload.districts : []);
+            setAllWorkDistricts(dists.map((d) => ({ value: String(d.code), label: d.name })));
         } catch { /* ignore */ }
         finally { setLoadingWorkDist(false); }
     };
@@ -710,12 +825,16 @@ const ProfessionalProfileTab = () => {
         }
         setSaving(true);
         try {
+            const hometownName = form.hometownName
+                || allProvinces.find((p) => p.value === form.workProvinceCode)?.label
+                || '';
             const payload = {
                 bio: form.bio,
                 experienceYears: parseInt(form.experienceYears, 10) || 0,
                 dateOfBirth: form.dateOfBirth || null,
-                hometownId: form.hometownProvinceId ? parseInt(form.hometownProvinceId, 10) : null,
-                workingDistrictIds: form.workingDistrictIds.map((id) => parseInt(id, 10)),
+                hometownName: hometownName || null,
+                // Backend expects: List<WorkingDistrictRequest> with { name, code }
+                workingDistricts: form.workingDistricts,
                 serviceIds: form.serviceIds.map((id) => parseInt(id, 10)),
             };
             await ProfileService.updateHelperProfessionalProfile(payload);
@@ -742,7 +861,7 @@ const ProfessionalProfileTab = () => {
 
     return (
         <div className="hpp-tab-content">
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {toast && <NotificationModal message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* Stats row */}
             {profile && (
@@ -859,15 +978,18 @@ const ProfessionalProfileTab = () => {
                     <label className="hpp-label" htmlFor="prof-hometown">Tỉnh / Thành phố quê quán</label>
                     <select
                         id="prof-hometown"
-                        name="hometownProvinceId"
-                        value={form.hometownProvinceId}
-                        onChange={handleChange}
+                        name="hometownName"
+                        value={form.hometownName}
+                        onChange={(e) => {
+                            const name = e.target.value;
+                            setForm((f) => ({ ...f, hometownName: name }));
+                        }}
                         disabled={loadingProv}
                         className={`hpp-select ${loadingProv ? 'hpp-select--disabled' : ''}`}
                     >
                         <option value="">{loadingProv ? 'Đang tải...' : '-- Chọn Tỉnh/TP quê quán --'}</option>
                         {allProvinces.map((p) => (
-                            <option key={p.value} value={p.value}>{p.label}</option>
+                            <option key={p.value} value={p.label}>{p.label}</option>
                         ))}
                     </select>
                 </div>
@@ -879,8 +1001,8 @@ const ProfessionalProfileTab = () => {
                         <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                     </svg>
                     <span>Khu vực nhận việc</span>
-                    {form.workingDistrictIds.length > 0 && (
-                        <span className="hpp-selected-count">{form.workingDistrictIds.length} quận/huyện đã chọn</span>
+                    {form.workingDistricts.length > 0 && (
+                        <span className="hpp-selected-count">{form.workingDistricts.length} quận/huyện đã chọn</span>
                     )}
                 </div>
 
@@ -889,7 +1011,7 @@ const ProfessionalProfileTab = () => {
                     <label className="hpp-label" htmlFor="prof-workProv">Lọc theo Tỉnh / Thành phố</label>
                     <select
                         id="prof-workProv"
-                        value={form.workProvinceId}
+                        value={form.workProvinceCode}
                         onChange={handleWorkProvinceChange}
                         disabled={loadingProv || loadingWorkDist}
                         className={`hpp-select ${(loadingProv || loadingWorkDist) ? 'hpp-select--disabled' : ''}`}
@@ -907,10 +1029,20 @@ const ProfessionalProfileTab = () => {
                     id="prof-workDistricts"
                     label="Chọn Quận / Huyện nhận việc"
                     options={allWorkDistricts}
-                    selectedIds={form.workingDistrictIds.map(String)}
-                    onChange={(ids) => setForm((f) => ({ ...f, workingDistrictIds: ids }))}
+                    selectedIds={form.workingDistricts.map((d) => d.code)}
+                    onChange={(codes) => {
+                        // Build workingDistricts array of {code, name}
+                        const updated = codes.map((code) => {
+                            const found = allWorkDistricts.find((d) => d.value === code);
+                            // Preserve existing entry or create new one
+                            return found
+                                ? { code, name: found.label }
+                                : form.workingDistricts.find((d) => d.code === code) || { code, name: '' };
+                        });
+                        setForm((f) => ({ ...f, workingDistricts: updated }));
+                    }}
                     loading={loadingWorkDist}
-                    emptyText={form.workProvinceId ? 'Không có quận/huyện nào' : 'Chọn Tỉnh/TP ở trên để xem danh sách'}
+                    emptyText={form.workProvinceCode ? 'Không có quận/huyện nào' : 'Chọn Tỉnh/TP ở trên để xem danh sách'}
                 />
 
                 {/* ── Dịch vụ ── */}
@@ -981,8 +1113,8 @@ const HelperProfilePage = () => {
     const [basicProfile, setBasicProfile] = useState(null);
     const [loadingBasic, setLoadingBasic] = useState(true);
 
-    const fetchBasic = useCallback(() => {
-        setLoadingBasic(true);
+    const fetchBasic = useCallback((isBackground = false) => {
+        if (!isBackground) setLoadingBasic(true);
         // Fetch both basic profile AND helper professional profile (for kycStatus)
         Promise.all([
             ProfileService.getMyProfile(),
@@ -1010,7 +1142,9 @@ const HelperProfilePage = () => {
             .catch((err) => {
                 console.error('[HelperProfilePage] fetchBasic failed:', err);
             })
-            .finally(() => setLoadingBasic(false));
+            .finally(() => {
+                if (!isBackground) setLoadingBasic(false);
+            });
     }, []);
 
     useEffect(() => { fetchBasic(); }, [fetchBasic]);
@@ -1024,7 +1158,7 @@ const HelperProfilePage = () => {
                         <h1 className="hpp-page-title">Hồ sơ cá nhân</h1>
                         <p className="hpp-page-subtitle">Quản lý thông tin cá nhân và hồ sơ nghề nghiệp của bạn</p>
                     </div>
-                    
+
                 </div>
 
                 {/* Tabs */}
@@ -1056,7 +1190,7 @@ const HelperProfilePage = () => {
                     {activeTab === 'basic' && (
                         loadingBasic
                             ? <div className="hpp-loading-state"><div className="hpp-loading-spinner" /><p>Đang tải thông tin...</p></div>
-                            : <BasicInfoTab profile={basicProfile} onSaved={fetchBasic} />
+                            : <BasicInfoTab profile={basicProfile} onSaved={() => fetchBasic(true)} />
                     )}
                     {activeTab === 'professional' && <ProfessionalProfileTab />}
                 </div>

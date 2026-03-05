@@ -63,14 +63,6 @@ public class HelperRegistrationService {
             draft = new RegistrationDraft();
         }
 
-
-        // Kiểm tra danh sách Quận làm việc
-        for (com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest.WorkingDistrictRequest wdReq : request.getWorkingDistricts()) {
-            if (!externalLocationService.validateDistrict(wdReq.getCode(), wdReq.getName())) {
-                throw new RuntimeException("Quận/Huyện làm việc không hợp lệ: " + wdReq.getName());
-            }
-        }
-
         // Kiểm tra danh sách Dịch vụ
         for (Integer sId : request.getServiceIds()) {
             if (!serviceRepository.existsById(sId)) {

@@ -1,5 +1,6 @@
 import React from 'react';
 import HeaderComponent from '../components/HeaderComponent';
+import CustomerSidebarComponent from '../components/CustomerSidebarComponent';
 import './CustomerLayout.css';
 
 const CustomerLayout = ({ children }) => {
@@ -7,7 +8,7 @@ const CustomerLayout = ({ children }) => {
         <div className="customer-layout-wrapper">
             <HeaderComponent />
             <div className="customer-layout-body">
-                {/* CustomerSidebarComponent can be added here if needed */}
+                <CustomerSidebarComponent />
                 <main className="customer-content">
                     {children}
                 </main>
