@@ -34,6 +34,7 @@ public class ProfileService {
     private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
 
     private final ExternalLocationService externalLocationService;
+    private final GeocodingService geocodingService;
 
     private static final Pattern PHONE_PATTERN = Pattern.compile(".*\\d{8,}.*");
 
@@ -74,10 +75,28 @@ public class ProfileService {
         address.setDistrictName(request.getDistrictName());
         address.setProvinceName(request.getProvinceName());
 
-        // Chỉ lưu tọa độ nếu FE gửi lên, không còn fallback sang Geocoding
-        if (request.getLatitude() != null && request.getLongitude() != null) {
-            address.setLatitude(request.getLatitude());
-            address.setLongitude(request.getLongitude());
+        // Logic ưu tiên tọa độ từ FE (Chuẩn Production)
+        BigDecimal lat = request.getLatitude();
+        BigDecimal lng = request.getLongitude();
+
+        if (lat != null && lng != null && (lat.compareTo(BigDecimal.ZERO) != 0 || lng.compareTo(BigDecimal.ZERO) != 0)) {
+            address.setLatitude(lat);
+            address.setLongitude(lng);
+        } else {
+            // Fallback sang Geocoding cấu trúc (10 cấp độ dự phòng tích hợp sẵn)
+            try {
+                GeocodingService.GeoResult geo = geocodingService.geocode(
+                        request.getAddressDetail(),
+                        request.getWardName(),
+                        request.getDistrictName(),
+                        request.getProvinceName()
+                );
+                address.setLatitude(geo.getLatitude());
+                address.setLongitude(geo.getLongitude());
+            } catch (Exception e) {
+                log.error("Geocoding failed for profile update of user {}: {}", user.getEmail(), e.getMessage());
+                throw new ApiException("Không thể định vị địa chỉ này. Vui lòng kiểm tra lại.", HttpStatus.BAD_REQUEST);
+            }
         }
 
         if (request.getAddressLabel() != null) {
@@ -277,5 +296,17 @@ public class ProfileService {
 
     public java.util.Map<String, Object> getWards(String districtCode) {
         return externalLocationService.getWardsByDistrict(districtCode);
+    }
+
+    /**
+     * Chuẩn hóa địa chỉ đầy đủ (Chuẩn Production-Ready cho Nominatim)
+     */
+    private String buildFullAddress(String detail, String ward, String district, String province) {
+        if (detail == null || province == null) {
+            return null;
+        }
+        return String.join(", ", detail, ward, district, province, "Vietnam")
+                .replaceAll(", null", "")
+                .replaceAll(", ,", ",");
     }
 }

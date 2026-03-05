@@ -34,6 +34,7 @@ public class HelperRegistrationService {
     private final AddressRepository addressRepository;
 
     private final ExternalLocationService externalLocationService;
+    private final GeocodingService geocodingService;
 
     @Transactional
     public void registerStage1(String email, HelperRegistrationStage1Request request) {
@@ -197,10 +198,28 @@ public class HelperRegistrationService {
         address.setDistrictName(draft.getDistrictName());
         address.setWardName(draft.getWardName());
 
-        // Chỉ lưu tọa độ nếu có trong Draft, không còn fallback sang Geocoding
-        if (draft.getLatitude() != null && draft.getLongitude() != null) {
-            address.setLatitude(draft.getLatitude());
-            address.setLongitude(draft.getLongitude());
+        // Logic ưu tiên tọa độ (Chuẩn Production-Ready)
+        BigDecimal lat = draft.getLatitude();
+        BigDecimal lng = draft.getLongitude();
+
+        if (lat != null && lng != null && (lat.compareTo(BigDecimal.ZERO) != 0 || lng.compareTo(BigDecimal.ZERO) != 0)) {
+            address.setLatitude(lat);
+            address.setLongitude(lng);
+        } else {
+            // Fallback sang Geocoding cấu trúc (10 cấp độ dự phòng tích hợp sẵn)
+            try {
+                GeocodingService.GeoResult geo = geocodingService.geocode(
+                        draft.getCurrentAddress(),
+                        draft.getWardName(),
+                        draft.getDistrictName(),
+                        draft.getProvinceName()
+                );
+                address.setLatitude(geo.getLatitude());
+                address.setLongitude(geo.getLongitude());
+            } catch (Exception e) {
+                log.error("Geocoding failed during submission for helper {}: {}", email, e.getMessage());
+                throw new ApiException("Không thể định vị địa chỉ của bạn. Vui lòng kiểm tra lại thông tin địa chỉ.", HttpStatus.BAD_REQUEST);
+            }
         }
         
         addressRepository.save(address);
@@ -211,6 +230,15 @@ public class HelperRegistrationService {
         registrationCacheService.removeDraft(email);
 
         log.info("Registration successfully persisted for helper: {}", email);
+    }
+
+    private String buildFullAddress(String detail, String ward, String district, String province) {
+        if (detail == null || province == null) {
+            return null;
+        }
+        return String.join(", ", detail, ward, district, province, "Vietnam")
+                .replaceAll(", null", "")
+                .replaceAll(", ,", ",");
     }
 
 }
