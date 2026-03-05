@@ -7,6 +7,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Entity ServiceCategory - Bảng service_categories
@@ -30,15 +32,16 @@ public class ServiceCategory {
     @Column(name = "name", nullable = false, unique = true, length = 100)
     private String name;
 
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
-
     @Column(name = "icon_url", columnDefinition = "TEXT")
     private String iconUrl;
 
     @Builder.Default
     @Column(name = "is_active")
     private Boolean isActive = true;
+
+    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<Service> services = new ArrayList<>();
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

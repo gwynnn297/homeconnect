@@ -9,4 +9,8 @@ import java.util.List;
 @Repository
 public interface ServiceRepository extends JpaRepository<Service, Integer> {
     List<Service> findByIsActiveTrue();
+
+    List<Service> findByCategoryCategoryId(Integer categoryId);
+
+    boolean existsByName(String name);
 }

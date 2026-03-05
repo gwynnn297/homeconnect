@@ -2,7 +2,10 @@ package com.homeconnect.core.service;
 
 import com.homeconnect.core.dto.request.BroadcastNotificationRequest;
 import com.homeconnect.core.dto.request.HelperReviewRequest;
+import com.homeconnect.core.dto.request.admin.CreateServiceRequest;
+import com.homeconnect.core.dto.request.admin.UpdateServiceRequest;
 import com.homeconnect.core.dto.response.*;
+import com.homeconnect.core.dto.response.admin.ServiceResponse;
 import com.homeconnect.core.entity.*;
 import com.homeconnect.core.enums.KycStatus;
 import com.homeconnect.core.enums.UserRole;
@@ -21,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.math.BigDecimal;
 
 /**
  * AdminService - Xử lý các chức năng Admin liên quan Helper
@@ -30,15 +34,17 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class AdminService {
+    // Giá tối thiểu cho phép để tránh lỗi nhập liệu (VD: 20,000 VNĐ)
+    private static final BigDecimal MIN_SERVICE_PRICE = new BigDecimal("20000");
 
-        private final UserRepository userRepository;
-        private final HelperProfileRepository helperProfileRepository;
-        private final HelperServiceRepository helperServiceRepository;
-        private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
-        private final ServiceRepository serviceRepository;
-        private final LocationRepository locationRepository;
-        private final AddressRepository addressRepository;
-        private final EmailService emailService;
+    private final UserRepository userRepository;
+    private final HelperProfileRepository helperProfileRepository;
+    private final HelperServiceRepository helperServiceRepository;
+    private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
+    private final ServiceRepository serviceRepository;
+    private final AddressRepository addressRepository;
+    private final EmailService emailService;
+
 
         @Transactional
         public HelperReviewResponse reviewHelperKyc(Long helperId, HelperReviewRequest request, String adminEmail) {
@@ -253,8 +259,9 @@ public class AdminService {
                                 .findByHelper_Id(helperId)
                                 .stream()
                                 .map(hwd -> HelperDetailResponse.DistrictInfo.builder()
-                                                .locationId(hwd.getLocation().getLocationId())
-                                                .name(hwd.getLocation().getName())
+                                                .locationId(0) // No ID needed now
+                                                .name(hwd.getDistrictName())
+                                                .code(hwd.getDistrictCode())
                                                 .build())
                                 .collect(Collectors.toList());
 
@@ -277,18 +284,16 @@ public class AdminService {
                                 .addressDetail(helperAddress != null ? helperAddress.getAddressDetail() : null)
 
                                 // Location
-                                .hometown(helperProfile.getHometown() != null
+                                .hometown(helperProfile.getHometownName() != null
                                                 ? HelperDetailResponse.LocationInfo.builder()
-                                                                .locationId(helperProfile.getHometown().getLocationId())
-                                                                .name(helperProfile.getHometown().getName())
-                                                                .type(helperProfile.getHometown().getType().name())
+                                                                .name(helperProfile.getHometownName())
+                                                                .type("PROVINCE")
                                                                 .build()
                                                 : null)
-                                .currentCity(helperAddress != null && helperAddress.getProvince() != null
+                                .currentCity(helperAddress != null && helperAddress.getProvinceName() != null
                                                 ? HelperDetailResponse.LocationInfo.builder()
-                                                                .locationId(helperAddress.getProvince().getLocationId())
-                                                                .name(helperAddress.getProvince().getName())
-                                                                .type(helperAddress.getProvince().getType().name())
+                                                                .name(helperAddress.getProvinceName())
+                                                                .type("PROVINCE")
                                                                 .build()
                                                 : null)
 
@@ -346,13 +351,11 @@ public class AdminService {
                                 .rejectedHelpers(rejectedHelpers)
                                 .build();
 
-                // Thống kê hệ thống: tổng số dịch vụ, tổng số khu vực
+                // Thống kê hệ thống: tổng số dịch vụ
                 long totalServices = serviceRepository.count();
-                long totalLocations = locationRepository.count();
 
                 AdminStatisticsResponse.SystemStats systemStats = AdminStatisticsResponse.SystemStats.builder()
                                 .totalServices(totalServices)
-                                .totalLocations(totalLocations)
                                 .build();
 
                 return AdminStatisticsResponse.builder()
@@ -433,9 +436,7 @@ public class AdminService {
                                 .dateOfBirth(helper.getDateOfBirth()) // Đã chuyển từ helperProfile sang User
 
                                 .currentCityName(
-                                                address != null && address.getProvince() != null
-                                                                ? address.getProvince().getName()
-                                                                : null)
+                                                address != null ? address.getProvinceName() : null)
 
                                 .experienceYears(helperProfile.getExperienceYears())
                                 .bio(helperProfile.getBio())
@@ -447,4 +448,120 @@ public class AdminService {
                                 .updatedAt(helperProfile.getUpdatedAt())
                                 .build();
         }
+
+
+
+
+    private ServiceResponse mapToServiceResponse(com.homeconnect.core.entity.Service service) {
+        return ServiceResponse.builder()
+                .serviceId(service.getServiceId())
+                .name(service.getName())
+                .description(service.getDescription())
+                .iconUrl(service.getIconUrl())
+                .basePrice(service.getBasePrice())
+                .unit(service.getUnit())
+                .isActive(service.getIsActive())
+                .createdAt(service.getCreatedAt())
+                .updatedAt(service.getUpdatedAt())
+                .build();
+    }
+
+    /**
+     * BE-Admin-01: Xóa dịch vụ nhỏ
+     */
+    @Transactional
+    public void deleteService(Integer id) {
+        if (!serviceRepository.existsById(id)) {
+            throw new BadRequestException("Dịch vụ không tồn tại");
+        }
+        serviceRepository.deleteById(id);
+    }
+
+    private void validateServicePrice(BigDecimal price) {
+        if (price != null && price.compareTo(MIN_SERVICE_PRICE) < 0) {
+            throw new BadRequestException("Giá dịch vụ quá thấp (Tối thiểu phải từ " + 
+                String.format("%,d", MIN_SERVICE_PRICE.longValue()) + " VNĐ). Vui lòng kiểm tra lại!");
+        }
+    }
+    /**
+     * BE-Admin-01: Lấy thông tin chi tiết của một dịch vụ lẻ
+     */
+    @Transactional(readOnly = true)
+    public ServiceResponse getServiceDetail(Integer serviceId) {
+        com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
+                .orElseThrow(() -> new BadRequestException("Dịch vụ ID " + serviceId + " không tồn tại"));
+        return mapToServiceResponse(service);
+    }
+
+    /**
+     * BE-Admin-01: Cập nhật thông tin dịch vụ (Patch)
+     */
+    @Transactional
+    public ServiceResponse updateService(Integer serviceId, UpdateServiceRequest request) {
+        com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
+                .orElseThrow(() -> new BadRequestException("Dịch vụ ID " + serviceId + " không tồn tại"));
+
+        if (request.getName() != null && !request.getName().equals(service.getName())) {
+            if (serviceRepository.existsByName(request.getName())) {
+                throw new BadRequestException("Tên dịch vụ '" + request.getName() + "' đã tồn tại");
+            }
+            service.setName(request.getName());
+        }
+
+        if (request.getBasePrice() != null) {
+            validateServicePrice(request.getBasePrice());
+            service.setBasePrice(request.getBasePrice());
+        }
+
+        if (request.getUnit() != null) {
+            service.setUnit(request.getUnit());
+        }
+
+        if (request.getIconUrl() != null) {
+            service.setIconUrl(request.getIconUrl());
+        }
+
+        if (request.getDescription() != null) {
+            service.setDescription(request.getDescription());
+        }
+
+        if (request.getIsActive() != null) {
+            service.setIsActive(request.getIsActive());
+        }
+
+        return mapToServiceResponse(serviceRepository.save(service));
+    }
+
+    /**
+     * BE-Admin-01: Manage Service & Price
+     * Tạo mới dịch vụ và giá sàn
+     */
+    @Transactional
+    public ServiceResponse createService(CreateServiceRequest request) {
+        // 1. Kiểm tra tên dịch vụ duy nhất
+        if (serviceRepository.existsByName(request.getName())) {
+            throw new BadRequestException("Tên dịch vụ '" + request.getName() + "' đã tồn tại");
+        }
+
+        validateServicePrice(request.getBasePrice());
+
+        // 2. Map DTO sang Entity
+        com.homeconnect.core.entity.Service service = com.homeconnect.core.entity.Service.builder()
+                .name(request.getName())
+                .description(request.getDescription())
+                .iconUrl(request.getIconUrl())
+                .basePrice(request.getBasePrice())
+                .unit(request.getUnit())
+                .isActive(request.getIsActive() == null || request.getIsActive())
+                .build();
+
+        // 3. Lưu entity
+        service = serviceRepository.save(service);
+
+        log.info("Admin đã tạo mới dịch vụ: {} (ID: {})", service.getName(), service.getServiceId());
+
+        // 4. Trả về response
+        return mapToServiceResponse(service);
+    }
+
 }
