@@ -3,6 +3,8 @@ package com.homeconnect.core.dto.request;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.*;
+
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -56,4 +58,12 @@ public class HelperRegistrationStage1Request {
     @NotEmpty(message = "Phải chọn ít nhất một dịch vụ.")
     @Schema(description = "Danh sách ID các dịch vụ cung cấp")
     private List<Integer> serviceIds;
+
+    @DecimalMin(value = "-90.0", message = "Vĩ độ không hợp lệ (-90 đến 90)")
+    @DecimalMax(value = "90.0", message = "Vĩ độ không hợp lệ (-90 đến 90)")
+    private BigDecimal latitude;
+
+    @DecimalMin(value = "-180.0", message = "Kinh độ không hợp lệ (-180 đến 180)")
+    @DecimalMax(value = "180.0", message = "Kinh độ không hợp lệ (-180 đến 180)")
+    private BigDecimal longitude;
 }

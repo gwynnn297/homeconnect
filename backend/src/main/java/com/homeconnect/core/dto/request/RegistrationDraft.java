@@ -1,6 +1,8 @@
 package com.homeconnect.core.dto.request;
 
 import lombok.*;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -23,6 +25,8 @@ public class RegistrationDraft {
     private String bio;
     private Integer experienceYears;
     private List<Integer> serviceIds;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
 
     // Data from Stage 2
     private String identityNumber;

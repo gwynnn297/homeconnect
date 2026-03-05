@@ -16,6 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -33,7 +34,6 @@ public class ProfileService {
     private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
 
     private final ExternalLocationService externalLocationService;
-    private final GeocodingService geocodingService;
 
     private static final Pattern PHONE_PATTERN = Pattern.compile(".*\\d{8,}.*");
 
@@ -74,22 +74,10 @@ public class ProfileService {
         address.setDistrictName(request.getDistrictName());
         address.setProvinceName(request.getProvinceName());
 
-        // Tích hợp Geocoding (Nominatim)
-        if (request.getAddressDetail() != null && request.getProvinceName() != null) {
-            try {
-                GeocodingService.GeoResult geo = geocodingService.geocode(
-                        request.getAddressDetail(),
-                        request.getWardName(),
-                        request.getDistrictName(),
-                        request.getProvinceName()
-                );
-                address.setLatitude(geo.getLatitude());
-                address.setLongitude(geo.getLongitude());
-            } catch (Exception e) {
-                log.error("Geocoding failed for profile update of user {}: {}", user.getEmail(), e.getMessage());
-                // Quy tắc: Nếu geocode fail thì reject request
-                throw new ApiException("Không thể định vị địa chỉ này. Vui lòng kiểm tra lại.", HttpStatus.BAD_REQUEST);
-            }
+        // Chỉ lưu tọa độ nếu FE gửi lên, không còn fallback sang Geocoding
+        if (request.getLatitude() != null && request.getLongitude() != null) {
+            address.setLatitude(request.getLatitude());
+            address.setLongitude(request.getLongitude());
         }
 
         if (request.getAddressLabel() != null) {
@@ -218,6 +206,8 @@ public class ProfileService {
                 .districtName(address != null ? address.getDistrictName() : null)
                 .wardName(address != null ? address.getWardName() : null)
                 .addressLabel(address != null ? address.getType() : null)
+                .latitude(address != null ? address.getLatitude() : null)
+                .longitude(address != null ? address.getLongitude() : null)
                 .build();
     }
 
