@@ -209,39 +209,72 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         fetchWards();
     }, [formData.districtCode]);
 
-    // ── Tự động ghim bản đồ khi thay đổi địa chỉ ──────────────────────────────
+    // ── Tự động ghim bản đồ với Fallback ──────────────────────────────────────
+    // Thử geocode với địa chỉ đầy đủ (số nhà) trước, nếu không tìm thấy thì fallback
+    // về cấp Phường/Quận/Tỉnh. Nominatim thường không có dữ liệu số nhà ở VN.
     useEffect(() => {
-        // Chỉ bắt đầu tìm toạ độ khi có ít nhất tỉnh thành
         if (!formData.provinceCode) return;
 
-        const timer = setTimeout(() => {
+        const timer = setTimeout(async () => {
             const provinceName = provinces.find(p => p.code == formData.provinceCode)?.name;
             const districtName = cityDistricts.find(d => d.code == formData.districtCode)?.name;
             const wardName = cityWards.find(w => w.code == formData.wardCode)?.name;
             const street = formData.currentAddress?.trim();
 
-            const queryParts = [street, wardName, districtName, provinceName, "Vietnam"]
-                .filter(part => part && String(part).trim() !== "")
-                .map(part => part.replace(/^(Tỉnh|Thành phố|Quận|Huyện|Phường|Xã)\s+/i, ''))
-                .join(", ");
+            // Helper: clean prefix từ tên hành chính
+            const cleanName = (name) => name?.replace(/^(Tỉnh|Thành phố|Quận|Huyện|Phường|Xã)\s+/i, '') || '';
 
-            if (queryParts) {
-                const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryParts)}&format=json&limit=1`;
+            // Helper: geocode một query
+            const geocode = async (query) => {
+                try {
+                    const res = await fetch(
+                        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=vn`
+                    );
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+                    }
+                } catch (err) {
+                    console.error("Lỗi tự động ghim bản đồ:", err);
+                }
+                return null;
+            };
 
-                fetch(url)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data && data.length > 0) {
-                            setFormData(prev => ({
-                                ...prev,
-                                latitude: parseFloat(data[0].lat),
-                                longitude: parseFloat(data[0].lon)
-                            }));
-                        }
-                    })
-                    .catch(err => console.error("Lỗi tự động gác bản đồ:", err));
+            // Chỉ dùng currentAddress khi đã chọn đủ Tỉnh + Quận + Phường
+            const hasFullAddress = provinceName && districtName && wardName;
+
+            // Tạo các query từ chi tiết nhất đến ít chi tiết nhất
+            const queries = [];
+            if (hasFullAddress && street) {
+                // Query 1: Địa chỉ đầy đủ với số nhà
+                queries.push([street, cleanName(wardName), cleanName(districtName), cleanName(provinceName)].join(", "));
             }
-        }, 1500); // Đợi 1.5s sau khi người dùng ngừng gõ/chọn
+            if (hasFullAddress) {
+                // Query 2: Chỉ Phường + Quận + Tỉnh (fallback khi không tìm thấy số nhà)
+                queries.push([cleanName(wardName), cleanName(districtName), cleanName(provinceName)].join(", "));
+            }
+            if (districtName) {
+                // Query 3: Chỉ Quận + Tỉnh
+                queries.push([cleanName(districtName), cleanName(provinceName)].join(", "));
+            }
+            if (provinceName) {
+                // Query 4: Chỉ Tỉnh
+                queries.push(cleanName(provinceName));
+            }
+
+            // Thử từng query cho đến khi tìm thấy kết quả
+            for (const query of queries) {
+                const result = await geocode(query);
+                if (result) {
+                    setFormData(prev => ({
+                        ...prev,
+                        latitude: result.lat,
+                        longitude: result.lng
+                    }));
+                    break;
+                }
+            }
+        }, 1500);
 
         return () => clearTimeout(timer);
     }, [formData.provinceCode, formData.districtCode, formData.wardCode, formData.currentAddress, provinces, cityDistricts, cityWards]);

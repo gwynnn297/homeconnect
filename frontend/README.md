@@ -72,10 +72,36 @@ npm run lint
 npm run preview
 ```
 
+## Các Package Cần Thiết
+
+Nếu cài đặt từ đầu hoặc thiếu package, chạy các lệnh sau:
+
+### HTTP Client (Axios)
+
+```bash
+npm install axios
+```
+
+### Routing (React Router)
+
+```bash
+npm install react-router-dom
+```
+
+### Bản đồ (Leaflet)
+
+```bash
+npm install leaflet react-leaflet
+```
+
+### Cài tất cả cùng lúc
+
+```bash
+npm install axios react-router-dom leaflet react-leaflet
+```
+
 ## Troubleshooting
 
 - **Lỗi khi npm install:** Xóa `node_modules` và `package-lock.json`, rồi chạy lại `npm install`
 - **Port 5173 đã được sử dụng:** Vite sẽ tự động sử dụng port khác
 - **Module không tìm thấy:** Chạy `npm install` lại và xóa cache với `npm cache clean --force`
-
-# npm install leaflet react-leaflet

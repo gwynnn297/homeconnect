@@ -254,37 +254,72 @@ const CustomerProfilePage = () => {
         finally { setLoadingWard(false); }
     };
 
-    // ── Auto Geocoding ────────────────────────────────────────────────────────
+    // ── Auto Geocoding với Fallback ─────────────────────────────────────────────
+    // Thử geocode với địa chỉ đầy đủ (số nhà) trước, nếu không tìm thấy thì fallback
+    // về cấp Phường/Quận/Tỉnh. Nominatim thường không có dữ liệu số nhà ở VN.
     useEffect(() => {
-        // Only geocode if there's at least a province selected
         if (!form.provinceCode) return;
 
-        const timer = setTimeout(() => {
+        const timer = setTimeout(async () => {
             const provinceName = provinces.find(p => p.value == form.provinceCode)?.label;
             const districtName = districts.find(d => d.value == form.districtCode)?.label;
             const wardName = wards.find(w => w.value == form.wardCode)?.label;
             const street = form.addressDetail?.trim();
 
-            const queryParts = [street, wardName, districtName, provinceName, "Vietnam"]
-                .filter(part => part && String(part).trim() !== "")
-                .map(part => part.replace(/^(Tỉnh|Thành phố|Quận|Huyện|Phường|Xã)\s+/i, ''))
-                .join(", ");
+            // Helper: clean prefix từ tên hành chính
+            const cleanName = (name) => name?.replace(/^(Tỉnh|Thành phố|Quận|Huyện|Phường|Xã)\s+/i, '') || '';
 
-            if (queryParts) {
-                fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryParts)}&format=json&limit=1`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data && data.length > 0) {
-                            setForm(prev => ({
-                                ...prev,
-                                latitude: parseFloat(data[0].lat),
-                                longitude: parseFloat(data[0].lon)
-                            }));
-                        }
-                    })
-                    .catch(err => console.error("Geocoding failed:", err));
+            // Helper: geocode một query
+            const geocode = async (query) => {
+                try {
+                    const res = await fetch(
+                        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=vn`
+                    );
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+                    }
+                } catch (err) {
+                    console.error("Geocoding failed:", err);
+                }
+                return null;
+            };
+
+            // Chỉ dùng addressDetail khi đã chọn đủ Tỉnh + Quận + Phường
+            const hasFullAddress = provinceName && districtName && wardName;
+
+            // Tạo các query từ chi tiết nhất đến ít chi tiết nhất
+            const queries = [];
+            if (hasFullAddress && street) {
+                // Query 1: Địa chỉ đầy đủ với số nhà
+                queries.push([street, cleanName(wardName), cleanName(districtName), cleanName(provinceName)].join(", "));
             }
-        }, 1500); // Debounce for 1.5 seconds
+            if (hasFullAddress) {
+                // Query 2: Chỉ Phường + Quận + Tỉnh (fallback khi không tìm thấy số nhà)
+                queries.push([cleanName(wardName), cleanName(districtName), cleanName(provinceName)].join(", "));
+            }
+            if (districtName) {
+                // Query 3: Chỉ Quận + Tỉnh
+                queries.push([cleanName(districtName), cleanName(provinceName)].join(", "));
+            }
+            if (provinceName) {
+                // Query 4: Chỉ Tỉnh
+                queries.push(cleanName(provinceName));
+            }
+
+            // Thử từng query cho đến khi tìm thấy kết quả
+            for (const query of queries) {
+                const result = await geocode(query);
+                if (result) {
+                    setForm(prev => ({
+                        ...prev,
+                        latitude: result.lat,
+                        longitude: result.lng
+                    }));
+                    break;
+                }
+            }
+        }, 1500);
 
         return () => clearTimeout(timer);
     }, [form.provinceCode, form.districtCode, form.wardCode, form.addressDetail, provinces, districts, wards]);
@@ -504,40 +539,6 @@ const CustomerProfilePage = () => {
                                     <span>Địa chỉ liên lạc</span>
                                 </div>
 
-                                <div className="cpp-form-row cpp-form-row--2">
-                                    <div className="cpp-field">
-                                        <label className="cpp-label" htmlFor="basic-addressLabel">Nhãn địa chỉ</label>
-                                        <select
-                                            id="basic-addressLabel"
-                                            name="addressLabel"
-                                            value={form.addressLabel}
-                                            onChange={handleChange}
-                                            className="cpp-select"
-                                        >
-                                            {addressLabels.length === 0
-                                                ? <option value="HOME">HOME</option>
-                                                : addressLabels.map((lb) => (
-                                                    <option key={lb} value={lb}>{lb}</option>
-                                                ))
-                                            }
-                                        </select>
-                                    </div>
-                                    <div className="cpp-field">
-                                        <label className="cpp-label" htmlFor="basic-addressDetail">Địa chỉ chi tiết</label>
-                                        <input
-                                            id="basic-addressDetail"
-                                            type="text"
-                                            name="addressDetail"
-                                            value={form.addressDetail}
-                                            onChange={handleChange}
-                                            className="cpp-input"
-                                            placeholder="Số nhà, tên đường..."
-                                        />
-                                    </div>
-                                </div>
-
-                               
-
                                 <div className="cpp-form-row cpp-form-row--3">
                                     <div className="cpp-field">
                                         <label className="cpp-label" htmlFor="basic-province">Tỉnh / Thành phố</label>
@@ -595,8 +596,40 @@ const CustomerProfilePage = () => {
                                         </select>
                                     </div>
                                 </div>
-                                
-                                 {/* Bản đồ chọn vị trí */}
+
+                                <div className="cpp-form-row cpp-form-row--2">
+                                    <div className="cpp-field">
+                                        <label className="cpp-label" htmlFor="basic-addressLabel">Nhãn địa chỉ</label>
+                                        <select
+                                            id="basic-addressLabel"
+                                            name="addressLabel"
+                                            value={form.addressLabel}
+                                            onChange={handleChange}
+                                            className="cpp-select"
+                                        >
+                                            {addressLabels.length === 0
+                                                ? <option value="HOME">HOME</option>
+                                                : addressLabels.map((lb) => (
+                                                    <option key={lb} value={lb}>{lb}</option>
+                                                ))
+                                            }
+                                        </select>
+                                    </div>
+                                    <div className="cpp-field">
+                                        <label className="cpp-label" htmlFor="basic-addressDetail">Địa chỉ chi tiết</label>
+                                        <input
+                                            id="basic-addressDetail"
+                                            type="text"
+                                            name="addressDetail"
+                                            value={form.addressDetail}
+                                            onChange={handleChange}
+                                            className="cpp-input"
+                                            placeholder="Số nhà, tên đường..."
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Bản đồ chọn vị trí */}
                                 <div className="cpp-field" style={{ marginTop: '1rem' }}>
                                     <label className="cpp-label" style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '16px', height: '16px' }}>
