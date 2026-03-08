@@ -12,7 +12,7 @@ import java.util.Optional;
 @Repository
 public interface AddressRepository extends JpaRepository<Address, Integer> {
     List<Address> findByUser_Id(Long userId);
-    
+
     Optional<Address> findByUser_IdAndIsDefaultTrue(Long userId);
 
     // Batch fetch default addresses cho nhiều users

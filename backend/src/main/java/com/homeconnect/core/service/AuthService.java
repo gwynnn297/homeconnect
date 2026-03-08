@@ -31,6 +31,7 @@ public class AuthService {
 
     private final SecurityTokenRepository securityTokenRepository;
     private final EmailService emailService;
+    private final WalletService walletService;
 
     public void registerInit(RegisterInitRequest request) {
         UserRole role = request.getRole();
@@ -81,7 +82,7 @@ public class AuthService {
             user.setPhone(request.getPhone());
             user.setRole(role);
         }
-        
+
         userRepository.save(user);
 
         // Generate 6-digit OTP
@@ -129,14 +130,18 @@ public class AuthService {
         // Set password từ request và activate account
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setStatus(UserStatus.ACTIVE);
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // [BE-Wallet-01] Tự động tạo ví cho user ngay sau khi đăng ký thành công
+        walletService.createWalletForUser(savedUser);
+
+        return savedUser;
     }
 
     public LoginResponse login(LoginRequest request) {
         // Authenticate
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 
         // Find user
         User user = userRepository.findByEmailOrPhone(request.getEmail(), request.getEmail())
@@ -209,7 +214,8 @@ public class AuthService {
         User user = userRepository.findByEmailOrPhone(request.getEmail(), request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
 
-        SecurityToken otpToken = securityTokenRepository.findByTokenValueAndTokenTypeAndIsUsedFalse(request.getOtp(), "FORGOT_PASSWORD_OTP")
+        SecurityToken otpToken = securityTokenRepository
+                .findByTokenValueAndTokenTypeAndIsUsedFalse(request.getOtp(), "FORGOT_PASSWORD_OTP")
                 .filter(t -> t.getUser().getId().equals(user.getId()))
                 .filter(t -> t.getExpiryDate().isAfter(java.time.LocalDateTime.now()))
                 .orElseThrow(() -> new RuntimeException("OTP không hợp lệ hoặc đã hết hạn"));
@@ -233,7 +239,8 @@ public class AuthService {
     }
 
     public void resetPassword(ResetPasswordRequest request) {
-        SecurityToken resetToken = securityTokenRepository.findByTokenValueAndTokenTypeAndIsUsedFalse(request.getResetToken(), "RESET_PASSWORD_TOKEN")
+        SecurityToken resetToken = securityTokenRepository
+                .findByTokenValueAndTokenTypeAndIsUsedFalse(request.getResetToken(), "RESET_PASSWORD_TOKEN")
                 .filter(t -> t.getExpiryDate().isAfter(java.time.LocalDateTime.now()))
                 .orElseThrow(() -> new RuntimeException("Reset token không hợp lệ hoặc đã hết hạn"));
 
