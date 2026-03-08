@@ -1,6 +1,6 @@
 plugins {
 	java
-	id("org.springframework.boot") version "4.0.2"
+	id("org.springframework.boot") version "3.4.2"
 	id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -58,11 +58,16 @@ dependencies {
 	// Swagger/OpenAPI Documentation
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0")
 	
+	// Resilience4j - Rate Limiting
+	implementation("io.github.resilience4j:resilience4j-spring-boot3:2.2.0")
+	implementation("org.springframework.boot:spring-boot-starter-aop")
+	
 	// Development
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 	
 	// Testing
+	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-mail-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-security-test")

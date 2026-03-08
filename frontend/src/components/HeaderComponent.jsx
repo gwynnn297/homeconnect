@@ -77,6 +77,15 @@ const HeaderComponent = () => {
 
     const toggleDropdown = () => setShowDropdown((v) => !v);
 
+    const handleProfile = () => {
+        setShowDropdown(false);
+        if (userInfo?.role === 'HELPER') {
+            navigate('/helper/profile');
+        } else if (userInfo?.role === 'CUSTOMER') {
+            navigate('/customer/profile');
+        }
+    };
+
     const handleLogout = () => {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
@@ -114,8 +123,9 @@ const HeaderComponent = () => {
                 <div className="user-info" ref={userInfoRef}>
                     <div
                         className="user-avatar"
-                        onClick={() => { navigate('/helper/profile'); setShowDropdown(false); }}
-                        title="Hồ sơ cá nhân"
+                        onClick={handleProfile}
+                        title={userInfo?.role !== 'ADMIN' ? "Hồ sơ cá nhân" : "Ảnh đại diện"}
+                        style={{ cursor: userInfo?.role !== 'ADMIN' ? 'pointer' : 'default' }}
                     >
                         {avatarUrl
                             ? <img src={avatarUrl} alt="Avatar" className="user-avatar-img" />
@@ -134,12 +144,14 @@ const HeaderComponent = () => {
                     {/* Dropdown Menu */}
                     {showDropdown && (
                         <div className="user-dropdown">
-                            <div className="dropdown-item" onClick={() => { navigate('/helper/profile'); setShowDropdown(false); }}>
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                    <path d="M8 8C10.21 8 12 6.21 12 4C12 1.79 10.21 0 8 0C5.79 0 4 1.79 4 4C4 6.21 5.79 8 8 8ZM8 10C5.33 10 0 11.34 0 14V16H16V14C16 11.34 10.67 10 8 10Z" fill="currentColor" />
-                                </svg>
-                                Hồ sơ
-                            </div>
+                            {userInfo?.role !== 'ADMIN' && (
+                                <div className="dropdown-item" onClick={handleProfile}>
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                        <path d="M8 8C10.21 8 12 6.21 12 4C12 1.79 10.21 0 8 0C5.79 0 4 1.79 4 4C4 6.21 5.79 8 8 8ZM8 10C5.33 10 0 11.34 0 14V16H16V14C16 11.34 10.67 10 8 10Z" fill="currentColor" />
+                                    </svg>
+                                    Hồ sơ
+                                </div>
+                            )}
                             <div className="dropdown-divider"></div>
                             <div className="dropdown-item dropdown-item-danger" onClick={handleLogout}>
                                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

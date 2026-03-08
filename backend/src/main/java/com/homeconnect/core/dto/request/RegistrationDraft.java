@@ -1,6 +1,8 @@
 package com.homeconnect.core.dto.request;
 
 import lombok.*;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -14,15 +16,17 @@ import java.util.List;
 public class RegistrationDraft {
     // Data from Stage 1
     private LocalDate dateOfBirth;
-    private Integer hometownId;
-    private Integer provinceId;
-    private Integer districtId;
-    private Integer wardId;
+    private String hometownName;
+    private String provinceName;
+    private String districtName;
+    private String wardName;
     private String currentAddress;
-    private List<Integer> workingDistrictIds;
+    private List<com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest.WorkingDistrictRequest> workingDistricts;
     private String bio;
     private Integer experienceYears;
     private List<Integer> serviceIds;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
 
     // Data from Stage 2
     private String identityNumber;
@@ -31,10 +35,10 @@ public class RegistrationDraft {
     private String selfieUrl;
 
     public boolean isStage1Complete() {
-        return dateOfBirth != null && hometownId != null && 
-               provinceId != null && districtId != null && 
-               wardId != null && currentAddress != null && 
-               workingDistrictIds != null && !workingDistrictIds.isEmpty() &&
+        return dateOfBirth != null && hometownName != null && 
+               provinceName != null && districtName != null && 
+               wardName != null && currentAddress != null && 
+               workingDistricts != null && !workingDistricts.isEmpty() &&
                bio != null && experienceYears != null && 
                serviceIds != null && !serviceIds.isEmpty();
     }

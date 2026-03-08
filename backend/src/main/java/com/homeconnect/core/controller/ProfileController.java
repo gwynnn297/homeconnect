@@ -111,4 +111,33 @@ public class ProfileController {
                 .data(profileService.getAddressLabels())
                 .build());
     }
+
+    // --- External Location APIs (Proxy via Backend) ---
+
+    @GetMapping("/locations/provinces")
+    @Operation(summary = "Lấy danh sách Tỉnh/Thành", description = "Gọi từ Provinces API v1")
+    public ResponseEntity<ApiResponse<java.util.List<java.util.Map<String, Object>>>> getProvinces() {
+        return ResponseEntity.ok(ApiResponse.<java.util.List<java.util.Map<String, Object>>>builder()
+                .message("Lấy danh sách tỉnh thành thành công")
+                .data(profileService.getProvinces())
+                .build());
+    }
+
+    @GetMapping("/locations/provinces/{provinceCode}/districts")
+    @Operation(summary = "Lấy danh sách Quận/Huyện theo Tỉnh", description = "Gọi từ Provinces API v1")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getDistricts(@PathVariable String provinceCode) {
+        return ResponseEntity.ok(ApiResponse.<java.util.Map<String, Object>>builder()
+                .message("Lấy danh sách quận huyện thành công")
+                .data(profileService.getDistricts(provinceCode))
+                .build());
+    }
+
+    @GetMapping("/locations/districts/{districtCode}/wards")
+    @Operation(summary = "Lấy danh sách Phường/Xã theo Quận", description = "Gọi từ Provinces API v1")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getWards(@PathVariable String districtCode) {
+        return ResponseEntity.ok(ApiResponse.<java.util.Map<String, Object>>builder()
+                .message("Lấy danh sách phường xã thành công")
+                .data(profileService.getWards(districtCode))
+                .build());
+    }
 }

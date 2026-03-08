@@ -3,6 +3,8 @@ package com.homeconnect.core.dto.request;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.*;
+
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -19,20 +21,20 @@ public class HelperRegistrationStage1Request {
 
     // --- Khu vực làm việc & Quê quán ---
     @NotNull(message = "Quê quán không được để trống")
-    @Schema(description = "ID của Tỉnh/Thành phố quê quán", example = "41")
-    private Integer hometownId;
+    @Schema(description = "Tên của Tỉnh/Thành phố quê quán", example = "Thành phố Đà Nẵng")
+    private String hometownName;
 
     @NotNull(message = "Tỉnh/Thành phố hiện tại không được để trống")
-    @Schema(description = "ID của Tỉnh/Thành phố hiện tại", example = "43")
-    private Integer provinceId;
+    @Schema(description = "Tên của Tỉnh/Thành phố hiện tại", example = "Thành phố Hồ Chí Minh")
+    private String provinceName;
     
     @NotNull(message = "Quận/Huyện hiện tại không được để trống")
-    @Schema(description = "ID của Quận/Huyện hiện tại", example = "168")
-    private Integer districtId;
+    @Schema(description = "Tên của Quận/Huyện hiện tại", example = "Quận 1")
+    private String districtName;
 
     @NotNull(message = "Phường/Xã hiện tại không được để trống")
-    @Schema(description = "ID của Phường/Xã hiện tại", example = "381")
-    private Integer wardId;
+    @Schema(description = "Tên của Phường/Xã hiện tại", example = "Phường Bến Nghé")
+    private String wardName;
 
     @NotBlank(message = "Địa chỉ hiện tại không được để trống")
     @Schema(description = "Địa chỉ tạm trú hiện tại: Số nhà, tên đường...", example = "Số 123, đường Nguyễn Huệ")
@@ -40,8 +42,8 @@ public class HelperRegistrationStage1Request {
 
 
     @NotEmpty(message = "Phải chọn ít nhất 1 quận muốn nhận việc")
-    @Schema(description = "Danh sách ID các Quận/Huyện muốn nhận việc")
-    private List<Integer> workingDistrictIds;
+    @Schema(description = "Danh sách các Quận/Huyện muốn nhận việc")
+    private List<com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest.WorkingDistrictRequest> workingDistricts;
 
     // --- Giới thiệu & Dịch vụ ---
     @NotBlank(message = "Giới thiệu bản thân không được để trống")
@@ -56,4 +58,12 @@ public class HelperRegistrationStage1Request {
     @NotEmpty(message = "Phải chọn ít nhất một dịch vụ.")
     @Schema(description = "Danh sách ID các dịch vụ cung cấp")
     private List<Integer> serviceIds;
+
+    @DecimalMin(value = "-90.0", message = "Vĩ độ không hợp lệ (-90 đến 90)")
+    @DecimalMax(value = "90.0", message = "Vĩ độ không hợp lệ (-90 đến 90)")
+    private BigDecimal latitude;
+
+    @DecimalMin(value = "-180.0", message = "Kinh độ không hợp lệ (-180 đến 180)")
+    @DecimalMax(value = "180.0", message = "Kinh độ không hợp lệ (-180 đến 180)")
+    private BigDecimal longitude;
 }

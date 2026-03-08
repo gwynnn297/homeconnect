@@ -3,6 +3,36 @@ import './KYCModal.css';
 import HelperRegistrationService from '../services/HelperRegistrationService';
 import CloudinaryService from '../services/CloudinaryService';
 import logoHomieConnect from '../assets/LogoHomieConnect.png';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix Leaflet marker icon issue
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+const LocationMarker = ({ position, setPosition }) => {
+    const map = useMapEvents({
+        click(e) {
+            setPosition(e.latlng);
+            map.flyTo(e.latlng, map.getZoom());
+        },
+    });
+
+    useEffect(() => {
+        if (position) {
+            map.flyTo(position, map.getZoom());
+        }
+    }, [position, map]);
+
+    return position === null ? null : (
+        <Marker position={position}></Marker>
+    );
+};
 
 const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     const [currentStage, setCurrentStage] = useState(1);
@@ -20,13 +50,15 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         dateOfBirth: '',
         bio: '',
         experienceYears: '',
-        hometownId: '',
-        provinceId: '',
-        districtId: '',
-        wardId: '',
+        hometownCode: '',
+        provinceCode: '',
+        districtCode: '',
+        wardCode: '',
         currentAddress: '',
-        workingDistrictIds: [],
+        workingDistrictCodes: [],
         serviceIds: [],
+        latitude: 16.0544,  // Default Da Nang
+        longitude: 108.2022,
         // Stage 2
         identityNumber: '',
     });
@@ -61,13 +93,15 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             dateOfBirth: '',
             bio: '',
             experienceYears: '',
-            hometownId: '',
-            provinceId: '',
-            districtId: '',
-            wardId: '',
+            hometownCode: '',
+            provinceCode: '',
+            districtCode: '',
+            wardCode: '',
             currentAddress: '',
-            workingDistrictIds: [],
+            workingDistrictCodes: [],
             serviceIds: [],
+            latitude: 16.0544,
+            longitude: 108.2022,
             identityNumber: '',
         });
         setCityDistricts([]);
@@ -90,10 +124,12 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             setLoadingProvinces(true);
             setLoadingServices(true);
             try {
-                const [provincesData, servicesData] = await Promise.all([
+                const [provincesRes, servicesRes] = await Promise.all([
                     HelperRegistrationService.getProvinces(),
                     HelperRegistrationService.getServices()
                 ]);
+                const provincesData = provincesRes?.data || provincesRes;
+                const servicesData = servicesRes?.data || servicesRes;
                 setProvinces(Array.isArray(provincesData) ? provincesData : []);
                 setServices(Array.isArray(servicesData) ? servicesData : []);
             } catch (err) {
@@ -111,17 +147,25 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
 
     // Fetch danh sách quận/huyện khi chọn tỉnh/thành phố
     useEffect(() => {
-        if (!formData.provinceId) {
+        if (!formData.provinceCode) {
             setCityDistricts([]);
-            setFormData(prev => ({ ...prev, districtId: '', wardId: '', workingDistrictIds: [] }));
+            setFormData(prev => ({ ...prev, districtCode: '', wardCode: '', workingDistrictCodes: [] }));
             return;
         }
 
         const fetchDistricts = async () => {
             setLoadingDistricts(true);
             try {
-                const data = await HelperRegistrationService.getDistricts(formData.provinceId);
-                setCityDistricts(Array.isArray(data) ? data : []);
+                const res = await HelperRegistrationService.getDistricts(formData.provinceCode);
+                // Backend proxy: ApiResponse<Map> -> data.districts = [...]
+                const payload = res?.data ?? res;
+                const districts = Array.isArray(payload)
+                    ? payload
+                    : Array.isArray(payload?.districts)
+                        ? payload.districts
+                        : [];
+                // Normalize code to string to avoid number/string mismatch in includes()
+                setCityDistricts(districts.map(d => ({ ...d, code: String(d.code) })));
             } catch (err) {
                 console.error('Lỗi khi tải danh sách quận/huyện:', err);
                 setCityDistricts([]);
@@ -131,21 +175,29 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         };
 
         fetchDistricts();
-    }, [formData.provinceId]);
+    }, [formData.provinceCode]);
 
     // Fetch danh sách phường/xã khi chọn quận/huyện
     useEffect(() => {
-        if (!formData.districtId) {
+        if (!formData.districtCode) {
             setCityWards([]);
-            setFormData(prev => ({ ...prev, wardId: '' }));
+            setFormData(prev => ({ ...prev, wardCode: '' }));
             return;
         }
 
         const fetchWards = async () => {
             setLoadingWards(true);
             try {
-                const data = await HelperRegistrationService.getWards(formData.districtId);
-                setCityWards(Array.isArray(data) ? data : []);
+                const res = await HelperRegistrationService.getWards(formData.districtCode);
+                // Backend proxy: ApiResponse<Map> -> data.wards = [...]
+                const payload = res?.data ?? res;
+                const wards = Array.isArray(payload)
+                    ? payload
+                    : Array.isArray(payload?.wards)
+                        ? payload.wards
+                        : [];
+                // Normalize code to string to avoid number/string mismatch in includes()
+                setCityWards(wards.map(w => ({ ...w, code: String(w.code) })));
             } catch (err) {
                 console.error('Lỗi khi tải danh sách phường/xã:', err);
                 setCityWards([]);
@@ -155,24 +207,102 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         };
 
         fetchWards();
-    }, [formData.districtId]);
+    }, [formData.districtCode]);
+
+    // ── Tự động ghim bản đồ với Fallback ──────────────────────────────────────
+    // Thử geocode với địa chỉ đầy đủ (số nhà) trước, nếu không tìm thấy thì fallback
+    // về cấp Phường/Quận/Tỉnh. Nominatim thường không có dữ liệu số nhà ở VN.
+    useEffect(() => {
+        if (!formData.provinceCode) return;
+
+        const timer = setTimeout(async () => {
+            const provinceName = provinces.find(p => p.code == formData.provinceCode)?.name;
+            const districtName = cityDistricts.find(d => d.code == formData.districtCode)?.name;
+            const wardName = cityWards.find(w => w.code == formData.wardCode)?.name;
+            const street = formData.currentAddress?.trim();
+
+            // Helper: clean prefix từ tên hành chính
+            const cleanName = (name) => name?.replace(/^(Tỉnh|Thành phố|Quận|Huyện|Phường|Xã)\s+/i, '') || '';
+
+            // Helper: geocode một query
+            const geocode = async (query) => {
+                try {
+                    const res = await fetch(
+                        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=vn`
+                    );
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+                    }
+                } catch (err) {
+                    console.error("Lỗi tự động ghim bản đồ:", err);
+                }
+                return null;
+            };
+
+            // Chỉ dùng currentAddress khi đã chọn đủ Tỉnh + Quận + Phường
+            const hasFullAddress = provinceName && districtName && wardName;
+
+            // Tạo các query từ chi tiết nhất đến ít chi tiết nhất
+            const queries = [];
+            if (hasFullAddress && street) {
+                // Query 1: Địa chỉ đầy đủ với số nhà
+                queries.push([street, cleanName(wardName), cleanName(districtName), cleanName(provinceName)].join(", "));
+            }
+            if (hasFullAddress) {
+                // Query 2: Chỉ Phường + Quận + Tỉnh (fallback khi không tìm thấy số nhà)
+                queries.push([cleanName(wardName), cleanName(districtName), cleanName(provinceName)].join(", "));
+            }
+            if (districtName) {
+                // Query 3: Chỉ Quận + Tỉnh
+                queries.push([cleanName(districtName), cleanName(provinceName)].join(", "));
+            }
+            if (provinceName) {
+                // Query 4: Chỉ Tỉnh
+                queries.push(cleanName(provinceName));
+            }
+
+            // Thử từng query cho đến khi tìm thấy kết quả
+            for (const query of queries) {
+                const result = await geocode(query);
+                if (result) {
+                    setFormData(prev => ({
+                        ...prev,
+                        latitude: result.lat,
+                        longitude: result.lng
+                    }));
+                    break;
+                }
+            }
+        }, 1500);
+
+        return () => clearTimeout(timer);
+    }, [formData.provinceCode, formData.districtCode, formData.wardCode, formData.currentAddress, provinces, cityDistricts, cityWards]);
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
 
         if (type === 'checkbox') {
-            const numValue = parseInt(value);
+            const val = name === 'serviceIds' ? parseInt(value) : value; // serviceIds là int, locations codes là string
             setFormData(prev => ({
                 ...prev,
                 [name]: checked
-                    ? [...prev[name], numValue]
-                    : prev[name].filter(id => id !== numValue)
+                    ? [...prev[name], val]
+                    : prev[name].filter(item => item !== val)
             }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
 
         if (error) setError('');
+    };
+
+    const handleMapLocationChange = (latlng) => {
+        setFormData(prev => ({
+            ...prev,
+            latitude: latlng.lat,
+            longitude: latlng.lng
+        }));
     };
 
     const handleFileSelect = (e, type) => {
@@ -236,19 +366,19 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             setError('Vui lòng nhập ngày sinh');
             return false;
         }
-        if (!formData.hometownId) {
+        if (!formData.hometownCode) {
             setError('Vui lòng chọn quê quán');
             return false;
         }
-        if (!formData.provinceId) {
+        if (!formData.provinceCode) {
             setError('Vui lòng chọn tỉnh/thành phố hiện tại');
             return false;
         }
-        if (!formData.districtId) {
+        if (!formData.districtCode) {
             setError('Vui lòng chọn quận/huyện hiện tại');
             return false;
         }
-        if (!formData.wardId) {
+        if (!formData.wardCode) {
             setError('Vui lòng chọn phường/xã hiện tại');
             return false;
         }
@@ -256,7 +386,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             setError('Vui lòng nhập địa chỉ hiện tại');
             return false;
         }
-        if (formData.workingDistrictIds.length === 0) {
+        if (formData.workingDistrictCodes.length === 0) {
             setError('Vui lòng chọn ít nhất 1 quận muốn nhận việc');
             return false;
         }
@@ -304,17 +434,29 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         setSuccess('');
 
         try {
+            const hometownName = provinces.find(p => p.code == formData.hometownCode)?.name || '';
+            const provinceName = provinces.find(p => p.code == formData.provinceCode)?.name || '';
+            const districtName = cityDistricts.find(d => d.code == formData.districtCode)?.name || '';
+            const wardName = cityWards.find(w => w.code == formData.wardCode)?.name || '';
+
+            const workingDistricts = formData.workingDistrictCodes.map(code => {
+                const dist = cityDistricts.find(d => d.code == code);
+                return dist ? { code: String(code), name: dist.name } : null;
+            }).filter(Boolean);
+
             const stage1Data = {
                 dateOfBirth: formData.dateOfBirth,
-                hometownId: parseInt(formData.hometownId),
-                provinceId: parseInt(formData.provinceId),
-                districtId: parseInt(formData.districtId),
-                wardId: parseInt(formData.wardId),
+                hometownName: hometownName,
+                provinceName: provinceName,
+                districtName: districtName,
+                wardName: wardName,
                 currentAddress: formData.currentAddress.trim(),
-                workingDistrictIds: formData.workingDistrictIds,
+                workingDistricts: workingDistricts,
                 bio: formData.bio.trim(),
                 experienceYears: parseInt(formData.experienceYears),
                 serviceIds: formData.serviceIds,
+                latitude: formData.latitude,
+                longitude: formData.longitude,
             };
 
             await HelperRegistrationService.registerStage1(stage1Data);
@@ -499,9 +641,9 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                 Quê quán (Tỉnh/Thành) <span className="kyc-required">*</span>
                             </label>
                             <select
-                                name="hometownId"
+                                name="hometownCode"
                                 className="kyc-select"
-                                value={formData.hometownId}
+                                value={formData.hometownCode}
                                 onChange={handleInputChange}
                                 disabled={loadingProvinces}
                             >
@@ -509,7 +651,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                     {loadingProvinces ? 'Đang tải...' : '-- Chọn quê quán --'}
                                 </option>
                                 {provinces.map((province) => (
-                                    <option key={province.id} value={province.id}>
+                                    <option key={province.code} value={province.code}>
                                         {province.name}
                                     </option>
                                 ))}
@@ -526,9 +668,9 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                 Tỉnh/Thành phố hiện tại <span className="kyc-required">*</span>
                             </label>
                             <select
-                                name="provinceId"
+                                name="provinceCode"
                                 className="kyc-select"
-                                value={formData.provinceId}
+                                value={formData.provinceCode}
                                 onChange={handleInputChange}
                                 disabled={loadingProvinces}
                             >
@@ -536,7 +678,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                     {loadingProvinces ? 'Đang tải...' : '-- Chọn tỉnh/thành phố --'}
                                 </option>
                                 {provinces.map((province) => (
-                                    <option key={province.id} value={province.id}>
+                                    <option key={province.code} value={province.code}>
                                         {province.name}
                                     </option>
                                 ))}
@@ -554,17 +696,17 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                 Quận/Huyện hiện tại <span className="kyc-required">*</span>
                             </label>
                             <select
-                                name="districtId"
+                                name="districtCode"
                                 className="kyc-select"
-                                value={formData.districtId}
+                                value={formData.districtCode}
                                 onChange={handleInputChange}
-                                disabled={!formData.provinceId || loadingDistricts}
+                                disabled={!formData.provinceCode || loadingDistricts}
                             >
                                 <option value="">
                                     {loadingDistricts ? 'Đang tải...' : '-- Chọn quận/huyện --'}
                                 </option>
                                 {cityDistricts.map((district) => (
-                                    <option key={district.id} value={district.id}>
+                                    <option key={district.code} value={district.code}>
                                         {district.name}
                                     </option>
                                 ))}
@@ -582,17 +724,17 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                 Phường/Xã hiện tại <span className="kyc-required">*</span>
                             </label>
                             <select
-                                name="wardId"
+                                name="wardCode"
                                 className="kyc-select"
-                                value={formData.wardId}
+                                value={formData.wardCode}
                                 onChange={handleInputChange}
-                                disabled={!formData.districtId || loadingWards}
+                                disabled={!formData.districtCode || loadingWards}
                             >
                                 <option value="">
                                     {loadingWards ? 'Đang tải...' : '-- Chọn phường/xã --'}
                                 </option>
                                 {cityWards.map((ward) => (
-                                    <option key={ward.id} value={ward.id}>
+                                    <option key={ward.code} value={ward.code}>
                                         {ward.name}
                                     </option>
                                 ))}
@@ -618,6 +760,36 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                             />
                         </div>
 
+                        {/* Bản đồ chọn vị trí */}
+                        <div className="kyc-form-group">
+                            <label>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                    <circle cx="12" cy="10" r="3" />
+                                </svg>
+                                Ghim vị trí bản đồ <span className="kyc-required">*</span>
+                            </label>
+                            <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.5rem' }}>
+                                Nhấp vào bản đồ để ghim vị trí chính xác của bạn.
+                            </div>
+                            <div style={{ height: '250px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1.5px solid #e2e8f0' }}>
+                                <MapContainer
+                                    center={[formData.latitude, formData.longitude]}
+                                    zoom={14}
+                                    style={{ height: '100%', width: '100%' }}
+                                    scrollWheelZoom={false}
+                                >
+                                    <TileLayer
+                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                    />
+                                    <LocationMarker
+                                        position={{ lat: formData.latitude, lng: formData.longitude }}
+                                        setPosition={handleMapLocationChange}
+                                    />
+                                </MapContainer>
+                            </div>
+                        </div>
+
                         {/* Khu vực làm việc */}
                         <div className="kyc-form-group">
                             <label>
@@ -629,7 +801,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                 Khu vực làm việc <span className="kyc-required">*</span>
                             </label>
                             <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.5rem' }}>
-                                {formData.provinceId
+                                {formData.provinceCode
                                     ? 'Chọn các quận/huyện bạn muốn làm việc:'
                                     : 'Vui lòng chọn Tỉnh/Thành phố hiện tại trước'}
                             </div>
@@ -645,7 +817,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                 }}>
                                     {cityDistricts.map((district) => (
                                         <label
-                                            key={district.id}
+                                            key={district.code}
                                             style={{
                                                 display: 'flex',
                                                 alignItems: 'center',
@@ -658,9 +830,9 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                         >
                                             <input
                                                 type="checkbox"
-                                                name="workingDistrictIds"
-                                                value={district.id}
-                                                checked={formData.workingDistrictIds.includes(district.id)}
+                                                name="workingDistrictCodes"
+                                                value={district.code}
+                                                checked={formData.workingDistrictCodes.includes(district.code)}
                                                 onChange={handleInputChange}
                                                 style={{ marginRight: '0.5rem' }}
                                             />
@@ -668,7 +840,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                         </label>
                                     ))}
                                 </div>
-                            ) : formData.provinceId ? (
+                            ) : formData.provinceCode ? (
                                 <div style={{ padding: '1rem', textAlign: 'center', color: '#64748b' }}>
                                     Không có quận/huyện nào
                                 </div>

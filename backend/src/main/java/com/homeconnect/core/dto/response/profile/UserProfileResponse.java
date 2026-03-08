@@ -2,6 +2,8 @@ package com.homeconnect.core.dto.response.profile;
 
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,4 +25,7 @@ public class UserProfileResponse {
     private String districtName;
     private String provinceName;
     private String addressLabel;
+
+    private BigDecimal latitude;
+    private BigDecimal longitude;
 }

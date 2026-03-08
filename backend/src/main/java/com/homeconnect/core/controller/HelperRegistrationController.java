@@ -3,9 +3,6 @@ package com.homeconnect.core.controller;
 import com.homeconnect.core.dto.request.HelperRegistrationStage1Request;
 import com.homeconnect.core.dto.request.HelperRegistrationStage2Request;
 import com.homeconnect.core.dto.response.UpdateKycResponse;
-import com.homeconnect.core.entity.Location;
-import com.homeconnect.core.enums.LocationType;
-import com.homeconnect.core.repository.LocationRepository;
 import com.homeconnect.core.repository.ServiceRepository;
 import com.homeconnect.core.service.HelperRegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,26 +26,7 @@ import java.util.Map;
 public class HelperRegistrationController {
 
     private final HelperRegistrationService helperRegistrationService;
-    private final LocationRepository locationRepository;
     private final ServiceRepository serviceRepository;
-
-    @GetMapping("/provinces")
-    @Operation(summary = "Lấy danh sách tỉnh/thành phố", description = "Dùng để fill vào chọn quê quán ở Stage 1")
-    public ResponseEntity<List<Map<String, Object>>> getProvinces() {
-        return ResponseEntity.ok(formatLocationList(locationRepository.findByType(LocationType.PROVINCE)));
-    }
-
-    @GetMapping("/districts/{provinceId}")
-    @Operation(summary = "Lấy danh sách quận/huyện theo tỉnh", description = "Dùng để fill vào chọn quận làm việc ở Stage 1")
-    public ResponseEntity<List<Map<String, Object>>> getDistricts(@PathVariable Integer provinceId) {
-        return ResponseEntity.ok(formatLocationList(locationRepository.findByParent_LocationId(provinceId)));
-    }
-
-    @GetMapping("/wards/{districtId}")
-    @Operation(summary = "Lấy danh sách phường/xã theo quận", description = "Dùng để fill vào chọn địa chỉ ở Stage 1")
-    public ResponseEntity<List<Map<String, Object>>> getWards(@PathVariable Integer districtId) {
-        return ResponseEntity.ok(formatLocationList(locationRepository.findByParent_LocationId(districtId)));
-    }
 
     @GetMapping("/services")
     @Operation(summary = "Lấy danh sách dịch vụ", description = "Dùng để chọn dịch vụ đăng ký ở Stage 1")
@@ -60,15 +38,6 @@ public class HelperRegistrationController {
                         "icon", s.getIconUrl() != null ? s.getIconUrl() : ""
                 ))
                 .toList());
-    }
-
-    private List<Map<String, Object>> formatLocationList(List<Location> locations) {
-        return locations.stream()
-                .map(loc -> Map.<String, Object>of(
-                        "id", loc.getLocationId(),
-                        "name", loc.getName()
-                ))
-                .toList();
     }
 
 

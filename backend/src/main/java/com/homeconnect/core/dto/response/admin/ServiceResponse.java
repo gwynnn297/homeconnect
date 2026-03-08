@@ -1,5 +1,6 @@
 package com.homeconnect.core.dto.response.admin;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.homeconnect.core.enums.ServiceUnit;
 import lombok.*;
 
@@ -16,13 +17,29 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ServiceResponse {
+    @JsonProperty("service_id")
     private Integer serviceId;
+    
     private String name;
+    
+    
     private String description;
+    
+    @JsonProperty("icon_url")
     private String iconUrl;
+    
+    @JsonProperty("base_price")
     private BigDecimal basePrice;
+    
     private ServiceUnit unit;
-    private String categoryName;
+    
+    
+    @JsonProperty("is_active")
     private Boolean isActive;
+    
+    @JsonProperty("created_at")
     private LocalDateTime createdAt;
+
+    @JsonProperty("updated_at")
+    private LocalDateTime updatedAt;
 }

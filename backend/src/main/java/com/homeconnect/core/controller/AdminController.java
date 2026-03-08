@@ -2,9 +2,13 @@ package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.BroadcastNotificationRequest;
 import com.homeconnect.core.dto.request.HelperReviewRequest;
+import com.homeconnect.core.dto.request.admin.CreateServiceRequest;
+import com.homeconnect.core.dto.request.admin.UpdateServiceRequest;
 import com.homeconnect.core.dto.response.*;
+import com.homeconnect.core.dto.response.admin.ServiceResponse;
 import com.homeconnect.core.enums.KycStatus;
 import com.homeconnect.core.service.AdminService;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "Admin Management", description = "APIs cho Admin quản lý hệ thống")
 public class AdminController {
 
@@ -36,7 +41,6 @@ public class AdminController {
      */
     @Operation(summary = "Review Helper KYC", description = "Admin review hồ sơ KYC và approve/reject Helper")
     @PatchMapping("/helpers/{helperId}/review")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HelperReviewResponse> reviewHelper(
             @PathVariable Long helperId,
             @Valid @RequestBody HelperReviewRequest request,
@@ -53,7 +57,6 @@ public class AdminController {
      */
     @Operation(summary = "Danh sách Helper", description = "Lấy danh sách Helper với filter theo KYC status")
     @GetMapping("/helpers")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HelperListResponse> getHelpers(
             @Parameter(description = "Filter theo KYC status: PENDING, WAITING_APPROVAL, VERIFIED, REJECTED") @RequestParam(required = false) KycStatus status,
 
@@ -78,7 +81,6 @@ public class AdminController {
      */
     @Operation(summary = "Chi tiết Helper", description = "Xem chi tiết đầy đủ hồ sơ Helper bao gồm KYC, dịch vụ, khu vực làm việc")
     @GetMapping("/helpers/{helperId}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HelperDetailResponse> getHelperDetail(
             @PathVariable Long helperId) {
 
@@ -92,7 +94,6 @@ public class AdminController {
      */
     @Operation(summary = "Thống kê hệ thống", description = "Dashboard thống kê: users, helpers theo KYC status, services, locations")
     @GetMapping("/statistics")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AdminStatisticsResponse> getStatistics() {
         AdminStatisticsResponse response = adminService.getStatistics();
         return ResponseEntity.ok(response);
@@ -104,11 +105,72 @@ public class AdminController {
      */
     @Operation(summary = "Gửi thông báo broadcast", description = "Gửi email thông báo tới tất cả user hoặc filter theo role")
     @PostMapping("/notifications/broadcast")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<BroadcastNotificationResponse> broadcastNotification(
             @Valid @RequestBody BroadcastNotificationRequest request) {
 
         BroadcastNotificationResponse response = adminService.broadcastNotification(request);
         return ResponseEntity.ok(response);
+    }
+
+
+    /**
+     * POST /api/v1/admin/services
+     * BE-Admin-01: Tạo mới dịch vụ hệ thống
+     */
+    @Operation(summary = "Tạo mới dịch vụ hệ thống", description = "Admin thêm dịch vụ mới, quy định đơn vị tính và giá cơ bản")
+    @PostMapping("/services")
+    public ResponseEntity<ApiResponse<ServiceResponse>> createService(
+            @Valid @RequestBody CreateServiceRequest request) {
+
+        ServiceResponse response = adminService.createService(request);
+
+        return ResponseEntity.status(201)
+                .body(ApiResponse.<ServiceResponse>builder()
+                        .message("Tạo danh mục dịch vụ mới thành công")
+                        .data(response)
+                        .build());
+    }
+
+    /**
+     * GET /api/v1/admin/services/{serviceId}
+     * BE-Admin-01: Xem chi tiết cấu hình của một dịch vụ lẻ
+     */
+    @Operation(summary = "Chi tiết dịch vụ", description = "Xem cấu hình chi tiết (giá, đơn vị, trạng thái) của một dịch vụ")
+    @GetMapping("/services/{serviceId}")
+    public ResponseEntity<ApiResponse<ServiceResponse>> getServiceDetail(
+            @PathVariable Integer serviceId) {
+
+        ServiceResponse response = adminService.getServiceDetail(serviceId);
+        return ResponseEntity.ok(ApiResponse.<ServiceResponse>builder()
+                .message("Lấy thông tin dịch vụ thành công")
+                .data(response)
+                .build());
+    }
+
+    /**
+     * PATCH /api/v1/admin/services/{serviceId}
+     * BE-Admin-01: Cập nhật thông tin dịch vụ (Giá sàn, Tên, Trạng thái...)
+     */
+    @Operation(summary = "Cập nhật dịch vụ", description = "Admin thay đổi giá sàn, đơn vị tính hoặc bật/tắt dịch vụ")
+    @PatchMapping("/services/{serviceId}")
+    public ResponseEntity<ApiResponse<ServiceResponse>> updateService(
+            @PathVariable Integer serviceId,
+            @Valid @RequestBody UpdateServiceRequest request) {
+
+        ServiceResponse response = adminService.updateService(serviceId, request);
+
+        return ResponseEntity.ok(ApiResponse.<ServiceResponse>builder()
+                .message("Cập nhật dịch vụ thành công")
+                .data(response)
+                .build());
+    }
+
+    @Operation(summary = "Xóa dịch vụ nhỏ", description = "Admin xóa một dịch vụ khỏi hệ thống")
+    @DeleteMapping("/services/{serviceId}")
+    public ResponseEntity<ApiResponse<Void>> deleteService(@PathVariable Integer serviceId) {
+        adminService.deleteService(serviceId);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Xóa dịch vụ thành công")
+                .build());
     }
 }

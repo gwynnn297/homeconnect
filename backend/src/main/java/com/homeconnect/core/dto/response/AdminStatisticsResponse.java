@@ -59,7 +59,6 @@ public class AdminStatisticsResponse {
     @AllArgsConstructor
     public static class SystemStats {
         private long totalServices;
-        private long totalLocations;
         // Có thể thêm sau: totalBookings, totalRevenue, etc.
     }
 }

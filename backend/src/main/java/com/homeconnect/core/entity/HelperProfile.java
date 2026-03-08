@@ -39,9 +39,8 @@ public class HelperProfile {
     @Column(name = "experience_years", nullable = false)
     private Integer experienceYears;  // Số năm kinh nghiệm
     
-    @ManyToOne
-    @JoinColumn(name = "hometown_id", nullable = false)
-    private Location hometown;  // Quê quán
+    @Column(name = "hometown_name")
+    private String hometownName;  // Quê quán
 
     @Column(name = "identity_number", unique = true, length = 20)
     private String identityNumber;  // Số CMND/CCCD

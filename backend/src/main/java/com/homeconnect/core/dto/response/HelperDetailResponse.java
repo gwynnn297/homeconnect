@@ -85,5 +85,6 @@ public class HelperDetailResponse {
     public static class DistrictInfo {
         private Integer locationId;
         private String name;
+        private String code;
     }
 }

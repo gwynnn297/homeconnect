@@ -32,25 +32,21 @@ public class Address {
     @Column(name = "address_detail", columnDefinition = "TEXT")
     private String addressDetail;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ward_id", nullable = false)
-    private Location ward;
+    @Column(name = "ward_name")
+    private String wardName;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "district_id", nullable = false)
-    private Location district;
+    @Column(name = "district_name")
+    private String districtName;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "province_id", nullable = false)
-    private Location province;
+    @Column(name = "province_name")
+    private String provinceName;
 
-    @Column(name = "latitude", precision = 10, scale = 8)
+    @Column(name = "latitude", precision = 10, scale = 7, nullable = false)
     private BigDecimal latitude;
 
-    @Column(name = "longitude", precision = 11, scale = 8)
+    @Column(name = "longitude", precision = 10, scale = 7, nullable = false)
     private BigDecimal longitude;
-
-    @Column(name = "is_default")
+ 
     @Builder.Default
     private Boolean isDefault = false;
 
