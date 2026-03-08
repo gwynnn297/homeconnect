@@ -1,0 +1,76 @@
+:root {
+  /* primary theme colors */
+  --bg-main: #FBF7F3;
+  --sidebar-bg: #F6EFE8;
+  --card: #FFFFFF;
+  --border: #E4DCD4;
+  --text-main: #0F2C24;
+  --muted: #6B7280;
+  --primary: #2F5D50;
+  --primary-soft: #E6F0EC;
+
+  --success: #147036;
+  --warning: #F4C77A;
+  --danger: #E74C3C;
+  --danger-soft: #FDE8E8;
+  --warning-soft: #FEF7E6;
+  --success-soft: #E8F8EE;
+}
+
+/* global resets */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 100%;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+#root {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+a {
+  font-weight: 500;
+  color: var(--primary);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--primary-soft);
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.25s, border-color 0.25s;
+}
+button:hover {
+  background-color: var(--primary-soft);
+  border-color: var(--primary);
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}

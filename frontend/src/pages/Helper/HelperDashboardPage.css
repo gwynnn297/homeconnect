@@ -1,0 +1,80 @@
+.helper-dashboard-main {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+}
+
+.helper-page-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 1.5rem;
+}
+
+.helper-status-card {
+    background-color: #ffffff;
+    border-radius: 20px;
+    padding: 2.5rem;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e2e8f0;
+}
+
+.helper-status-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto 1.25rem;
+}
+
+.helper-status-icon.pending {
+    background-color: #eff6ff;
+}
+
+.helper-status-icon.waiting {
+    background-color: #fef3c7;
+}
+
+.helper-status-icon.verified {
+    background-color: #dcfce7;
+}
+
+.helper-status-icon.rejected {
+    background-color: #fef2f2;
+}
+
+.helper-status-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.75rem;
+}
+
+.helper-status-desc {
+    font-size: 0.95rem;
+    color: #64748b;
+    line-height: 1.6;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.helper-retry-btn {
+    margin-top: 1.5rem;
+    padding: 0.75rem 2rem;
+    border: none;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #346252, #3d7561);
+    cursor: pointer;
+    transition: all 0.25s;
+}
+
+.helper-retry-btn:hover {
+    box-shadow: 0 4px 12px rgba(52, 98, 82, 0.3);
+    transform: translateY(-2px);
+}

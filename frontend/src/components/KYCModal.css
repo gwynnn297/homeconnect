@@ -1,0 +1,391 @@
+/* ========== KYC Modal Overlay ========== */
+.kyc-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    animation: kycFadeIn 0.25s ease-out;
+}
+
+@keyframes kycFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes kycSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ========== Modal Content ========== */
+.kyc-modal-content {
+    background-color: #ffffff;
+    padding: 2.5rem;
+    border-radius: 24px;
+    width: 92%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    animation: kycSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Custom scrollbar */
+.kyc-modal-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.kyc-modal-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.kyc-modal-content::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 3px;
+}
+
+/* ========== Close Button ========== */
+.kyc-close-btn {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    background: #f1f5f9;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    color: #64748b;
+    border-radius: 10px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kyc-close-btn:hover {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+/* ========== Header ========== */
+.kyc-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.kyc-icon-container {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto 1.25rem;
+}
+
+.kyc-icon-container svg {
+    width: 32px;
+    height: 32px;
+    color: white;
+}
+
+.kyc-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 0.5rem 0;
+}
+
+.kyc-subtitle {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* ========== Form ========== */
+.kyc-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+/* ========== Form Group ========== */
+.kyc-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.kyc-form-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.kyc-form-group label svg {
+    width: 16px;
+    height: 16px;
+    color: #346252;
+}
+
+.kyc-required {
+    color: #ef4444;
+    margin-left: 2px;
+}
+
+/* ========== Text Input ========== */
+.kyc-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    color: #1e293b;
+    background-color: #f8fafc;
+    transition: all 0.2s;
+    outline: none;
+}
+
+.kyc-input:focus {
+    border-color: #346252;
+    background-color: #fff;
+    box-shadow: 0 0 0 3px rgba(52, 98, 82, 0.1);
+}
+
+.kyc-input::placeholder {
+    color: #94a3b8;
+}
+
+/* ========== Select ========== */
+.kyc-select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    color: #1e293b;
+    background-color: #f8fafc;
+    transition: all 0.2s;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 2.5rem;
+}
+
+.kyc-select:focus {
+    border-color: #346252;
+    background-color: #fff;
+    box-shadow: 0 0 0 3px rgba(52, 98, 82, 0.1);
+}
+
+/* ========== File Upload ========== */
+.kyc-upload-area {
+    border: 2px dashed #d1d5db;
+    border-radius: 12px;
+    padding: 1.25rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background-color: #fafbfc;
+    position: relative;
+}
+
+.kyc-upload-area:hover {
+    border-color: #346252;
+    background-color: #f0faf5;
+}
+
+.kyc-upload-area.has-file {
+    border-color: #346252;
+    border-style: solid;
+    background-color: #f0faf5;
+}
+
+.kyc-upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    color: #94a3b8;
+}
+
+.kyc-upload-placeholder svg {
+    width: 36px;
+    height: 36px;
+    color: #94a3b8;
+}
+
+.kyc-upload-placeholder span {
+    font-size: 0.85rem;
+}
+
+.kyc-upload-placeholder .kyc-upload-hint {
+    font-size: 0.75rem;
+    color: #b0b8c4;
+}
+
+.kyc-upload-input {
+    display: none;
+}
+
+/* ========== Image Preview ========== */
+.kyc-image-preview-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.kyc-image-preview {
+    max-width: 100%;
+    max-height: 150px;
+    border-radius: 10px;
+    object-fit: cover;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.kyc-remove-image {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ef4444;
+    border: 2px solid #fff;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+    transition: transform 0.15s;
+}
+
+.kyc-remove-image:hover {
+    transform: scale(1.1);
+}
+
+/* ========== Image Row (2 images side by side) ========== */
+.kyc-image-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+/* ========== Error Message ========== */
+.kyc-error {
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+/* ========== Success Message ========== */
+.kyc-success {
+    background-color: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #16a34a;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+/* ========== Submit Button ========== */
+.kyc-submit-btn {
+    width: 100%;
+    padding: 0.875rem;
+    border: none;
+    border-radius: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #346252, #3d7561);
+    cursor: pointer;
+    transition: all 0.25s;
+    margin-top: 0.5rem;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+.kyc-submit-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #2a4f42, #346252);
+    box-shadow: 0 6px 20px rgba(52, 98, 82, 0.3);
+    transform: translateY(-1px);
+}
+
+.kyc-submit-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.kyc-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ========== Loading Spinner ========== */
+.kyc-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: kycSpin 0.6s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+@keyframes kycSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 480px) {
+    .kyc-modal-content {
+        padding: 1.75rem 1.25rem;
+        border-radius: 20px;
+        width: 95%;
+    }
+
+    .kyc-image-row {
+        grid-template-columns: 1fr;
+    }
+
+    .kyc-title {
+        font-size: 1.3rem;
+    }
+}

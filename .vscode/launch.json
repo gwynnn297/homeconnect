@@ -1,0 +1,31 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "GenerateAdminPassword",
+            "request": "launch",
+            "mainClass": "com.homeconnect.core.util.GenerateAdminPassword",
+            "projectName": "backend"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-MaidBookingBackendApplication<backend>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.fpt.intern.maidbookingsystem.MaidBookingBackendApplication",
+            "projectName": "backend",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-HomeConnectCoreApiApplication<backend>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.homeconnect.core.HomeConnectCoreApiApplication",
+            "projectName": "backend",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

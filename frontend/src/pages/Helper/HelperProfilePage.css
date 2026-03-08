@@ -1,0 +1,860 @@
+/* ========================================
+   Helper Profile Page — HelperProfilePage.css
+   Color palette: primary #346252 | accent #4caf7d
+   ======================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ── Page wrapper ────────────────────────────────────────────────── */
+.hpp-page {
+    font-family: 'Inter', sans-serif;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+    animation: hpp-fadeIn 0.3s ease;
+}
+
+@keyframes hpp-fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Page Header ─────────────────────────────────────────────────── */
+.hpp-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+.hpp-page-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 6px;
+    letter-spacing: -0.5px;
+}
+
+.hpp-page-subtitle {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0;
+}
+
+.hpp-role-tag {
+    display: inline-block;
+    padding: 5px 14px;
+    background: linear-gradient(135deg, #346252, #4caf7d);
+    color: #fff;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    margin-top: 4px;
+}
+
+/* ── Tabs ────────────────────────────────────────────────────────── */
+.hpp-tabs {
+    position: relative;
+    display: flex;
+    background: #f8fafc;
+    border-radius: 14px;
+    padding: 5px;
+    margin-bottom: 28px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+.hpp-tab-indicator {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    height: calc(100% - 10px);
+    background: linear-gradient(135deg, #346252, #4caf7d);
+    border-radius: 10px;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+}
+
+.hpp-tab-btn {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: color 0.25s ease;
+    white-space: nowrap;
+}
+
+.hpp-tab-btn svg {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+}
+
+.hpp-tab-btn--active {
+    color: #fff;
+    font-weight: 600;
+}
+
+.hpp-tab-btn:not(.hpp-tab-btn--active):hover {
+    color: #346252;
+}
+
+/* ── Panel ───────────────────────────────────────────────────────── */
+.hpp-panel {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06), 0 4px 20px rgba(52, 98, 82, 0.05);
+    overflow: hidden;
+}
+
+.hpp-tab-content {
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}
+
+/* ── Loading ─────────────────────────────────────────────────────── */
+.hpp-loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 60px 32px;
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.hpp-loading-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #346252;
+    border-radius: 50%;
+    animation: hpp-spin 0.7s linear infinite;
+}
+
+@keyframes hpp-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── Avatar card ─────────────────────────────────────────────────── */
+.hpp-avatar-card {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, #f0faf5 0%, #ecfdf5 100%);
+    border-radius: 14px;
+    border: 1px solid #bbf7d0;
+}
+
+.hpp-avatar-circle {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #346252, #4caf7d);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(52, 98, 82, 0.25);
+    position: relative;
+}
+
+/* Clickable variant — cursor + scale on hover */
+.hpp-avatar-circle--clickable {
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.hpp-avatar-circle--clickable:hover {
+    box-shadow: 0 6px 20px rgba(52, 98, 82, 0.45);
+    transform: scale(1.06);
+}
+
+/* Dark overlay with camera icon — shown on hover */
+.hpp-avatar-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.50);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    color: #fff;
+    pointer-events: none;
+}
+
+.hpp-avatar-overlay svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.hpp-avatar-overlay span {
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.hpp-avatar-circle--clickable:hover .hpp-avatar-overlay {
+    opacity: 1;
+}
+
+.hpp-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hpp-avatar-initials {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 1px;
+}
+
+.hpp-avatar-info {
+    flex: 1;
+}
+
+.hpp-avatar-name {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0 0 4px;
+}
+
+.hpp-avatar-email {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin: 0 0 8px;
+}
+
+.hpp-avatar-phone {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: #346252;
+    font-weight: 500;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.hpp-avatar-phone svg {
+    width: 15px;
+    height: 15px;
+}
+
+.hpp-kyc-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+/* ── Stats row ───────────────────────────────────────────────────── */
+.hpp-stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+}
+
+.hpp-stat-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 18px 12px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    text-align: center;
+}
+
+.hpp-stat-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1;
+}
+
+.hpp-stat-label {
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.hpp-stat-stars {
+    display: flex;
+    gap: 2px;
+    margin-top: 2px;
+}
+
+.hpp-stat-stars svg {
+    width: 13px;
+    height: 13px;
+}
+
+.hpp-stat-online {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.hpp-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+/* ── Section title ───────────────────────────────────────────────── */
+.hpp-section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #346252;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f0faf5;
+    margin-top: 4px;
+}
+
+.hpp-section-title svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.hpp-hometown-tag,
+.hpp-selected-count {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #64748b;
+    background: #f1f5f9;
+    padding: 3px 10px;
+    border-radius: 20px;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: auto;
+}
+
+.hpp-selected-count {
+    background: #e8f5f0;
+    color: #346252;
+}
+
+/* ── Form layout ─────────────────────────────────────────────────── */
+.hpp-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.hpp-form-row {
+    display: grid;
+    gap: 16px;
+}
+
+.hpp-form-row--2 {
+    grid-template-columns: 1fr 1fr;
+}
+
+.hpp-form-row--3 {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.hpp-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.hpp-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hpp-required {
+    color: #ef4444;
+}
+
+.hpp-char-count {
+    margin-left: auto;
+    font-size: 0.72rem;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.hpp-char-count--warn {
+    color: #f59e0b;
+}
+
+.hpp-char-count--ok {
+    color: #16a34a;
+}
+
+/* ── Inputs ──────────────────────────────────────────────────────── */
+.hpp-input,
+.hpp-select,
+.hpp-textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    color: #0f172a;
+    background: #fff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.hpp-input:focus,
+.hpp-select:focus,
+.hpp-textarea:focus {
+    border-color: #346252;
+    box-shadow: 0 0 0 3px rgba(52, 98, 82, 0.1);
+}
+
+.hpp-input--readonly {
+    background: #f8fafc;
+    color: #64748b;
+    cursor: not-allowed;
+}
+
+.hpp-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 38px;
+    cursor: pointer;
+}
+
+.hpp-select--disabled {
+    background-color: #f8fafc;
+    color: #94a3b8;
+    cursor: not-allowed;
+    opacity: 0.75;
+}
+
+.hpp-textarea {
+    resize: vertical;
+    min-height: 120px;
+    line-height: 1.6;
+}
+
+/* Hint below select showing current saved value */
+.hpp-current-value {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-style: italic;
+    margin-top: 2px;
+}
+
+/* ── Current address display ─────────────────────────────────────── */
+.hpp-current-address {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #f0faf5;
+    border-radius: 10px;
+    border: 1px solid #bbf7d0;
+    font-size: 0.85rem;
+    color: #346252;
+    line-height: 1.5;
+}
+
+.hpp-current-address svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.hpp-current-address strong {
+    font-weight: 600;
+}
+
+/* ── Checkbox grid ───────────────────────────────────────────────── */
+.hpp-checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+    padding: 12px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    max-height: 240px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.hpp-checkbox-grid::-webkit-scrollbar {
+    width: 5px;
+}
+
+.hpp-checkbox-grid::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.hpp-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1.5px solid #e2e8f0;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    user-select: none;
+}
+
+.hpp-checkbox-item:hover {
+    border-color: #346252;
+    background: #f0faf5;
+}
+
+.hpp-checkbox-item--checked {
+    border-color: #346252;
+    background: #ecfdf5;
+}
+
+.hpp-checkbox-input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.hpp-checkbox-box {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #cbd5e1;
+    border-radius: 4px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.18s ease;
+    background: #fff;
+}
+
+.hpp-checkbox-item--checked .hpp-checkbox-box {
+    background: #346252;
+    border-color: #346252;
+}
+
+/* Checkmark via CSS */
+.hpp-checkbox-item--checked .hpp-checkbox-box::after {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 8px;
+    border: 2px solid white;
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.hpp-checkbox-label {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #374151;
+    line-height: 1.3;
+}
+
+.hpp-checkbox-item--checked .hpp-checkbox-label {
+    color: #346252;
+    font-weight: 600;
+}
+
+.hpp-checkbox-loading,
+.hpp-checkbox-empty {
+    padding: 16px 12px;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    border: 1.5px dashed #e2e8f0;
+    border-radius: 12px;
+}
+
+.hpp-mini-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #346252;
+    border-radius: 50%;
+    animation: hpp-spin 0.65s linear infinite;
+    flex-shrink: 0;
+}
+
+/* ── Saved tags (read-only display from backend) ─────────────────── */
+.hpp-saved-tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+}
+
+.hpp-saved-tags-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 4px;
+}
+
+.hpp-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.hpp-tag--district {
+    background: #e8f5f0;
+    color: #346252;
+    border: 1px solid #bbf7d0;
+}
+
+.hpp-tag--service {
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.hpp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px 24px;
+    border: none;
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.hpp-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.hpp-btn--primary {
+    background: linear-gradient(135deg, #346252, #4caf7d);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(52, 98, 82, 0.3);
+}
+
+.hpp-btn--primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(52, 98, 82, 0.4);
+}
+
+.hpp-btn--primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.hpp-btn--primary:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ── Form actions ────────────────────────────────────────────────── */
+.hpp-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 10px;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 4px;
+}
+
+/* ── Spinner (inside button) ─────────────────────────────────────── */
+.hpp-spinner {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: hpp-spin 0.65s linear infinite;
+    flex-shrink: 0;
+}
+
+/* ── Toast ───────────────────────────────────────────────────────── */
+.hpp-toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    animation: hpp-slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    max-width: 360px;
+}
+
+.hpp-toast svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.hpp-toast--success {
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.hpp-toast--error {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+@keyframes hpp-slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .hpp-page {
+        padding: 20px 16px 48px;
+    }
+
+    .hpp-page-header {
+        flex-direction: column;
+    }
+
+    .hpp-tab-content {
+        padding: 20px 16px;
+    }
+
+    .hpp-form-row--2,
+    .hpp-form-row--3 {
+        grid-template-columns: 1fr;
+    }
+
+    .hpp-stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .hpp-avatar-card {
+        flex-wrap: wrap;
+    }
+
+    .hpp-avatar-phone {
+        margin-left: 0;
+        margin-top: 4px;
+    }
+
+    .hpp-checkbox-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+
+    .hpp-toast {
+        left: 16px;
+        right: 16px;
+        max-width: unset;
+    }
+}
+
+@media (max-width: 480px) {
+    .hpp-stats-row {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .hpp-tab-btn {
+        padding: 10px 12px;
+        font-size: 0.82rem;
+    }
+
+    .hpp-checkbox-grid {
+        grid-template-columns: 1fr;
+    }
+}

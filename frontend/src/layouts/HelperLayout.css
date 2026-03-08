@@ -1,0 +1,30 @@
+/* HelperLayout.css */
+.helper-layout-wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.helper-layout-body {
+    display: flex;
+    flex: 1;
+}
+
+.content {
+    flex: 1;
+    padding: 2rem;
+    background-color: #f8fafc;
+    /* remove the big offsets */
+    max-width: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .helper-layout-body {
+        flex-direction: column;
+    }
+
+    .content {
+        padding: 1rem;
+    }
+}
