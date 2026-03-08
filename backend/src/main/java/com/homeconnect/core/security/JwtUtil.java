@@ -84,6 +84,24 @@ public class JwtUtil {
         return claims.getSubject();
     }
 
+    // Lấy userId từ JWT token
+    public Long extractUserId(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        Object userIdObj = claims.get("userId");
+        if (userIdObj instanceof Integer) {
+            return ((Integer) userIdObj).longValue();
+        } else if (userIdObj instanceof Long) {
+            return (Long) userIdObj;
+        } else {
+            throw new RuntimeException("userId không hợp lệ trong token");
+        }
+    }
+
     // Validate JWT token
     public boolean validateToken(String token) {
         try {
