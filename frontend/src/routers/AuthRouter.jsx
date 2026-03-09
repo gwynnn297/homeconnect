@@ -13,6 +13,7 @@ import AdminDashboardPage from '../pages/Admin/AdminDashboardPage'
 import AdminHelpersPage from '../pages/Admin/AdminHelpersPage'
 import AdminHelperDetailPage from '../pages/Admin/AdminHelperDetailPage'
 import AdminNotificationsPage from '../pages/Admin/AdminNotificationsPage'
+import ServiceManagerPage from '../pages/Admin/ServiceManagerPage'
 import HelperSchedulePage from '../pages/Helper/HelperSchedulePage'
 
 const AuthRouter = () => {
@@ -35,6 +36,7 @@ const AuthRouter = () => {
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin/helpers" element={<AdminHelpersPage />} />
         <Route path="/admin/helpers/:helperId" element={<AdminHelperDetailPage />} />
+        <Route path="/admin/services" element={<ServiceManagerPage />} />
         <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
       </Routes>
     </BrowserRouter>

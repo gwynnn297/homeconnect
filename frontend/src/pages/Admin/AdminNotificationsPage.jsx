@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import AdminLayout from '../../layouts/AdminLayout';
+import NotificationModal from '../../components/NotificationModal';
 import AdminService from '../../services/AdminService';
 import './AdminNotificationsPage.css';
 
@@ -8,20 +9,18 @@ const AdminNotificationsPage = () => {
     const [message, setMessage] = useState('');
     const [targetRole, setTargetRole] = useState('');
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [success, setSuccess] = useState(null);
+    const [toast, setToast] = useState(null);
+    const [deliveryStats, setDeliveryStats] = useState(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError(null);
-        setSuccess(null);
 
         if (!title.trim()) {
-            setError('Vui lòng nhập tiêu đề');
+            setToast({ type: 'warning', message: 'Vui lòng nhập tiêu đề' });
             return;
         }
         if (!message.trim()) {
-            setError('Vui lòng nhập nội dung thông báo');
+            setToast({ type: 'warning', message: 'Vui lòng nhập nội dung thông báo' });
             return;
         }
 
@@ -34,18 +33,22 @@ const AdminNotificationsPage = () => {
             };
             const response = await AdminService.broadcastNotification(data);
 
-            setSuccess({
+            setDeliveryStats({
                 message: response.message || 'Đã gửi thông báo broadcast thành công',
                 totalRecipients: response.totalRecipients,
                 successCount: response.successCount,
                 failureCount: response.failureCount,
+            });
+            setToast({
+                type: 'success',
+                message: response.message || 'Đã gửi thông báo broadcast thành công'
             });
 
             setTitle('');
             setMessage('');
             setTargetRole('');
         } catch (err) {
-            setError(err.message || 'Lỗi khi gửi thông báo');
+            setToast({ type: 'error', message: err.message || 'Lỗi khi gửi thông báo' });
             console.error(err);
         } finally {
             setLoading(false);
@@ -68,6 +71,13 @@ const AdminNotificationsPage = () => {
     return (
         <AdminLayout>
             <div className="admin-notifications-page">
+                {toast && (
+                    <NotificationModal
+                        message={toast.message}
+                        type={toast.type}
+                        onClose={() => setToast(null)}
+                    />
+                )}
                 <div className="container">
                     <header className="notifications-header">
                         <h1>Admin HomieConnect - Gửi Thông báo Broadcast</h1>
@@ -77,29 +87,6 @@ const AdminNotificationsPage = () => {
                     <div className="notifications-grid">
                         <section className="notifications-form-card">
                             <form onSubmit={handleSubmit} className="notification-form">
-                                {error && <div className="alert alert-error">{error}</div>}
-                                {success && (
-                                    <div className="alert alert-success">
-                                        <p><strong>{success.message}</strong></p>
-                                        <ul>
-                                            <li>Tổng người nhận: <strong>{success.totalRecipients}</strong></li>
-                                            <li>
-                                                Gửi thành công: <strong className="text-success">
-                                                    {success.successCount}
-                                                </strong>
-                                            </li>
-                                            {success.failureCount > 0 && (
-                                                <li>
-                                                    Gửi thất bại:{' '}
-                                                    <strong className="text-fail">
-                                                        {success.failureCount}
-                                                    </strong>
-                                                </li>
-                                            )}
-                                        </ul>
-                                    </div>
-                                )}
-
                                 <div className="form-body">
                                     <div className="form-group">
                                         <label>
@@ -160,8 +147,8 @@ const AdminNotificationsPage = () => {
                                             setTitle('');
                                             setMessage('');
                                             setTargetRole('');
-                                            setError(null);
-                                            setSuccess(null);
+                                            setToast(null);
+                                            setDeliveryStats(null);
                                         }}
                                         disabled={loading}
                                     >
@@ -209,18 +196,18 @@ const AdminNotificationsPage = () => {
                                     <strong>Gửi tới:</strong>{' '}
                                     {targetRole || 'Tất cả người dùng'}
                                 </p>
-                                {success && (
+                                {deliveryStats && (
                                     <div className="small-stats">
                                         <span>
                                             Thành công:{' '}
                                             <strong className="text-success">
-                                                {success.successCount}
+                                                {deliveryStats.successCount}
                                             </strong>
                                         </span>
                                         <span>
                                             Thất bại:{' '}
                                             <strong className="text-fail">
-                                                {success.failureCount}
+                                                {deliveryStats.failureCount}
                                             </strong>
                                         </span>
                                     </div>

@@ -3,6 +3,7 @@ import CustomerLayout from '../../layouts/CustomerLayout';
 import ProfileService from '../../services/ProfileService';
 import HelperRegistrationService from '../../services/HelperRegistrationService';
 import NotificationModal from '../../components/NotificationModal';
+import { buildGeocodeQueries, geocodeFirstMatch, reverseGeocodeStreet } from '../../utils/mapLocationUtils';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -107,6 +108,7 @@ const CustomerProfilePage = () => {
     const [loadingWard, setLoadingWard] = useState(false);
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState(null);
+    const [hasManualAddressEdit, setHasManualAddressEdit] = useState(false);
 
     const toOptions = (arr) =>
         arr.map((item) => ({ value: String(item.code ?? item.id ?? item), label: item.name ?? item }));
@@ -143,6 +145,7 @@ const CustomerProfilePage = () => {
     // Populate dropdowns once profile is loaded
     useEffect(() => {
         if (!profile) return;
+        setHasManualAddressEdit(false);
 
         // 1. Seed scalar fields immediately
         setForm((f) => ({
@@ -223,6 +226,7 @@ const CustomerProfilePage = () => {
     const handleProvinceChange = async (e) => {
         const provCode = e.target.value;
         const provName = provinces.find((p) => p.value === provCode)?.label || '';
+        setHasManualAddressEdit(true);
         setForm((f) => ({ ...f, provinceCode: provCode, provinceName: provName, districtCode: '', districtName: '', wardCode: '', wardName: '' }));
         setDistricts([]);
         setWards([]);
@@ -241,6 +245,7 @@ const CustomerProfilePage = () => {
     const handleDistrictChange = async (e) => {
         const distCode = e.target.value;
         const distName = districts.find((d) => d.value === distCode)?.label || '';
+        setHasManualAddressEdit(true);
         setForm((f) => ({ ...f, districtCode: distCode, districtName: distName, wardCode: '', wardName: '' }));
         setWards([]);
         if (!distCode) return;
@@ -258,6 +263,7 @@ const CustomerProfilePage = () => {
     // Thử geocode với địa chỉ đầy đủ (số nhà) trước, nếu không tìm thấy thì fallback
     // về cấp Phường/Quận/Tỉnh. Nominatim thường không có dữ liệu số nhà ở VN.
     useEffect(() => {
+        if (!hasManualAddressEdit) return;
         if (!form.provinceCode) return;
 
         const timer = setTimeout(async () => {
@@ -266,74 +272,55 @@ const CustomerProfilePage = () => {
             const wardName = wards.find(w => w.value == form.wardCode)?.label;
             const street = form.addressDetail?.trim();
 
-            // Helper: clean prefix từ tên hành chính
-            const cleanName = (name) => name?.replace(/^(Tỉnh|Thành phố|Quận|Huyện|Phường|Xã)\s+/i, '') || '';
-
-            // Helper: geocode một query
-            const geocode = async (query) => {
-                try {
-                    const res = await fetch(
-                        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=vn`
-                    );
-                    const data = await res.json();
-                    if (data && data.length > 0) {
-                        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-                    }
-                } catch (err) {
-                    console.error("Geocoding failed:", err);
-                }
-                return null;
-            };
-
-            // Chỉ dùng addressDetail khi đã chọn đủ Tỉnh + Quận + Phường
-            const hasFullAddress = provinceName && districtName && wardName;
-
-            // Tạo các query từ chi tiết nhất đến ít chi tiết nhất
-            const queries = [];
-            if (hasFullAddress && street) {
-                // Query 1: Địa chỉ đầy đủ với số nhà
-                queries.push([street, cleanName(wardName), cleanName(districtName), cleanName(provinceName)].join(", "));
-            }
-            if (hasFullAddress) {
-                // Query 2: Chỉ Phường + Quận + Tỉnh (fallback khi không tìm thấy số nhà)
-                queries.push([cleanName(wardName), cleanName(districtName), cleanName(provinceName)].join(", "));
-            }
-            if (districtName) {
-                // Query 3: Chỉ Quận + Tỉnh
-                queries.push([cleanName(districtName), cleanName(provinceName)].join(", "));
-            }
-            if (provinceName) {
-                // Query 4: Chỉ Tỉnh
-                queries.push(cleanName(provinceName));
-            }
-
-            // Thử từng query cho đến khi tìm thấy kết quả
-            for (const query of queries) {
-                const result = await geocode(query);
-                if (result) {
-                    setForm(prev => ({
-                        ...prev,
-                        latitude: result.lat,
-                        longitude: result.lng
-                    }));
-                    break;
-                }
+            const queries = buildGeocodeQueries({
+                street,
+                wardName,
+                districtName,
+                provinceName,
+            });
+            const result = await geocodeFirstMatch(queries);
+            if (result) {
+                setForm(prev => ({
+                    ...prev,
+                    latitude: result.lat,
+                    longitude: result.lng
+                }));
             }
         }, 1500);
 
         return () => clearTimeout(timer);
-    }, [form.provinceCode, form.districtCode, form.wardCode, form.addressDetail, provinces, districts, wards]);
+    }, [hasManualAddressEdit, form.provinceCode, form.districtCode, form.wardCode, form.addressDetail, provinces, districts, wards]);
 
     const handleMapLocationChange = (latlng) => {
+        const { lat, lng } = latlng;
+        setHasManualAddressEdit(false);
         setForm(prev => ({
             ...prev,
-            latitude: latlng.lat,
-            longitude: latlng.lng
+            latitude: lat,
+            longitude: lng
         }));
+
+        (async () => {
+            try {
+                const street = await reverseGeocodeStreet({ lat, lng });
+                setForm((prev) => ({
+                    ...prev,
+                    latitude: lat,
+                    longitude: lng,
+                    addressDetail: street || prev.addressDetail,
+                }));
+            } catch (err) {
+                console.error('Reverse geocoding failed:', err);
+            }
+        })();
     };
 
-    const handleChange = (e) =>
+    const handleChange = (e) => {
+        if (e.target.name === 'addressDetail') {
+            setHasManualAddressEdit(true);
+        }
         setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+    };
 
     // Resize + compress ảnh bằng Canvas trước khi lưu base64
     const handleAvatarChange = (e) => {
@@ -582,6 +569,7 @@ const CustomerProfilePage = () => {
                                             onChange={(e) => {
                                                 const wardCode = e.target.value;
                                                 const wardName = wards.find((w) => w.value === wardCode)?.label || '';
+                                                setHasManualAddressEdit(true);
                                                 setForm((f) => ({ ...f, wardCode, wardName }));
                                             }}
                                             disabled={!form.districtCode || loadingWard}

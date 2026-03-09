@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../layouts/AdminLayout';
+import NotificationModal from '../../components/NotificationModal';
 import AdminService from '../../services/AdminService';
 import './AdminHelpersPage.css';
 
@@ -8,7 +9,7 @@ const AdminHelpersPage = () => {
     const navigate = useNavigate();
     const [helpers, setHelpers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [toast, setToast] = useState(null);
     
     // Filter & Pagination
     const [status, setStatus] = useState('');
@@ -24,7 +25,6 @@ const AdminHelpersPage = () => {
     // Fetch helpers
     const fetchHelpers = async () => {
         setLoading(true);
-        setError(null);
         try {
             const params = {
                 page,
@@ -40,7 +40,10 @@ const AdminHelpersPage = () => {
             setTotalPages(response.totalPages || 0);
             setTotalElements(response.totalElements || 0);
         } catch (err) {
-            setError(err.message || 'Lỗi khi tải danh sách Helper');
+            setToast({
+                type: 'error',
+                message: err.message || 'Lỗi khi tải danh sách Helper'
+            });
             console.error(err);
         } finally {
             setLoading(false);
@@ -88,6 +91,13 @@ const AdminHelpersPage = () => {
     return (
         <AdminLayout>
             <div className="admin-helpers-main">
+                {toast && (
+                    <NotificationModal
+                        message={toast.message}
+                        type={toast.type}
+                        onClose={() => setToast(null)}
+                    />
+                )}
                 <div className="page-header">
                     <h1>Quản lý Helper</h1>
                     <p>Tổng: {totalElements} Helper</p>
@@ -133,9 +143,6 @@ const AdminHelpersPage = () => {
                         </select>
                     </div>
                 </div>
-
-                {/* Error Message */}
-                {error && <div className="error-message">{error}</div>}
 
                 {/* Loading */}
                 {loading && <p className="text-center">Đang tải dữ liệu...</p>}

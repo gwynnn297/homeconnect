@@ -3,6 +3,7 @@ import './KYCModal.css';
 import HelperRegistrationService from '../services/HelperRegistrationService';
 import CloudinaryService from '../services/CloudinaryService';
 import logoHomieConnect from '../assets/LogoHomieConnect.png';
+import { buildGeocodeQueries, geocodeFirstMatch, reverseGeocodeStreet } from '../utils/mapLocationUtils';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -44,6 +45,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     const [loadingDistricts, setLoadingDistricts] = useState(false);
     const [loadingWards, setLoadingWards] = useState(false);
     const [loadingServices, setLoadingServices] = useState(false);
+    const [hasManualAddressEdit, setHasManualAddressEdit] = useState(false);
 
     const [formData, setFormData] = useState({
         // Stage 1
@@ -89,6 +91,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         if (isOpen) return; // chỉ reset khi đóng
 
         setCurrentStage(1);
+        setHasManualAddressEdit(false);
         setFormData({
             dateOfBirth: '',
             bio: '',
@@ -213,6 +216,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     // Thử geocode với địa chỉ đầy đủ (số nhà) trước, nếu không tìm thấy thì fallback
     // về cấp Phường/Quận/Tỉnh. Nominatim thường không có dữ liệu số nhà ở VN.
     useEffect(() => {
+        if (!hasManualAddressEdit) return;
         if (!formData.provinceCode) return;
 
         const timer = setTimeout(async () => {
@@ -220,67 +224,30 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             const districtName = cityDistricts.find(d => d.code == formData.districtCode)?.name;
             const wardName = cityWards.find(w => w.code == formData.wardCode)?.name;
             const street = formData.currentAddress?.trim();
-
-            // Helper: clean prefix từ tên hành chính
-            const cleanName = (name) => name?.replace(/^(Tỉnh|Thành phố|Quận|Huyện|Phường|Xã)\s+/i, '') || '';
-
-            // Helper: geocode một query
-            const geocode = async (query) => {
-                try {
-                    const res = await fetch(
-                        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&countrycodes=vn`
-                    );
-                    const data = await res.json();
-                    if (data && data.length > 0) {
-                        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-                    }
-                } catch (err) {
-                    console.error("Lỗi tự động ghim bản đồ:", err);
-                }
-                return null;
-            };
-
-            // Chỉ dùng currentAddress khi đã chọn đủ Tỉnh + Quận + Phường
-            const hasFullAddress = provinceName && districtName && wardName;
-
-            // Tạo các query từ chi tiết nhất đến ít chi tiết nhất
-            const queries = [];
-            if (hasFullAddress && street) {
-                // Query 1: Địa chỉ đầy đủ với số nhà
-                queries.push([street, cleanName(wardName), cleanName(districtName), cleanName(provinceName)].join(", "));
-            }
-            if (hasFullAddress) {
-                // Query 2: Chỉ Phường + Quận + Tỉnh (fallback khi không tìm thấy số nhà)
-                queries.push([cleanName(wardName), cleanName(districtName), cleanName(provinceName)].join(", "));
-            }
-            if (districtName) {
-                // Query 3: Chỉ Quận + Tỉnh
-                queries.push([cleanName(districtName), cleanName(provinceName)].join(", "));
-            }
-            if (provinceName) {
-                // Query 4: Chỉ Tỉnh
-                queries.push(cleanName(provinceName));
-            }
-
-            // Thử từng query cho đến khi tìm thấy kết quả
-            for (const query of queries) {
-                const result = await geocode(query);
-                if (result) {
-                    setFormData(prev => ({
-                        ...prev,
-                        latitude: result.lat,
-                        longitude: result.lng
-                    }));
-                    break;
-                }
+            const queries = buildGeocodeQueries({
+                street,
+                wardName,
+                districtName,
+                provinceName,
+            });
+            const result = await geocodeFirstMatch(queries);
+            if (result) {
+                setFormData(prev => ({
+                    ...prev,
+                    latitude: result.lat,
+                    longitude: result.lng
+                }));
             }
         }, 1500);
 
         return () => clearTimeout(timer);
-    }, [formData.provinceCode, formData.districtCode, formData.wardCode, formData.currentAddress, provinces, cityDistricts, cityWards]);
+    }, [hasManualAddressEdit, formData.provinceCode, formData.districtCode, formData.wardCode, formData.currentAddress, provinces, cityDistricts, cityWards]);
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
+        if (name === 'provinceCode' || name === 'districtCode' || name === 'wardCode' || name === 'currentAddress') {
+            setHasManualAddressEdit(true);
+        }
 
         if (type === 'checkbox') {
             const val = name === 'serviceIds' ? parseInt(value) : value; // serviceIds là int, locations codes là string
@@ -298,11 +265,27 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     };
 
     const handleMapLocationChange = (latlng) => {
+        const { lat, lng } = latlng;
+        setHasManualAddressEdit(false);
         setFormData(prev => ({
             ...prev,
-            latitude: latlng.lat,
-            longitude: latlng.lng
+            latitude: lat,
+            longitude: lng
         }));
+
+        (async () => {
+            try {
+                const street = await reverseGeocodeStreet({ lat, lng });
+                setFormData((prev) => ({
+                    ...prev,
+                    latitude: lat,
+                    longitude: lng,
+                    currentAddress: street || prev.currentAddress,
+                }));
+            } catch (err) {
+                console.error('Lỗi reverse geocoding map:', err);
+            }
+        })();
     };
 
     const handleFileSelect = (e, type) => {
