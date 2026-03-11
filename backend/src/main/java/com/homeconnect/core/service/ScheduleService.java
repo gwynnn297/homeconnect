@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.homeconnect.core.repository.HelperScheduleRepository;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 import com.homeconnect.core.enums.BookingStatus;
@@ -60,7 +61,10 @@ public class ScheduleService {
             }
         }
 
-        // 0. Kiểm tra trùng lặp trong chính Request
+        // 0. Ràng buộc ngày/giờ
+        validateRegisterDateTimeConstraints(request);
+
+        // 0b. Kiểm tra trùng lặp trong chính Request
         validateRequestSlots(request.getSlots());
 
         for (ScheduleSlotRequest slot : request.getSlots()) {
@@ -130,6 +134,9 @@ public class ScheduleService {
      */
     @Transactional
     public RegisterScheduleSummaryResponse updateDaySchedule(Long helperId, ScheduleUpdateDayRequest request) {
+        // 0. Ràng buộc ngày/giờ
+        validateDayDateTimeConstraints(request.getDate(), request.getSlots());
+
         // 1. Validate internal overlap
         validateRequestSlots(request.getSlots());
 
@@ -193,12 +200,36 @@ public class ScheduleService {
 
         validateRequestSlots(newSlots);
 
+        // 0b. Validate endTime > startTime cho từng slot
+        for (ScheduleSlotRequest slot : newSlots) {
+            if (!slot.getEndTime().isAfter(slot.getStartTime())) {
+                throw new ApiException("Giờ kết thúc (" + slot.getEndTime() + ") phải sau giờ bắt đầu (" + slot.getStartTime() + ").", HttpStatus.BAD_REQUEST);
+            }
+        }
+
         // 1. Lấy tất cả các ngày trong group
         List<HelperSchedule> groupSchedules = helperScheduleRepository.findByGroupId(groupId);
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+
         List<LocalDate> distinctDates = groupSchedules.stream()
                 .map(HelperSchedule::getWorkDate)
                 .distinct()
+                .filter(date -> !date.isBefore(today)) // Bỏ qua ngày đã qua
                 .collect(Collectors.toList());
+
+        if (distinctDates.isEmpty()) {
+            throw new ApiException("Tất cả các ngày trong chuỗi đã ở quá khứ, không thể cập nhật.", HttpStatus.BAD_REQUEST);
+        }
+
+        // 1b. Nếu có ngày hôm nay trong chuỗi, kiểm tra startTime > giờ hiện tại
+        if (distinctDates.contains(today)) {
+            for (ScheduleSlotRequest slot : newSlots) {
+                if (!slot.getStartTime().isAfter(now)) {
+                    throw new ApiException("Không thể đăng ký khung giờ đã qua trong ngày hôm nay. Khung giờ " + slot.getStartTime() + " - " + slot.getEndTime() + " không hợp lệ.", HttpStatus.BAD_REQUEST);
+                }
+            }
+        }
 
         // 2. Kiểm tra conflict với BUSY trên TOÀN BỘ chuỗi
         for (LocalDate date : distinctDates) {
@@ -254,6 +285,77 @@ public class ScheduleService {
                 if (conflictEngine.isOverlap(s1.getStartTime(), s1.getEndTime(), s2.getStartTime(), s2.getEndTime())) {
                     throw new ApiException("Các khung giờ trong một yêu cầu không được đè lên nhau (" + s1.getStartTime() + " - " + s1.getEndTime() + " và " + s2.getStartTime() + " - " + s2.getEndTime() + ")", HttpStatus.BAD_REQUEST);
                 }
+            }
+        }
+    }
+
+    // ==================== VALIDATION CONSTRAINTS ====================
+
+    /**
+     * Ràng buộc cho API Đăng ký lịch hàng loạt (Register)
+     */
+    private void validateRegisterDateTimeConstraints(ScheduleRegisterRequest request) {
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+
+        // 1. startDate không được ở quá khứ
+        if (request.getStartDate().isBefore(today)) {
+            throw new ApiException("Ngày bắt đầu không được ở quá khứ.", HttpStatus.BAD_REQUEST);
+        }
+
+        // 2. endDate phải >= startDate
+        if (request.getEndDate().isBefore(request.getStartDate())) {
+            throw new ApiException("Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.", HttpStatus.BAD_REQUEST);
+        }
+
+        // 3. daysOfWeek phải từ 1 đến 7
+        for (Integer day : request.getDaysOfWeek()) {
+            if (day < 1 || day > 7) {
+                throw new ApiException("Ngày trong tuần phải từ 1 (Thứ 2) đến 7 (Chủ nhật). Giá trị không hợp lệ: " + day, HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        // 4. Validate từng slot
+        for (ScheduleSlotRequest slot : request.getSlots()) {
+            // endTime phải sau startTime
+            if (!slot.getEndTime().isAfter(slot.getStartTime())) {
+                throw new ApiException("Giờ kết thúc (" + slot.getEndTime() + ") phải sau giờ bắt đầu (" + slot.getStartTime() + ").", HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        // 5. Nếu startDate = hôm nay, các slot phải có startTime > giờ hiện tại
+        if (request.getStartDate().isEqual(today)
+                && request.getDaysOfWeek().contains(today.getDayOfWeek().getValue())) {
+            for (ScheduleSlotRequest slot : request.getSlots()) {
+                if (!slot.getStartTime().isAfter(now)) {
+                    throw new ApiException("Không thể đăng ký khung giờ đã qua trong ngày hôm nay. Khung giờ " + slot.getStartTime() + " - " + slot.getEndTime() + " không hợp lệ.", HttpStatus.BAD_REQUEST);
+                }
+            }
+        }
+    }
+
+    /**
+     * Ràng buộc cho API Cập nhật 1 ngày và Cập nhật nhóm
+     */
+    private void validateDayDateTimeConstraints(LocalDate date, List<ScheduleSlotRequest> slots) {
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+
+        // 1. Ngày không được ở quá khứ
+        if (date.isBefore(today)) {
+            throw new ApiException("Không thể cập nhật lịch cho ngày đã qua (" + date + ").", HttpStatus.BAD_REQUEST);
+        }
+
+        // 2. Validate từng slot
+        for (ScheduleSlotRequest slot : slots) {
+            // endTime phải sau startTime
+            if (!slot.getEndTime().isAfter(slot.getStartTime())) {
+                throw new ApiException("Giờ kết thúc (" + slot.getEndTime() + ") phải sau giờ bắt đầu (" + slot.getStartTime() + ").", HttpStatus.BAD_REQUEST);
+            }
+
+            // Nếu là hôm nay, startTime phải sau giờ hiện tại
+            if (date.isEqual(today) && !slot.getStartTime().isAfter(now)) {
+                throw new ApiException("Không thể đăng ký khung giờ đã qua trong ngày hôm nay. Khung giờ " + slot.getStartTime() + " - " + slot.getEndTime() + " không hợp lệ.", HttpStatus.BAD_REQUEST);
             }
         }
     }
