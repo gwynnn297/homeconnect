@@ -25,9 +25,6 @@ public class UpdateServiceRequest {
 
     private ServiceUnit unit;
 
-    @JsonProperty("icon_url")
-    private String iconUrl;
-
     private String description;
 
     private String note;

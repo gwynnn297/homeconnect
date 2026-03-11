@@ -37,9 +37,6 @@ public class Service {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
     
-    @Column(name = "icon_url", columnDefinition = "TEXT")
-    private String iconUrl;  // Đường dẫn icon dịch vụ
-    
     @Column(name = "base_price", precision = 15, scale = 2)
     private BigDecimal basePrice;  // Giá cơ bản (VNĐ)
 

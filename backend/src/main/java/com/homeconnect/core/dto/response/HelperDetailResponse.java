@@ -75,7 +75,6 @@ public class HelperDetailResponse {
     public static class ServiceInfo {
         private Integer serviceId;
         private String name;
-        private String iconUrl;
     }
 
     @Data

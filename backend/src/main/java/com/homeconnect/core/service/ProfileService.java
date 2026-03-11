@@ -278,7 +278,6 @@ public class ProfileService {
         return com.homeconnect.core.dto.response.profile.ServiceResponse.builder()
                 .id(service.getServiceId())
                 .name(service.getName())
-                .iconUrl(service.getIconUrl())
                 .basePrice(service.getBasePrice())
                 .unit(service.getUnit() != null ? service.getUnit().name() : null)
                 .build();

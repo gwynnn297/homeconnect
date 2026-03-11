@@ -24,10 +24,6 @@ public class CreateServiceRequest {
     @Schema(description = "Tên dịch vụ", example = "Dọn nhà theo giờ")
     private String name;
 
-    @JsonProperty("icon_url")
-    @Schema(description = "Đường dẫn icon dịch vụ", example = "https://cdn-icons-png.flaticon.com/512/995/995053.png")
-    private String iconUrl;
-
     @NotNull(message = "Giá cơ bản không được để trống")
     @DecimalMin(value = "0.0", inclusive = false, message = "Giá cơ bản phải lớn hơn 0")
     @JsonProperty("base_price")
