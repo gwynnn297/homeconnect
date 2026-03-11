@@ -23,7 +23,7 @@ public class RestClientConfig {
                 .filter(org.springframework.http.converter.StringHttpMessageConverter.class::isInstance)
                 .map(org.springframework.http.converter.StringHttpMessageConverter.class::cast)
                 .forEach(converter -> converter.setDefaultCharset(java.nio.charset.StandardCharsets.UTF_8));
-
+                
         return restTemplate;
     }
 }

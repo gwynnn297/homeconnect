@@ -74,7 +74,7 @@ public class ScheduleService {
         }
 
         int createdCount = 0;
-        String groupId = java.util.UUID.randomUUID().toString(); // Tạo groupId cho lô này
+        String groupId = generateGroupId(); // Tạo groupId cho lô này
 
         LocalDate currentDate = request.getStartDate();
         while (!currentDate.isAfter(request.getEndDate())) {
@@ -156,7 +156,7 @@ public class ScheduleService {
                 helperId, request.getDate(), List.of(ScheduleStatus.AVAILABLE, ScheduleStatus.CANCELLED));
 
         // 4. Tạo mới với groupId mới
-        String newGroupId = java.util.UUID.randomUUID().toString();
+        String newGroupId = generateGroupId();
         User helper = userRepository.findById(helperId).orElseThrow();
         
         for (ScheduleSlotRequest slot : request.getSlots()) {
@@ -252,7 +252,7 @@ public class ScheduleService {
         }
 
         // 4. Tạo lại chuỗi mới với groupId mới
-        String newGroupId = java.util.UUID.randomUUID().toString();
+        String newGroupId = generateGroupId();
         User helper = baseSlot.getHelper();
         int count = 0;
 
@@ -475,5 +475,15 @@ public class ScheduleService {
                 .cancelReason(schedule.getCancelReason())
                 .bookingId(schedule.getBooking() != null ? schedule.getBooking().getId() : null)
                 .build();
+    }
+
+    private String generateGroupId() {
+        String chars = "ABCDEFGHIJKLMN";
+        StringBuilder sb = new StringBuilder("GRP-");
+        java.util.Random rnd = new java.util.Random();
+        for (int i = 0; i < 4; i++) {
+            sb.append(chars.charAt(rnd.nextInt(chars.length())));
+        }
+        return sb.toString();
     }
 }
