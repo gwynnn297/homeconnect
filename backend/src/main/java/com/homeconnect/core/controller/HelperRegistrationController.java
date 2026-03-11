@@ -34,8 +34,7 @@ public class HelperRegistrationController {
         return ResponseEntity.ok(serviceRepository.findByIsActiveTrue().stream()
                 .map(s -> Map.<String, Object>of(
                         "id", s.getServiceId(),
-                        "name", s.getName(),
-                        "icon", s.getIconUrl() != null ? s.getIconUrl() : ""
+                        "name", s.getName()
                 ))
                 .toList());
     }

@@ -250,7 +250,6 @@ public class AdminService {
                                 .map(hs -> HelperDetailResponse.ServiceInfo.builder()
                                                 .serviceId(hs.getService().getServiceId())
                                                 .name(hs.getService().getName())
-                                                .iconUrl(hs.getService().getIconUrl())
                                                 .build())
                                 .collect(Collectors.toList());
 
@@ -457,7 +456,6 @@ public class AdminService {
                 .serviceId(service.getServiceId())
                 .name(service.getName())
                 .description(service.getDescription())
-                .iconUrl(service.getIconUrl())
                 .basePrice(service.getBasePrice())
                 .unit(service.getUnit())
                 .isActive(service.getIsActive())
@@ -517,10 +515,6 @@ public class AdminService {
             service.setUnit(request.getUnit());
         }
 
-        if (request.getIconUrl() != null) {
-            service.setIconUrl(request.getIconUrl());
-        }
-
         if (request.getDescription() != null) {
             service.setDescription(request.getDescription());
         }
@@ -549,7 +543,6 @@ public class AdminService {
         com.homeconnect.core.entity.Service service = com.homeconnect.core.entity.Service.builder()
                 .name(request.getName())
                 .description(request.getDescription())
-                .iconUrl(request.getIconUrl())
                 .basePrice(request.getBasePrice())
                 .unit(request.getUnit())
                 .isActive(request.getIsActive() == null || request.getIsActive())

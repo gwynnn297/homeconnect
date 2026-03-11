@@ -25,9 +25,6 @@ public class ServiceResponse {
     
     private String description;
     
-    @JsonProperty("icon_url")
-    private String iconUrl;
-    
     @JsonProperty("base_price")
     private BigDecimal basePrice;
     
