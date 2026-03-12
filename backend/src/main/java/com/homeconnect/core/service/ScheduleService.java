@@ -107,6 +107,7 @@ public class ScheduleService {
                             .workDate(currentDate)
                             .startTime(slot.getStartTime())
                             .endTime(slot.getEndTime())
+                            .dayOfWeek(currentDate.getDayOfWeek().getValue())
                             .status(ScheduleStatus.AVAILABLE)
                             .groupId(groupId) // Gán groupId
                             .build();
@@ -165,6 +166,7 @@ public class ScheduleService {
                     .workDate(request.getDate())
                     .startTime(slot.getStartTime())
                     .endTime(slot.getEndTime())
+                    .dayOfWeek(request.getDate().getDayOfWeek().getValue())
                     .status(ScheduleStatus.AVAILABLE)
                     .groupId(newGroupId)
                     .build();
@@ -213,9 +215,10 @@ public class ScheduleService {
         LocalTime now = LocalTime.now();
 
         List<LocalDate> distinctDates = groupSchedules.stream()
+                .filter(s -> s.getDayOfWeek().equals(baseSlot.getDayOfWeek()))
                 .map(HelperSchedule::getWorkDate)
                 .distinct()
-                .filter(date -> !date.isBefore(today)) // Bỏ qua ngày đã qua
+                .filter(date -> !date.isBefore(today))
                 .collect(Collectors.toList());
 
         if (distinctDates.isEmpty()) {
@@ -244,12 +247,9 @@ public class ScheduleService {
             }
         }
 
-        // 3. Xóa toàn bộ AVAILABLE/CANCELLED trong group
-        for (HelperSchedule s : groupSchedules) {
-            if (s.getStatus() != ScheduleStatus.BUSY) {
-                helperScheduleRepository.delete(s);
-            }
-        }
+        // 3. Xóa toàn bộ AVAILABLE/CANCELLED trong group cho đúng "thứ" đó
+        helperScheduleRepository.deleteByGroupIdAndDayOfWeekAndStatusIn(
+                groupId, baseSlot.getDayOfWeek(), List.of(ScheduleStatus.AVAILABLE, ScheduleStatus.CANCELLED));
 
         // 4. Tạo lại chuỗi mới với groupId mới
         String newGroupId = generateGroupId();
@@ -263,6 +263,7 @@ public class ScheduleService {
                         .workDate(date)
                         .startTime(slot.getStartTime())
                         .endTime(slot.getEndTime())
+                        .dayOfWeek(date.getDayOfWeek().getValue())
                         .status(ScheduleStatus.AVAILABLE)
                         .groupId(newGroupId)
                         .build();
@@ -380,6 +381,7 @@ public class ScheduleService {
         List<HelperSchedule> toCancel = groupSchedules.stream()
                 .filter(s -> !s.getWorkDate().isBefore(baseSchedule.getWorkDate()))
                 .filter(s -> s.getStartTime().equals(baseSchedule.getStartTime()) && s.getEndTime().equals(baseSchedule.getEndTime()))
+                .filter(s -> s.getDayOfWeek().equals(baseSchedule.getDayOfWeek()))
                 .filter(s -> s.getStatus() == ScheduleStatus.AVAILABLE || s.getStatus() == ScheduleStatus.BUSY)
                 .collect(Collectors.toList());
 
@@ -474,11 +476,12 @@ public class ScheduleService {
                 .status(schedule.getStatus())
                 .cancelReason(schedule.getCancelReason())
                 .bookingId(schedule.getBooking() != null ? schedule.getBooking().getId() : null)
+                .dayOfWeek(schedule.getDayOfWeek())
                 .build();
     }
 
     private String generateGroupId() {
-        String chars = "ABCDEFGHIJKLMN";
+        String chars = "ABCDEFGHIJKLMNWXYZ";
         StringBuilder sb = new StringBuilder("GRP-");
         java.util.Random rnd = new java.util.Random();
         for (int i = 0; i < 4; i++) {

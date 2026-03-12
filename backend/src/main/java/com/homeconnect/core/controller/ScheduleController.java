@@ -67,7 +67,7 @@ public class ScheduleController {
     /**
      * Cập nhật lịch đồng bộ theo chuỗi (Group)
      */
-    @Operation(summary = "Cập nhật lịch theo chuỗi (Group)", description = "Tìm toàn bộ các ngày có cùng groupId với id truyền vào và cập nhật đồng bộ sang khung giờ mới.")
+    @Operation(summary = "Cập nhật lịch theo chuỗi (Series)", description = "Tìm toàn bộ các ngày có cùng groupId VÀ cùng 'thứ' (dayOfWeek) với id truyền vào để cập nhật đồng bộ sang khung giờ mới.")
     @PutMapping("/{id}/group")
     @PreAuthorize("hasRole('HELPER')")
     public ResponseEntity<RegisterScheduleSummaryResponse> updateGroupSchedule(
@@ -145,7 +145,7 @@ public class ScheduleController {
     /**
      * Nghỉ nhiều ca đã đăng ký (Hủy chu kỳ lịch cam kết)
      */
-    @Operation(summary = "Nghỉ nhiều ca đã đăng ký", description = "Dùng để hủy toàn bộ chu kỳ lịch cam kết từ ca làm việc hiện tại trở về sau.")
+    @Operation(summary = "Nghỉ nhiều ca theo chuỗi (Hủy series)", description = "Dùng để hủy toàn bộ chu kỳ lịch cam kết của cùng 'thứ' trong tuần từ ca làm việc hiện tại trở về sau.")
     @PatchMapping("/{id}/cancel-bulk")
     @PreAuthorize("hasRole('HELPER')")
     public ResponseEntity<Void> bulkCancelSchedule(

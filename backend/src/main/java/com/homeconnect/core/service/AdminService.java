@@ -34,17 +34,16 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 @Slf4j
 public class AdminService {
-    // Giá tối thiểu cho phép để tránh lỗi nhập liệu (VD: 20,000 VNĐ)
-    private static final BigDecimal MIN_SERVICE_PRICE = new BigDecimal("20000");
+        // Giá tối thiểu cho phép để tránh lỗi nhập liệu (VD: 20,000 VNĐ)
+        private static final BigDecimal MIN_SERVICE_PRICE = new BigDecimal("20000");
 
-    private final UserRepository userRepository;
-    private final HelperProfileRepository helperProfileRepository;
-    private final HelperServiceRepository helperServiceRepository;
-    private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
-    private final ServiceRepository serviceRepository;
-    private final AddressRepository addressRepository;
-    private final EmailService emailService;
-
+        private final UserRepository userRepository;
+        private final HelperProfileRepository helperProfileRepository;
+        private final HelperServiceRepository helperServiceRepository;
+        private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
+        private final ServiceRepository serviceRepository;
+        private final AddressRepository addressRepository;
+        private final EmailService emailService;
 
         @Transactional
         public HelperReviewResponse reviewHelperKyc(Long helperId, HelperReviewRequest request, String adminEmail) {
@@ -63,7 +62,7 @@ public class AdminService {
                 if (!"HELPER".equals(helper.getRole().name())) {
                         throw new BadRequestException(
                                         "User ID " + helperId + " không phải là Helper. Role: "
-                                                        + helper.getRole().name());
++ helper.getRole().name());
                 }
 
                 // 3. Tìm HelperProfile
@@ -83,6 +82,11 @@ public class AdminService {
                 // 5. Cập nhật trạng thái KYC
                 KycStatus newStatus = "VERIFIED".equals(request.getAction()) ? KycStatus.VERIFIED : KycStatus.REJECTED;
                 helperProfile.setKycStatus(newStatus);
+                if (KycStatus.VERIFIED.equals(newStatus)) {
+                        helper.setStatus(UserStatus.ACTIVE);
+                } else {        
+                        helper.setStatus(UserStatus.REJECTED);
+                }
 
                 if (KycStatus.REJECTED.equals(newStatus)) {
                         helperProfile.setRejectionReason(request.getRejectionReason());
@@ -94,6 +98,7 @@ public class AdminService {
 
                 // 6. Lưu thay đổi
                 helperProfileRepository.save(helperProfile);
+                userRepository.save(helper);
 
                 // 7. Gửi email thông báo cho Helper
                 sendKycNotificationEmail(helper, newStatus, request.getRejectionReason());
@@ -113,7 +118,7 @@ public class AdminService {
                                 .kycStatus(newStatus)
                                 .rejectionReason(request.getRejectionReason())
                                 .reviewedAt(LocalDateTime.now())
-                                .reviewedBy(adminEmail)
+.reviewedBy(adminEmail)
                                 .message(newStatus == KycStatus.VERIFIED ? "Đã phê duyệt KYC cho Helper thành công"
                                                 : "Đã từ chối KYC cho Helper")
                                 .build();
@@ -172,7 +177,7 @@ public class AdminService {
                                         Nếu có thắc mắc, vui lòng liên hệ bộ phận hỗ trợ của chúng tôi.
 
                                         Trân trọng,
-                                        Đội ngũ HomeConnect
+Đội ngũ HomeConnect
                                         """, helperName, rejectionReason != null ? rejectionReason : "Không rõ");
                 }
         }
@@ -231,7 +236,7 @@ public class AdminService {
                                                 "Không tìm thấy Helper với ID: " + helperId));
 
                 if (helper.getRole() != UserRole.HELPER) {
-                        throw new BadRequestException("User ID " + helperId + " không phải là Helper");
+throw new BadRequestException("User ID " + helperId + " không phải là Helper");
                 }
 
                 // 2. Tìm HelperProfile
@@ -279,7 +284,7 @@ public class AdminService {
                                 .profileId(helperProfile.getProfileId())
                                 .bio(helperProfile.getBio())
                                 .experienceYears(helperProfile.getExperienceYears())
-                                .dateOfBirth(helper.getDateOfBirth()) // Đã chuyển từ helperProfile sang User
+.dateOfBirth(helper.getDateOfBirth()) // Đã chuyển từ helperProfile sang User
                                 .addressDetail(helperAddress != null ? helperAddress.getAddressDetail() : null)
 
                                 // Location
@@ -326,8 +331,7 @@ public class AdminService {
                 long totalAdmins = userRepository.countByRole(UserRole.ADMIN);
                 long activeUsers = userRepository.countByStatus(UserStatus.ACTIVE);
                 long blockedUsers = userRepository.countByStatus(UserStatus.BLOCKED);
-
-                AdminStatisticsResponse.UserStats userStats = AdminStatisticsResponse.UserStats.builder()
+AdminStatisticsResponse.UserStats userStats = AdminStatisticsResponse.UserStats.builder()
                                 .totalUsers(totalUsers)
                                 .totalCustomers(totalCustomers)
                                 .totalHelpers(totalHelpers)
@@ -380,7 +384,7 @@ public class AdminService {
                                 recipients = userRepository.findByRole(targetRole);
                         } catch (IllegalArgumentException e) {
                                 throw new BadRequestException("Role không hợp lệ: " + request.getTargetRole());
-                        }
+}
                 } else {
                         recipients = userRepository.findAll();
                 }
@@ -439,8 +443,7 @@ public class AdminService {
 
                                 .experienceYears(helperProfile.getExperienceYears())
                                 .bio(helperProfile.getBio())
-
-                                .totalServices((int) totalServices)
+.totalServices((int) totalServices)
                                 .totalWorkingDistricts((int) totalWorkingDistricts)
 
                                 .createdAt(helper.getCreatedAt())
@@ -448,113 +451,113 @@ public class AdminService {
                                 .build();
         }
 
-
-
-
-    private ServiceResponse mapToServiceResponse(com.homeconnect.core.entity.Service service) {
-        return ServiceResponse.builder()
-                .serviceId(service.getServiceId())
-                .name(service.getName())
-                .description(service.getDescription())
-                .basePrice(service.getBasePrice())
-                .unit(service.getUnit())
-                .isActive(service.getIsActive())
-                .createdAt(service.getCreatedAt())
-                .updatedAt(service.getUpdatedAt())
-                .build();
-    }
-
-    /**
-     * BE-Admin-01: Xóa dịch vụ nhỏ
-     */
-    @Transactional
-    public void deleteService(Integer id) {
-        if (!serviceRepository.existsById(id)) {
-            throw new BadRequestException("Dịch vụ không tồn tại");
-        }
-        serviceRepository.deleteById(id);
-    }
-
-    private void validateServicePrice(BigDecimal price) {
-        if (price != null && price.compareTo(MIN_SERVICE_PRICE) < 0) {
-            throw new BadRequestException("Giá dịch vụ quá thấp (Tối thiểu phải từ " + 
-                String.format("%,d", MIN_SERVICE_PRICE.longValue()) + " VNĐ). Vui lòng kiểm tra lại!");
-        }
-    }
-    /**
-     * BE-Admin-01: Lấy thông tin chi tiết của một dịch vụ lẻ
-     */
-    @Transactional(readOnly = true)
-    public ServiceResponse getServiceDetail(Integer serviceId) {
-        com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
-                .orElseThrow(() -> new BadRequestException("Dịch vụ ID " + serviceId + " không tồn tại"));
-        return mapToServiceResponse(service);
-    }
-
-    /**
-     * BE-Admin-01: Cập nhật thông tin dịch vụ (Patch)
-     */
-    @Transactional
-    public ServiceResponse updateService(Integer serviceId, UpdateServiceRequest request) {
-        com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
-                .orElseThrow(() -> new BadRequestException("Dịch vụ ID " + serviceId + " không tồn tại"));
-
-        if (request.getName() != null && !request.getName().equals(service.getName())) {
-            if (serviceRepository.existsByName(request.getName())) {
-                throw new BadRequestException("Tên dịch vụ '" + request.getName() + "' đã tồn tại");
-            }
-            service.setName(request.getName());
+        private ServiceResponse mapToServiceResponse(com.homeconnect.core.entity.Service service) {
+                return ServiceResponse.builder()
+                                .serviceId(service.getServiceId())
+                                .name(service.getName())
+                                .description(service.getDescription())
+                                .basePrice(service.getBasePrice())
+                                .unit(service.getUnit())
+                                .isActive(service.getIsActive())
+                                .createdAt(service.getCreatedAt())
+                                .updatedAt(service.getUpdatedAt())
+                                .build();
         }
 
-        if (request.getBasePrice() != null) {
-            validateServicePrice(request.getBasePrice());
-            service.setBasePrice(request.getBasePrice());
+        /**
+         * BE-Admin-01: Xóa dịch vụ nhỏ
+         */
+        @Transactional
+        public void deleteService(Integer id) {
+                if (!serviceRepository.existsById(id)) {
+                        throw new BadRequestException("Dịch vụ không tồn tại");
+                }
+                serviceRepository.deleteById(id);
         }
 
-        if (request.getUnit() != null) {
-            service.setUnit(request.getUnit());
+        private void validateServicePrice(BigDecimal price) {
+                if (price != null && price.compareTo(MIN_SERVICE_PRICE) < 0) {
+                        throw new BadRequestException("Giá dịch vụ quá thấp (Tối thiểu phải từ " +
+                                        String.format("%,d", MIN_SERVICE_PRICE.longValue())
+                                        + " VNĐ). Vui lòng kiểm tra lại!");
+                }
         }
 
-        if (request.getDescription() != null) {
-            service.setDescription(request.getDescription());
+        /**
+         * BE-Admin-01: Lấy thông tin chi tiết của một dịch vụ lẻ
+         */
+        @Transactional(readOnly = true)
+        public ServiceResponse getServiceDetail(Integer serviceId) {
+                com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
+                                .orElseThrow(() -> new BadRequestException(
+                                                "Dịch vụ ID " + serviceId + " không tồn tại"));
+                return mapToServiceResponse(service);
         }
 
-        if (request.getIsActive() != null) {
-            service.setIsActive(request.getIsActive());
+        /**
+         * BE-Admin-01: Cập nhật thông tin dịch vụ (Patch)
+         */
+        @Transactional
+        public ServiceResponse updateService(Integer serviceId, UpdateServiceRequest request) {
+                com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
+                                .orElseThrow(() -> new BadRequestException(
+                                                "Dịch vụ ID " + serviceId + " không tồn tại"));
+if (request.getName() != null && !request.getName().equals(service.getName())) {
+                        if (serviceRepository.existsByName(request.getName())) {
+                                throw new BadRequestException("Tên dịch vụ '" + request.getName() + "' đã tồn tại");
+                        }
+                        service.setName(request.getName());
+                }
+
+                if (request.getBasePrice() != null) {
+                        validateServicePrice(request.getBasePrice());
+                        service.setBasePrice(request.getBasePrice());
+                }
+
+                if (request.getUnit() != null) {
+                        service.setUnit(request.getUnit());
+                }
+
+                if (request.getDescription() != null) {
+                        service.setDescription(request.getDescription());
+                }
+
+                if (request.getIsActive() != null) {
+                        service.setIsActive(request.getIsActive());
+                }
+
+                return mapToServiceResponse(serviceRepository.save(service));
         }
 
-        return mapToServiceResponse(serviceRepository.save(service));
-    }
+        /**
+         * BE-Admin-01: Manage Service & Price
+         * Tạo mới dịch vụ và giá sàn
+         */
+        @Transactional
+        public ServiceResponse createService(CreateServiceRequest request) {
+                // 1. Kiểm tra tên dịch vụ duy nhất
+                if (serviceRepository.existsByName(request.getName())) {
+                        throw new BadRequestException("Tên dịch vụ '" + request.getName() + "' đã tồn tại");
+                }
 
-    /**
-     * BE-Admin-01: Manage Service & Price
-     * Tạo mới dịch vụ và giá sàn
-     */
-    @Transactional
-    public ServiceResponse createService(CreateServiceRequest request) {
-        // 1. Kiểm tra tên dịch vụ duy nhất
-        if (serviceRepository.existsByName(request.getName())) {
-            throw new BadRequestException("Tên dịch vụ '" + request.getName() + "' đã tồn tại");
+                validateServicePrice(request.getBasePrice());
+
+                // 2. Map DTO sang Entity
+                com.homeconnect.core.entity.Service service = com.homeconnect.core.entity.Service.builder()
+                                .name(request.getName())
+                                .description(request.getDescription())
+                                .basePrice(request.getBasePrice())
+                                .unit(request.getUnit())
+                                .isActive(request.getIsActive() == null || request.getIsActive())
+                                .build();
+
+                // 3. Lưu entity
+                service = serviceRepository.save(service);
+
+                log.info("Admin đã tạo mới dịch vụ: {} (ID: {})", service.getName(), service.getServiceId());
+
+                // 4. Trả về response
+                return mapToServiceResponse(service);
         }
-
-        validateServicePrice(request.getBasePrice());
-
-        // 2. Map DTO sang Entity
-        com.homeconnect.core.entity.Service service = com.homeconnect.core.entity.Service.builder()
-                .name(request.getName())
-                .description(request.getDescription())
-                .basePrice(request.getBasePrice())
-                .unit(request.getUnit())
-                .isActive(request.getIsActive() == null || request.getIsActive())
-                .build();
-
-        // 3. Lưu entity
-        service = serviceRepository.save(service);
-
-        log.info("Admin đã tạo mới dịch vụ: {} (ID: {})", service.getName(), service.getServiceId());
-
-        // 4. Trả về response
-        return mapToServiceResponse(service);
-    }
 
 }
