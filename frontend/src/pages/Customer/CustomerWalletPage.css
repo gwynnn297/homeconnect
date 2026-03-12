@@ -1,0 +1,702 @@
+:root {
+  --bg-main: #FBF7F3;
+  --sidebar-bg: #F6EFE8;
+  --card: #FFFFFF;
+  --border: #E4DCD4;
+  --text-main: #0F2C24;
+  --muted: #6B7280;
+  --primary: #2F5D50;
+  --primary-soft: #E6F0EC;
+  --success: #16A34A;
+  --warning: #F4C77A;
+  --danger: #E74C3C;
+  --danger-soft: #FEE2E2;
+  --warning-soft: #FEF3C7;
+  --success-soft: #DCFCE7;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 3px rgba(15,44,36,.06), 0 4px 14px rgba(15,44,36,.04);
+  --shadow-lg: 0 4px 20px rgba(15,44,36,.08);
+}
+
+.vw-page {
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text-main);
+  background-color: var(--bg-main);
+  min-height: 100vh;
+}
+
+.vw-header {
+  margin-bottom: 32px;
+}
+
+.vw-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--text-main);
+}
+
+.vw-subtitle {
+  color: var(--muted);
+  font-size: 15px;
+  margin: 0;
+}
+
+/* CARDS */
+.vw-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.vw-card-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.vw-card-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.vw-card-body {
+  padding: 24px;
+}
+
+/* TOP BALANCE GRID */
+.vw-balance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.vw-balance-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.vw-balance-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.vw-main-balance {
+  background: linear-gradient(135deg, var(--primary) 0%, #1e4035 100%);
+  color: white;
+  border: none;
+}
+
+.vw-main-balance .vw-card-icon {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.vw-main-balance .vw-balance-label {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.vw-main-balance .vw-wallet-status {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.vw-card-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-soft);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.vw-icon-warning {
+  background: var(--warning-soft);
+  color: #B45309; /* Darker warning icon for contrast */
+}
+
+.vw-icon-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.vw-card-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.vw-balance-info {
+  flex: 1;
+}
+
+.vw-balance-label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.vw-balance-amount {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.vw-text-warning {
+  color: #B45309;
+}
+
+.vw-text-danger {
+  color: var(--danger);
+}
+
+.vw-text-success {
+  color: var(--success);
+}
+
+.vw-text-primary {
+  color: var(--primary);
+}
+
+.vw-text-main {
+  color: var(--text-main);
+}
+
+.vw-text-muted {
+  color: var(--muted);
+}
+
+/* BADGES */
+.vw-wallet-status {
+  font-size: 13px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vw-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.vw-badge-active {
+  background: var(--success);
+  color: white;
+}
+
+.vw-badge-inactive {
+  background: var(--danger);
+  color: white;
+}
+
+/* MAIN CONTENT */
+.vw-content-layout {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 32px;
+}
+
+/* TRANSACTIONS */
+.vw-tx-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.vw-tx-item {
+  display: flex;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+
+.vw-tx-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.vw-tx-item:first-child {
+  padding-top: 0;
+}
+
+.vw-tx-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vw-tx-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.vw-bg-success-soft { background-color: var(--success-soft); }
+.vw-bg-warning-soft { background-color: var(--warning-soft); }
+.vw-bg-danger-soft { background-color: var(--danger-soft); }
+.vw-bg-primary-soft { background-color: var(--primary-soft); }
+.vw-bg-muted-soft { background-color: #F3F4F6; }
+
+.vw-tx-content {
+  flex: 1;
+}
+
+.vw-tx-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.vw-tx-meta {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+}
+
+.vw-tx-type {
+  font-weight: 600;
+}
+
+.vw-tx-dot {
+  margin: 0 6px;
+  color: #D1D5DB;
+}
+
+.vw-tx-amount {
+  font-size: 16px;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* DEPOSIT COLUMN */
+.vw-sticky {
+  position: sticky;
+  top: 32px;
+}
+
+.vw-input-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-main);
+}
+
+.vw-input-group {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.vw-input {
+  width: 100%;
+  padding: 14px 16px;
+  padding-right: 48px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-main);
+  background: #F9FAFB;
+  outline: none;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+
+.vw-input:focus {
+  border-color: var(--primary);
+  background: white;
+}
+
+.vw-input-suffix {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.vw-amount-suggestions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.vw-amount-suggestions button {
+  padding: 10px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.vw-amount-suggestions button:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* BUTTONS */
+.vw-btn {
+  padding: 14px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.vw-btn-block {
+  width: 100%;
+}
+
+.vw-btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.vw-btn-primary:hover:not(:disabled) {
+  background: #1f4238;
+}
+
+.vw-btn-primary:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.vw-btn-outline {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.vw-btn-outline:hover {
+  background: #F3F4F6;
+  color: var(--text-main);
+}
+
+.vw-btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.vw-btn-icon:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.vw-btn-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* DEPOSIT STATE & QR */
+.vw-deposit-hint {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.vw-deposit-state {
+  text-align: center;
+  padding: 32px 0;
+}
+
+.vw-deposit-state h4 {
+  font-size: 20px;
+  margin: 16px 0 8px 0;
+}
+
+.vw-deposit-state p {
+  color: var(--muted);
+  margin-bottom: 24px;
+}
+
+.vw-icon-circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.vw-icon-circle svg {
+  width: 40px;
+  height: 40px;
+}
+
+.vw-qr-timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--warning-soft);
+  color: #B45309;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+
+.vw-qr-timer svg { width: 16px; height: 16px; }
+.vw-qr-timer span { font-weight: 700; }
+
+.vw-qr-box {
+  background: white;
+  padding: 16px;
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  margin: 0 auto 16px auto;
+  width: 220px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vw-qr-img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.vw-qr-inst {
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 24px;
+}
+
+.vw-qr-info {
+  background: #F9FAFB;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.vw-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.vw-info-row:last-child {
+  border-bottom: none;
+}
+
+.vw-info-lbl {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.vw-info-val {
+  font-weight: 600;
+  color: var(--text-main);
+  font-size: 15px;
+}
+
+.vw-info-copy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vw-btn-copy {
+  background: white;
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.vw-btn-copy:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.vw-qr-alert {
+  background: var(--danger-soft);
+  border: 2px dashed #FCA5A5;
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.vw-alert-title {
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+
+.vw-alert-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  border: 1px solid #FCA5A5;
+}
+
+.vw-transfer-code {
+  font-family: monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: 1px;
+}
+
+.vw-alert-warn {
+  font-size: 12px;
+  color: var(--danger);
+  line-height: 1.4;
+}
+
+.vw-polling-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--primary);
+  font-weight: 500;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--primary-soft);
+  border-radius: var(--radius-sm);
+}
+
+/* HELPERS */
+.vw-spinner {
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-left-color: currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.vw-spinner-sm { width: 16px; height: 16px; border-width: 2px; }
+.vw-spinner-lg { width: 48px; height: 48px; border-width: 4px; margin: 0 auto; }
+
+.vw-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0;
+  color: var(--muted);
+}
+
+.vw-empty-state svg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.vw-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.vw-pagination button {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-main);
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.vw-pagination button:hover:not(:disabled) {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.vw-pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 900px) {
+  .vw-content-layout {
+    grid-template-columns: 1fr;
+  }
+}
