@@ -16,6 +16,7 @@ import AdminHelperDetailPage from '../pages/Admin/AdminHelperDetailPage'
 import AdminNotificationsPage from '../pages/Admin/AdminNotificationsPage'
 import ServiceManagerPage from '../pages/Admin/ServiceManagerPage'
 import HelperSchedulePage from '../pages/Helper/HelperSchedulePage'
+import ForgotPasswordPage from '../pages/ForgotPassword/ForgotPasswordPage'
 
 const AuthRouter = () => {
   return (
@@ -25,6 +26,7 @@ const AuthRouter = () => {
         <Route path="/home" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms" element={<TermsofServicePage />} />
         <Route path="/customer-dashboard" element={<CustomerDashboardPage />} />
