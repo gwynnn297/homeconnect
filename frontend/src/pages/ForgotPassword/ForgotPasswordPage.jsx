@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import './ForgotPasswordPage.css';
-import logoHomeiConnect from '../../assets/LogoHomeiConnect.png';
+import logoHomieConnect from '../../assets/LogoHomieConnect.png';
 import AuthService from '../../services/AuthService';
 
 const ForgotPasswordPage = () => {
@@ -209,9 +209,9 @@ const ForgotPasswordPage = () => {
             <div className="forgot-password-card">
                 {/* Header */}
                 <div className="forgot-password-header">
-                    <img 
-                        src={logoHomeiConnect} 
-                        alt="HomeConnect Logo" 
+                    <img
+                        src={logoHomieConnect}
+                        alt="HomeConnect Logo"
                         className="logo"
                         onClick={() => navigate('/')}
                         style={{ cursor: 'pointer' }}
@@ -241,8 +241,8 @@ const ForgotPasswordPage = () => {
                                 disabled={loading}
                             />
                         </div>
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             className="btn-submit"
                             disabled={loading}
                         >
@@ -280,8 +280,8 @@ const ForgotPasswordPage = () => {
                             </div>
                         )}
 
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             className="btn-submit"
                             disabled={loading}
                         >
@@ -315,7 +315,7 @@ const ForgotPasswordPage = () => {
                         <p className="step-description">
                             Nhập mật khẩu mới của bạn
                         </p>
-                        
+
                         <div className="form-group">
                             <label htmlFor="newPassword">Mật Khẩu Mới</label>
                             <div className="password-input-wrapper">
@@ -384,8 +384,8 @@ const ForgotPasswordPage = () => {
                             </ul>
                         </div>
 
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             className="btn-submit"
                             disabled={loading}
                         >
