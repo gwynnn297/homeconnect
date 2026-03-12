@@ -46,6 +46,9 @@ public class HelperSchedule {
     @Column(name = "end_time", nullable = false)
     private LocalTime endTime;
 
+    @Column(name = "day_of_week")
+    private Integer dayOfWeek;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20)
     @Builder.Default

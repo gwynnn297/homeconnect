@@ -35,4 +35,7 @@ public class ScheduleResponse {
 
     @io.swagger.v3.oas.annotations.media.Schema(description = "ID đơn hàng (nếu status=BUSY)")
     private Long bookingId;
+
+    @io.swagger.v3.oas.annotations.media.Schema(description = "Thứ trong tuần (1=Monday, 7=Sunday)")
+    private Integer dayOfWeek;
 }
