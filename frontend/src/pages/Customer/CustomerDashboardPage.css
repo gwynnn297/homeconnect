@@ -108,9 +108,41 @@
 }
 
 /* ── Service Categories Grid ── */
+.cdb-categories-carousel {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cdb-category-nav {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1.5px solid #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.cdb-category-nav:hover:not(:disabled) {
+    border-color: #346252;
+    color: #346252;
+    transform: translateY(-1px);
+}
+
+.cdb-category-nav:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 .cdb-categories-grid {
+    flex: 1;
     display: grid;
-    grid-template-columns: repeat(8, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 16px;
 }
 
@@ -395,8 +427,18 @@
 }
 
 @media (max-width: 640px) {
+    .cdb-categories-carousel {
+        gap: 8px;
+    }
+
+    .cdb-category-nav {
+        width: 34px;
+        height: 34px;
+        font-size: 20px;
+    }
+
     .cdb-categories-grid {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(2, 1fr);
     }
 
     .cdb-helpers-grid {

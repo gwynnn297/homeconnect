@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import KYCModal from '../../components/KYCModal';
 import HelperLayout from '../../layouts/HelperLayout';
+import ProfileService from '../../services/ProfileService';
 import './HelperDashboardPage.css';
 
 /* ──────────────────────────────────────────
@@ -53,6 +54,41 @@ const HelperDashboardPage = () => {
     const [showKYCModal, setShowKYCModal] = useState(false);
     const [kycStatus, setKycStatus] = useState(null);
     const [helperName, setHelperName] = useState('');
+    const hasReloadedAfterApprove = useRef(false);
+
+    const syncUserToLocalStorage = useCallback((basicProfile, helperProfile) => {
+        try {
+            const stored = JSON.parse(localStorage.getItem('user') || '{}');
+            if (basicProfile?.fullName) stored.fullName = basicProfile.fullName;
+            if (basicProfile?.name) stored.name = basicProfile.name;
+            if (helperProfile?.kycStatus) stored.kycStatus = helperProfile.kycStatus;
+            localStorage.setItem('user', JSON.stringify(stored));
+        } catch {
+            // ignore localStorage parsing/sync errors
+        }
+    }, []);
+
+    const fetchLatestProfileStatus = useCallback(async () => {
+        try {
+            const [basicRes, helperRes] = await Promise.all([
+                ProfileService.getMyProfile(),
+                ProfileService.getHelperProfessionalProfile(),
+            ]);
+
+            const basic = basicRes?.data || {};
+            const helper = helperRes?.data || {};
+            const latestStatus = helper.kycStatus || 'PENDING';
+            const latestName = basic.fullName || basic.name || 'Helper';
+
+            setKycStatus(latestStatus);
+            setHelperName(latestName.split(' ').slice(-2).join(' '));
+            syncUserToLocalStorage(basic, helper);
+            return latestStatus;
+        } catch (err) {
+            console.error('[HelperDashboardPage] fetchLatestProfileStatus failed:', err);
+            return null;
+        }
+    }, [syncUserToLocalStorage]);
 
     useEffect(() => {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -64,7 +100,27 @@ const HelperDashboardPage = () => {
         if (status === 'PENDING') {
             setShowKYCModal(true);
         }
-    }, []);
+
+        fetchLatestProfileStatus();
+    }, [fetchLatestProfileStatus]);
+
+    useEffect(() => {
+        if (kycStatus !== 'WAITING_APPROVAL') return undefined;
+
+        const poll = async () => {
+            const latestStatus = await fetchLatestProfileStatus();
+            if (
+                latestStatus === 'VERIFIED' &&
+                !hasReloadedAfterApprove.current
+            ) {
+                hasReloadedAfterApprove.current = true;
+                window.location.reload();
+            }
+        };
+
+        const intervalId = setInterval(poll, 5000);
+        return () => clearInterval(intervalId);
+    }, [kycStatus, fetchLatestProfileStatus]);
 
     const handleKYCSuccess = () => {
         setShowKYCModal(false);

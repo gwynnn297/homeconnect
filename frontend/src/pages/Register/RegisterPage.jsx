@@ -169,7 +169,7 @@ const RegisterPage = () => {
                         </div>
                     </div>
 
-                    <h1 className="register-title">Đăng Kí</h1>
+                    <h1 className="register-titlee">Đăng Kí</h1>
                     <p className="register-subtitle">Tạo tài khoản mới để bắt đầu sử dụng HomieConnect</p>
 
                     <h2 className="register-heading">Đăng kí tài khoản với vai trò:</h2>

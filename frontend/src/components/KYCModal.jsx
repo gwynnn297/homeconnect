@@ -3,37 +3,8 @@ import './KYCModal.css';
 import HelperRegistrationService from '../services/HelperRegistrationService';
 import CloudinaryService from '../services/CloudinaryService';
 import logoHomieConnect from '../assets/LogoHomieConnect.png';
-import { buildGeocodeQueries, geocodeFirstMatch, reverseGeocodeStreet } from '../utils/mapLocationUtils';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-
-// Fix Leaflet marker icon issue
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
-
-const LocationMarker = ({ position, setPosition }) => {
-    const map = useMapEvents({
-        click(e) {
-            setPosition(e.latlng);
-            map.flyTo(e.latlng, map.getZoom());
-        },
-    });
-
-    useEffect(() => {
-        if (position) {
-            map.flyTo(position, map.getZoom());
-        }
-    }, [position, map]);
-
-    return position === null ? null : (
-        <Marker position={position}></Marker>
-    );
-};
+import { reverseGeocodeStreet, autocompleteAddressGoong, getPlaceDetailGoong, geocodeAddressGoong } from '../utils/mapLocationUtils';
+import MapGoongComponent from './MapGoongComponent';
 
 const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     const [currentStage, setCurrentStage] = useState(1);
@@ -80,6 +51,13 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
+    // Address autocomplete
+    const [addressSuggestions, setAddressSuggestions] = useState([]);
+    const [showAddressSuggestions, setShowAddressSuggestions] = useState(false);
+    const addressDebounceRef = useRef(null);
+    const addressWrapperRef = useRef(null);
+    const suppressAutoGeocodeRef = useRef(false);
+
     // Refs cho input file
     const cccdFrontRef = useRef(null);
     const cccdBackRef = useRef(null);
@@ -117,6 +95,9 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         setAvatarFile(null);
         setError('');
         setSuccess('');
+        setAddressSuggestions([]);
+        setShowAddressSuggestions(false);
+        suppressAutoGeocodeRef.current = false;
     }, [isOpen]);
 
     // Fetch danh sách tỉnh/thành và dịch vụ khi modal mở
@@ -212,45 +193,77 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         fetchWards();
     }, [formData.districtCode]);
 
-    // ── Tự động ghim bản đồ với Fallback ──────────────────────────────────────
-    // Thử geocode với địa chỉ đầy đủ (số nhà) trước, nếu không tìm thấy thì fallback
-    // về cấp Phường/Quận/Tỉnh. Nominatim thường không có dữ liệu số nhà ở VN.
+    // Close address suggestion dropdown when clicking outside
+    useEffect(() => {
+        const handler = (e) => {
+            if (addressWrapperRef.current && !addressWrapperRef.current.contains(e.target)) {
+                setShowAddressSuggestions(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    // ── Tự động ghim bản đồ bằng Goong (chính xác cho địa chỉ VN) ───────────
     useEffect(() => {
         if (!hasManualAddressEdit) return;
         if (!formData.provinceCode) return;
 
         const timer = setTimeout(async () => {
+            if (suppressAutoGeocodeRef.current) {
+                suppressAutoGeocodeRef.current = false;
+                return;
+            }
+
             const provinceName = provinces.find(p => p.code == formData.provinceCode)?.name;
             const districtName = cityDistricts.find(d => d.code == formData.districtCode)?.name;
             const wardName = cityWards.find(w => w.code == formData.wardCode)?.name;
-            const street = formData.currentAddress?.trim();
-            const queries = buildGeocodeQueries({
-                street,
-                wardName,
-                districtName,
-                provinceName,
-            });
-            const result = await geocodeFirstMatch(queries);
+            const street = formData.currentAddress?.trim() || null;
+
+            const result = await geocodeAddressGoong({ street, wardName, districtName, provinceName });
             if (result) {
                 setFormData(prev => ({
                     ...prev,
                     latitude: result.lat,
-                    longitude: result.lng
+                    longitude: result.lng,
                 }));
             }
-        }, 1500);
+        }, 800);
 
         return () => clearTimeout(timer);
     }, [hasManualAddressEdit, formData.provinceCode, formData.districtCode, formData.wardCode, formData.currentAddress, provinces, cityDistricts, cityWards]);
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
-        if (name === 'provinceCode' || name === 'districtCode' || name === 'wardCode' || name === 'currentAddress') {
+
+        if (name === 'provinceCode' || name === 'districtCode' || name === 'wardCode') {
             setHasManualAddressEdit(true);
         }
 
+        if (name === 'currentAddress') {
+            setHasManualAddressEdit(true);
+            setFormData(prev => ({ ...prev, currentAddress: value }));
+
+            if (addressDebounceRef.current) clearTimeout(addressDebounceRef.current);
+            if (value.trim().length > 2) {
+                addressDebounceRef.current = setTimeout(async () => {
+                    const suggestions = await autocompleteAddressGoong(value, {
+                        lat: formData.latitude,
+                        lng: formData.longitude,
+                    });
+                    setAddressSuggestions(suggestions);
+                    setShowAddressSuggestions(suggestions.length > 0);
+                }, 350);
+            } else {
+                setAddressSuggestions([]);
+                setShowAddressSuggestions(false);
+            }
+            if (error) setError('');
+            return;
+        }
+
         if (type === 'checkbox') {
-            const val = name === 'serviceIds' ? parseInt(value) : value; // serviceIds là int, locations codes là string
+            const val = name === 'serviceIds' ? parseInt(value) : value;
             setFormData(prev => ({
                 ...prev,
                 [name]: checked
@@ -262,6 +275,26 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         }
 
         if (error) setError('');
+    };
+
+    const handleSelectAddressSuggestion = async (suggestion) => {
+        const streetOnly = suggestion.structured_formatting?.main_text || suggestion.description;
+        setFormData(prev => ({ ...prev, currentAddress: streetOnly }));
+        setShowAddressSuggestions(false);
+        setAddressSuggestions([]);
+        setHasManualAddressEdit(true);
+
+        if (suggestion.place_id) {
+            try {
+                const coords = await getPlaceDetailGoong(suggestion.place_id);
+                if (coords) {
+                    suppressAutoGeocodeRef.current = true;
+                    setFormData(prev => ({ ...prev, latitude: coords.lat, longitude: coords.lng }));
+                }
+            } catch (err) {
+                console.error('Place detail geocoding failed:', err);
+            }
+        }
     };
 
     const handleMapLocationChange = (latlng) => {
@@ -733,14 +766,34 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                 </svg>
                                 Địa chỉ hiện tại <span className="kyc-required">*</span>
                             </label>
-                            <input
-                                type="text"
-                                name="currentAddress"
-                                className="kyc-input"
-                                placeholder="Số nhà, đường/phố..."
-                                value={formData.currentAddress}
-                                onChange={handleInputChange}
-                            />
+                            <div className="kyc-autocomplete-wrapper" ref={addressWrapperRef}>
+                                <input
+                                    type="text"
+                                    name="currentAddress"
+                                    className="kyc-input"
+                                    placeholder="Số nhà, đường/phố..."
+                                    value={formData.currentAddress}
+                                    onChange={handleInputChange}
+                                    onFocus={() => addressSuggestions.length > 0 && setShowAddressSuggestions(true)}
+                                    autoComplete="off"
+                                />
+                                {showAddressSuggestions && addressSuggestions.length > 0 && (
+                                    <ul className="kyc-autocomplete-list">
+                                        {addressSuggestions.map((s) => (
+                                            <li
+                                                key={s.place_id}
+                                                className="kyc-autocomplete-item"
+                                                onMouseDown={() => handleSelectAddressSuggestion(s)}
+                                            >
+                                                <svg className="kyc-autocomplete-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                                                </svg>
+                                                <span>{s.structured_formatting?.main_text || s.description}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
                         </div>
 
                         {/* Bản đồ chọn vị trí */}
@@ -756,20 +809,12 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                 Nhấp vào bản đồ để ghim vị trí chính xác của bạn.
                             </div>
                             <div style={{ height: '250px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1.5px solid #e2e8f0' }}>
-                                <MapContainer
-                                    center={[formData.latitude, formData.longitude]}
-                                    zoom={14}
-                                    style={{ height: '100%', width: '100%' }}
-                                    scrollWheelZoom={false}
-                                >
-                                    <TileLayer
-                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    />
-                                    <LocationMarker
-                                        position={{ lat: formData.latitude, lng: formData.longitude }}
-                                        setPosition={handleMapLocationChange}
-                                    />
-                                </MapContainer>
+                                <MapGoongComponent
+                                    latitude={formData.latitude}
+                                    longitude={formData.longitude}
+                                    onLocationChange={handleMapLocationChange}
+                                    height="250px"
+                                />
                             </div>
                         </div>
 

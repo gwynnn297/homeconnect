@@ -60,6 +60,19 @@ const getMonthStartDate = (date) => formatIsoDate(new Date(date.getFullYear(), d
 const getMonthEndDate = (date) => formatIsoDate(new Date(date.getFullYear(), date.getMonth() + 1, 0));
 
 const convertJsDayToApiDay = (jsDay) => (jsDay === 0 ? 7 : jsDay);
+const getTodayIsoDate = () => formatIsoDate(new Date());
+const getDefaultActiveDayIdx = (monthDate) => {
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === monthDate.getFullYear()
+        && today.getMonth() === monthDate.getMonth();
+
+    if (!isCurrentMonth) {
+        return 0;
+    }
+
+    const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+    return Math.min(Math.max(today.getDate() - 1, 0), daysInMonth - 1);
+};
 
 const HelperSchedulePage = () => {
     const [currentMonth, setCurrentMonth] = useState(() => {
@@ -67,7 +80,7 @@ const HelperSchedulePage = () => {
         return new Date(now.getFullYear(), now.getMonth(), 1);
     });
     const [monthlySchedules, setMonthlySchedules] = useState([]);
-    const [activeDayIdx, setActiveDayIdx] = useState(0);
+    const [activeDayIdx, setActiveDayIdx] = useState(() => getDefaultActiveDayIdx(new Date()));
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -101,6 +114,7 @@ const HelperSchedulePage = () => {
     }));
 
     const monthDays = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
+    const todayIsoDate = useMemo(() => getTodayIsoDate(), []);
 
     const selectedDay = monthDays[activeDayIdx];
 
@@ -109,9 +123,36 @@ const HelperSchedulePage = () => {
         [monthlySchedules]
     );
 
+    const dayScheduleStatusMap = useMemo(() => {
+        const statusMap = {};
+
+        visibleMonthlySchedules.forEach((item) => {
+            if (!item.workDate) {
+                return;
+            }
+
+            const normalizedStatus = String(item.status || '').toUpperCase();
+            const current = statusMap[item.workDate] || { hasActive: false, hasCancelled: false };
+
+            if (normalizedStatus === 'CANCELLED') {
+                current.hasCancelled = true;
+            } else {
+                current.hasActive = true;
+            }
+
+            statusMap[item.workDate] = current;
+        });
+
+        return statusMap;
+    }, [visibleMonthlySchedules]);
+
     const registeredDateSet = useMemo(
-        () => new Set(visibleMonthlySchedules.map((item) => item.workDate).filter(Boolean)),
-        [visibleMonthlySchedules]
+        () => new Set(
+            Object.entries(dayScheduleStatusMap)
+                .filter(([, value]) => value.hasActive)
+                .map(([workDate]) => workDate)
+        ),
+        [dayScheduleStatusMap]
     );
 
     const selectedDaySchedules = useMemo(() => {
@@ -148,6 +189,10 @@ const HelperSchedulePage = () => {
     }, [currentMonth]);
 
     useEffect(() => {
+        setActiveDayIdx(getDefaultActiveDayIdx(currentMonth));
+    }, [currentMonth]);
+
+    useEffect(() => {
         const handleOutsideClick = () => {
             setOpenShiftMenuId(null);
         };
@@ -168,12 +213,10 @@ const HelperSchedulePage = () => {
 
     const goToPreviousMonth = () => {
         setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-        setActiveDayIdx(0);
     };
 
     const goToNextMonth = () => {
         setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-        setActiveDayIdx(0);
     };
 
     const openRegisterModal = () => {
@@ -413,8 +456,8 @@ const HelperSchedulePage = () => {
                     }
                 ]);
             } else {
-                const availableSlotsOfDay = selectedDaySchedules
-                    .filter((item) => item.status === 'AVAILABLE')
+                const editableSlotsOfDay = selectedDaySchedules
+                    .filter((item) => item.status === 'AVAILABLE' || item.status === 'CANCELLED')
                     .map((item) => ({
                         id: item.id,
                         startTime: formatTime(item.startTime),
@@ -423,12 +466,12 @@ const HelperSchedulePage = () => {
 
                 const targetSlot = selectedDaySchedules.find((item) => item.id === updatingShiftId);
 
-                if (!targetSlot || targetSlot.status !== 'AVAILABLE') {
-                    setUpdateShiftError('Chỉ có thể cập nhật ca đang ở trạng thái Lịch trống.');
+                if (!targetSlot || (targetSlot.status !== 'AVAILABLE' && targetSlot.status !== 'CANCELLED')) {
+                    setUpdateShiftError('Chỉ có thể cập nhật ca ở trạng thái Lịch trống hoặc Đã hủy.');
                     return;
                 }
 
-                const updatedSlots = availableSlotsOfDay.map((slot) => {
+                const updatedSlots = editableSlotsOfDay.map((slot) => {
                     if (slot.id === updatingShiftId) {
                         return {
                             startTime: updateShiftForm.startTime,
@@ -515,7 +558,7 @@ const HelperSchedulePage = () => {
                     <div className="banner-content">
                         <div className="banner-icon">i</div>
                         <div>
-                            <h3 className="banner-title">Đăng ký lịch cam kết</h3>
+                            <h3 className="banner-title">Đăng ký lịch </h3>
                             <p className="banner-subtitle">Tăng cơ hội nhận việc</p>
                         </div>
                     </div>
@@ -537,16 +580,20 @@ const HelperSchedulePage = () => {
                     <div className="days-overview-grid">
                         {monthDays.map((day, idx) => {
                             const hasRegisteredSchedules = registeredDateSet.has(day.isoDate);
+                            const dayStatus = dayScheduleStatusMap[day.isoDate];
+                            const isCancelledOnlyDay = Boolean(dayStatus?.hasCancelled && !dayStatus?.hasActive);
 
                             return (
                                 <div
                                     key={day.isoDate}
-                                    className={`day-item ${hasRegisteredSchedules ? 'has-schedule' : ''} ${idx === activeDayIdx ? 'active' : ''}`}
+                                    className={`day-item ${hasRegisteredSchedules ? 'has-schedule' : ''} ${isCancelledOnlyDay ? 'cancelled-only' : ''} ${idx === activeDayIdx ? 'active' : ''}`}
                                     onClick={() => setActiveDayIdx(idx)}
                                 >
                                     <div className="day-name">{day.dayName}</div>
                                     <div className="day-date">{day.dateText}</div>
-                                    {hasRegisteredSchedules && <div className="day-registered-dot"></div>}
+                                    {(hasRegisteredSchedules || isCancelledOnlyDay) && (
+                                        <div className={`day-registered-dot ${isCancelledOnlyDay ? 'cancelled' : ''}`}></div>
+                                    )}
                                 </div>
                             );
                         })}
@@ -684,7 +731,7 @@ const HelperSchedulePage = () => {
                         className="schedule-register-modal"
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <div className="schedule-register-modal-header">Đăng ký lịch cam kết</div>
+                        <div className="schedule-register-modal-header">Đăng ký lịch</div>
 
                         <div className="schedule-register-modal-body">
                             <div className="register-row register-row-dates">
@@ -694,6 +741,7 @@ const HelperSchedulePage = () => {
                                         id="registerStartDate"
                                         type="date"
                                         value={registerForm.startDate}
+                                        min={todayIsoDate}
                                         onChange={(event) => handleRegisterFormChange('startDate', event.target.value)}
                                     />
                                 </div>
@@ -703,6 +751,7 @@ const HelperSchedulePage = () => {
                                         id="registerEndDate"
                                         type="date"
                                         value={registerForm.endDate}
+                                        min={registerForm.startDate || todayIsoDate}
                                         onChange={(event) => handleRegisterFormChange('endDate', event.target.value)}
                                     />
                                 </div>

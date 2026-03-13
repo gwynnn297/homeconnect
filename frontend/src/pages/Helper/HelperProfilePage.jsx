@@ -1,44 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import HelperLayout from '../../layouts/HelperLayout';
 import ProfileService from '../../services/ProfileService';
 import HelperRegistrationService from '../../services/HelperRegistrationService';
 import NotificationModal from '../../components/NotificationModal';
-import { buildGeocodeQueries, geocodeFirstMatch, reverseGeocodeStreet } from '../../utils/mapLocationUtils';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import { reverseGeocodeStreet, autocompleteAddressGoong, getPlaceDetailGoong, geocodeAddressGoong } from '../../utils/mapLocationUtils';
+import MapGoongComponent from '../../components/MapGoongComponent';
 import './HelperProfilePage.css';
-
-// Fix Leaflet marker icon issue
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
-
-const LocationMarker = ({ position, setPosition }) => {
-    const map = useMapEvents({
-        click(e) {
-            setPosition(e.latlng);
-            map.flyTo(e.latlng, Math.max(map.getZoom(), 17), {
-                duration: 0.8,
-            });
-        },
-    });
-
-    useEffect(() => {
-        if (position?.lat && position?.lng) {
-            map.flyTo(position, Math.max(map.getZoom(), 17), {
-                duration: 0.8,
-            });
-        }
-    }, [position, map]);
-
-    return position?.lat && position?.lng ? (
-        <Marker position={position}></Marker>
-    ) : null;
-};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const GENDER_OPTIONS = [
@@ -162,6 +129,14 @@ const BasicInfoTab = ({ profile, onSaved }) => {
     // Chỉ auto-geocode khi user thực sự chỉnh sửa địa chỉ,
     // tránh ghi đè tọa độ đã lưu khi vừa reload trang.
     const [hasManualAddressEdit, setHasManualAddressEdit] = useState(false);
+
+    // Address autocomplete
+    const [addressSuggestions, setAddressSuggestions] = useState([]);
+    const [showAddressSuggestions, setShowAddressSuggestions] = useState(false);
+    const addressDebounceRef = useRef(null);
+    const addressWrapperRef = useRef(null);
+    // Khi Goong Place Detail đã trả về tọa độ chính xác, bỏ qua geocoding Nominatim tiếp theo
+    const suppressAutoGeocodeRef = useRef(false);
 
     const toOptions = (arr) =>
         arr.map((item) => ({ value: String(item.code ?? item.id ?? item), label: item.name ?? item }));
@@ -293,26 +268,26 @@ const BasicInfoTab = ({ profile, onSaved }) => {
         if (!form.provinceCode) return;
 
         const timer = setTimeout(async () => {
+            // Goong Place Detail đã cung cấp tọa độ chính xác → bỏ qua lần này
+            if (suppressAutoGeocodeRef.current) {
+                suppressAutoGeocodeRef.current = false;
+                return;
+            }
+
             const provinceName = provinces.find(p => p.value == form.provinceCode)?.label;
             const districtName = districts.find(d => d.value == form.districtCode)?.label;
             const wardName = wards.find(w => w.value == form.wardCode)?.label;
-            const street = form.addressDetail?.trim();
-            const queries = buildGeocodeQueries({
-                street,
-                wardName,
-                districtName,
-                provinceName,
-            });
+            const street = form.addressDetail?.trim() || null;
 
-            const result = await geocodeFirstMatch(queries);
+            const result = await geocodeAddressGoong({ street, wardName, districtName, provinceName });
             if (result) {
                 setForm(prev => ({
                     ...prev,
                     latitude: result.lat,
-                    longitude: result.lng
+                    longitude: result.lng,
                 }));
             }
-        }, 1500);
+        }, 800);
 
         return () => clearTimeout(timer);
     }, [hasManualAddressEdit, form.provinceCode, form.districtCode, form.wardCode, form.addressDetail, provinces, districts, wards]);
@@ -345,11 +320,60 @@ const BasicInfoTab = ({ profile, onSaved }) => {
         })();
     };
 
+    // Close address suggestion dropdown when clicking outside
+    useEffect(() => {
+        const handler = (e) => {
+            if (addressWrapperRef.current && !addressWrapperRef.current.contains(e.target)) {
+                setShowAddressSuggestions(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
     const handleChange = (e) => {
-        if (e.target.name === 'addressDetail') {
+        const { name, value } = e.target;
+        if (name === 'addressDetail') {
             setHasManualAddressEdit(true);
+            setForm((f) => ({ ...f, addressDetail: value }));
+
+            if (addressDebounceRef.current) clearTimeout(addressDebounceRef.current);
+            if (value.trim().length > 2) {
+                addressDebounceRef.current = setTimeout(async () => {
+                    const suggestions = await autocompleteAddressGoong(value, {
+                        lat: form.latitude,
+                        lng: form.longitude,
+                    });
+                    setAddressSuggestions(suggestions);
+                    setShowAddressSuggestions(suggestions.length > 0);
+                }, 350);
+            } else {
+                setAddressSuggestions([]);
+                setShowAddressSuggestions(false);
+            }
+            return;
         }
-        setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+        setForm((f) => ({ ...f, [name]: value }));
+    };
+
+    const handleSelectAddressSuggestion = async (suggestion) => {
+        const streetOnly = suggestion.structured_formatting?.main_text || suggestion.description;
+        setForm((f) => ({ ...f, addressDetail: streetOnly }));
+        setShowAddressSuggestions(false);
+        setAddressSuggestions([]);
+        setHasManualAddressEdit(true);
+
+        if (suggestion.place_id) {
+            try {
+                const coords = await getPlaceDetailGoong(suggestion.place_id);
+                if (coords) {
+                    suppressAutoGeocodeRef.current = true;
+                    setForm((f) => ({ ...f, latitude: coords.lat, longitude: coords.lng }));
+                }
+            } catch (err) {
+                console.error('Place detail geocoding failed:', err);
+            }
+        }
     };
 
     // Resize + compress ảnh bằng Canvas trước khi lưu base64
@@ -642,15 +666,35 @@ const BasicInfoTab = ({ profile, onSaved }) => {
                     </div>
                     <div className="hpp-field">
                         <label className="hpp-label" htmlFor="basic-addressDetail">Địa chỉ chi tiết</label>
-                        <input
-                            id="basic-addressDetail"
-                            type="text"
-                            name="addressDetail"
-                            value={form.addressDetail}
-                            onChange={handleChange}
-                            className="hpp-input"
-                            placeholder="Số nhà, tên đường..."
-                        />
+                        <div className="hpp-autocomplete-wrapper" ref={addressWrapperRef}>
+                            <input
+                                id="basic-addressDetail"
+                                type="text"
+                                name="addressDetail"
+                                value={form.addressDetail}
+                                onChange={handleChange}
+                                onFocus={() => addressSuggestions.length > 0 && setShowAddressSuggestions(true)}
+                                className="hpp-input"
+                                placeholder="Số nhà, tên đường..."
+                                autoComplete="off"
+                            />
+                            {showAddressSuggestions && addressSuggestions.length > 0 && (
+                                <ul className="hpp-autocomplete-list">
+                                    {addressSuggestions.map((s) => (
+                                        <li
+                                            key={s.place_id}
+                                            className="hpp-autocomplete-item"
+                                            onMouseDown={() => handleSelectAddressSuggestion(s)}
+                                        >
+                                            <svg className="hpp-autocomplete-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+                                            </svg>
+                                            <span>{s.structured_formatting?.main_text || s.description}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -663,18 +707,12 @@ const BasicInfoTab = ({ profile, onSaved }) => {
                         Ghim vị trí chính xác
                     </label>
                     <div style={{ height: '300px', width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1.5px solid #e2e8f0', zIndex: 1 }}>
-                        <MapContainer
-                            center={[form.latitude, form.longitude]}
-                            zoom={14}
-                            style={{ height: '100%', width: '100%' }}
-                            scrollWheelZoom={false}
-                        >
-                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                            <LocationMarker
-                                position={{ lat: form.latitude, lng: form.longitude }}
-                                setPosition={handleMapLocationChange}
-                            />
-                        </MapContainer>
+                        <MapGoongComponent
+                            latitude={form.latitude}
+                            longitude={form.longitude}
+                            onLocationChange={handleMapLocationChange}
+                            height="300px"
+                        />
                     </div>
                 </div>
 

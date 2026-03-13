@@ -1,23 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import CustomerLayout from '../../layouts/CustomerLayout';
+import HelperRegistrationService from '../../services/HelperRegistrationService';
 import './CustomerDashboardPage.css';
 
-/* ──────────────────────────────────────────
-   Static mock data
-────────────────────────────────────────── */
-const SERVICE_CATEGORIES = [
-    {
-        id: 1, label: 'Dọn dẹp', color: '#e8f5e9',
-        icon: (
+const CATEGORY_COLORS = ['#e8f5e9', '#fff3e0', '#e3f2fd', '#fce4ec', '#f3e5f5', '#fff8e1'];
+
+const normalizeServiceLabel = (label = '') =>
+    String(label)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+const getServiceIcon = (label) => {
+    const normalized = normalizeServiceLabel(label);
+
+    if (normalized.includes('don dep') || normalized.includes('ve sinh') || normalized.includes('tap vu') || normalized.includes('lau')) {
+        return (
             <svg viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 <polyline points="9 22 9 12 15 12 15 22" />
             </svg>
-        ),
-    },
-    {
-        id: 2, label: 'Nấu ăn', color: '#fff3e0',
-        icon: (
+        );
+    }
+
+    if (normalized.includes('nau') || normalized.includes('bep') || normalized.includes('an uong')) {
+        return (
             <svg viewBox="0 0 24 24" fill="none" stroke="#e65100" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
                 <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
@@ -25,77 +33,58 @@ const SERVICE_CATEGORIES = [
                 <line x1="10" y1="1" x2="10" y2="4" />
                 <line x1="14" y1="1" x2="14" y2="4" />
             </svg>
-        ),
-    },
-    {
-        id: 3, label: 'Vệ sinh văn phòng', color: '#e3f2fd',
-        icon: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="#1565c0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
-                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                <line x1="9" y1="9" x2="9.01" y2="9" />
-                <line x1="15" y1="9" x2="15.01" y2="9" />
-            </svg>
-        ),
-    },
-    {
-        id: 4, label: 'Trông trẻ', color: '#fce4ec',
-        icon: (
+        );
+    }
+
+    if (normalized.includes('tre') || normalized.includes('em be') || normalized.includes('bao mau')) {
+        return (
             <svg viewBox="0 0 24 24" fill="none" stroke="#c62828" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                 <circle cx="9" cy="7" r="4" />
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-        ),
-    },
-    {
-        id: 5, label: 'Đi chợ', color: '#f3e5f5',
-        icon: (
+        );
+    }
+
+    if (normalized.includes('cho') || normalized.includes('di cho') || normalized.includes('mua sam')) {
+        return (
             <svg viewBox="0 0 24 24" fill="none" stroke="#6a1b9a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
                 <line x1="3" y1="6" x2="21" y2="6" />
                 <path d="M16 10a4 4 0 0 1-8 0" />
             </svg>
-        ),
-    },
-    {
-        id: 6, label: 'Làm vườn', color: '#e8f5e9',
-        icon: (
+        );
+    }
+
+    if (normalized.includes('vuon') || normalized.includes('cay') || normalized.includes('cat tia')) {
+        return (
             <svg viewBox="0 0 24 24" fill="none" stroke="#2e7d32" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22V12" />
                 <path d="M5 12c0-3.9 3.1-7 7-7s7 3.1 7 7" />
                 <path d="M5 12H2" />
                 <path d="M22 12h-3" />
             </svg>
-        ),
-    },
-    {
-        id: 7, label: 'Sơn sửa', color: '#fff8e1',
-        icon: (
+        );
+    }
+
+    if (normalized.includes('son') || normalized.includes('sua') || normalized.includes('dien') || normalized.includes('nuoc')) {
+        return (
             <svg viewBox="0 0 24 24" fill="none" stroke="#f57f17" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 20h9" />
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
             </svg>
-        ),
-    },
-    {
-        id: 8, label: 'Xem thêm', color: '#f5f5f5',
-        icon: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="#546e7a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="5" cy="5" r="1" fill="#546e7a" stroke="none" />
-                <circle cx="12" cy="5" r="1" fill="#546e7a" stroke="none" />
-                <circle cx="19" cy="5" r="1" fill="#546e7a" stroke="none" />
-                <circle cx="5" cy="12" r="1" fill="#546e7a" stroke="none" />
-                <circle cx="12" cy="12" r="1" fill="#546e7a" stroke="none" />
-                <circle cx="19" cy="12" r="1" fill="#546e7a" stroke="none" />
-                <circle cx="5" cy="19" r="1" fill="#546e7a" stroke="none" />
-                <circle cx="12" cy="19" r="1" fill="#546e7a" stroke="none" />
-                <circle cx="19" cy="19" r="1" fill="#546e7a" stroke="none" />
-            </svg>
-        ),
-    },
-];
+        );
+    }
+
+    return (
+        <svg viewBox="0 0 24 24" fill="none" stroke="#2f4858" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M8 12h8" />
+            <path d="M12 8v8" />
+        </svg>
+    );
+};
 
 const FEATURED_HELPERS = [
     { id: 1, initials: 'MT', name: 'Minh Tuấn', service: 'Thợ điện', rating: 4.9, jobs: 120, bg: '#4CAF50' },
@@ -109,6 +98,49 @@ const FEATURED_HELPERS = [
 ────────────────────────────────────────── */
 const CustomerDashboardPage = () => {
     const [searchQuery, setSearchQuery] = useState('');
+    const [serviceCategories, setServiceCategories] = useState([]);
+    const [categoryPage, setCategoryPage] = useState(0);
+    const PAGE_SIZE = 6;
+    const totalPages = Math.max(1, Math.ceil(serviceCategories.length / PAGE_SIZE));
+    const startIndex = categoryPage * PAGE_SIZE;
+    const visibleCategories = serviceCategories.slice(startIndex, startIndex + PAGE_SIZE);
+    const canSlidePrev = categoryPage > 0;
+    const canSlideNext = categoryPage < totalPages - 1;
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const fetchServices = async () => {
+            try {
+                const res = await HelperRegistrationService.getServices();
+                const rawServices = Array.isArray(res) ? res : (res?.data || []);
+                const normalized = rawServices
+                    .map((service, index) => ({
+                        id: service?.id ?? service?.serviceId ?? `service-${index}`,
+                        label: service?.name ?? service?.serviceName ?? 'Dịch vụ',
+                        color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+                        icon: getServiceIcon(service?.name ?? service?.serviceName ?? ''),
+                    }))
+                    .filter((item) => item.label && item.label.trim().length > 0);
+
+                if (isMounted) {
+                    setServiceCategories(normalized);
+                    setCategoryPage(0);
+                }
+            } catch (err) {
+                console.error('[CustomerDashboardPage] fetchServices failed:', err);
+                if (isMounted) {
+                    setServiceCategories([]);
+                    setCategoryPage(0);
+                }
+            }
+        };
+
+        fetchServices();
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     return (
         <CustomerLayout>
@@ -144,15 +176,36 @@ const CustomerDashboardPage = () => {
                         <h2 className="cdb-section-title">Danh mục dịch vụ</h2>
                         <a className="cdb-section-link" href="#">Xem tất cả &rsaquo;</a>
                     </div>
-                    <div className="cdb-categories-grid">
-                        {SERVICE_CATEGORIES.map(cat => (
-                            <button key={cat.id} className="cdb-category-card">
-                                <div className="cdb-category-icon" style={{ backgroundColor: cat.color }}>
-                                    {cat.icon}
-                                </div>
-                                <span className="cdb-category-label">{cat.label}</span>
-                            </button>
-                        ))}
+                    <div className="cdb-categories-carousel">
+                        <button
+                            className="cdb-category-nav"
+                            aria-label="Xem nhóm dịch vụ trước"
+                            onClick={() => setCategoryPage((prev) => Math.max(0, prev - 1))}
+                            disabled={!canSlidePrev}
+                        >
+                            &lsaquo;
+                        </button>
+                        <div className="cdb-categories-grid">
+                            {visibleCategories.map(cat => (
+                                <button key={cat.id} className="cdb-category-card">
+                                    <div className="cdb-category-icon" style={{ backgroundColor: cat.color }}>
+                                        {cat.icon}
+                                    </div>
+                                    <span className="cdb-category-label">{cat.label}</span>
+                                </button>
+                            ))}
+                            {serviceCategories.length === 0 && (
+                                <p className="cdb-empty-note">Chưa có danh mục dịch vụ.</p>
+                            )}
+                        </div>
+                        <button
+                            className="cdb-category-nav"
+                            aria-label="Xem nhóm dịch vụ tiếp theo"
+                            onClick={() => setCategoryPage((prev) => Math.min(totalPages - 1, prev + 1))}
+                            disabled={!canSlideNext}
+                        >
+                            &rsaquo;
+                        </button>
                     </div>
                 </section>
 

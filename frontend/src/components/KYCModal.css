@@ -180,6 +180,53 @@
     color: #94a3b8;
 }
 
+/* ── Address Autocomplete ─────────────────────────────────── */
+.kyc-autocomplete-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.kyc-autocomplete-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: #fff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.kyc-autocomplete-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #1e293b;
+    line-height: 1.4;
+    transition: background 0.15s;
+}
+
+.kyc-autocomplete-item:hover {
+    background: #f0fdf4;
+}
+
+.kyc-autocomplete-pin {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: #346252;
+    margin-top: 2px;
+}
+
 /* ========== Select ========== */
 .kyc-select {
     width: 100%;

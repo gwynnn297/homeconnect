@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import './ForgotPasswordPage.css';
 import logoHomieConnect from '../../assets/LogoHomieConnect.png';
 import AuthService from '../../services/AuthService';
+import NotificationModal from '../../components/NotificationModal';
 
 const ForgotPasswordPage = () => {
     const navigate = useNavigate();
@@ -204,25 +205,37 @@ const ForgotPasswordPage = () => {
         return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     };
 
+    const handleNotificationClose = useCallback(() => {
+        setError('');
+        setSuccess('');
+    }, []);
+
+    const activeNotification = error
+        ? { type: 'error', message: error }
+        : success
+            ? { type: 'success', message: success }
+            : null;
+
     return (
         <div className="forgot-password-container">
+            {activeNotification && (
+                <NotificationModal
+                    type={activeNotification.type}
+                    message={activeNotification.message}
+                    onClose={handleNotificationClose}
+                />
+            )}
             <div className="forgot-password-card">
                 {/* Header */}
                 <div className="forgot-password-header">
                     <img
                         src={logoHomieConnect}
                         alt="HomeConnect Logo"
-                        className="logo"
-                        onClick={() => navigate('/')}
-                        style={{ cursor: 'pointer' }}
+                        className="logo"                       
                     />
                     <h1>Quên Mật Khẩu</h1>
                     <p className="step-indicator">Bước {step} / 3</p>
                 </div>
-
-                {/* Error & Success Messages */}
-                {error && <div className="alert alert-error">{error}</div>}
-                {success && <div className="alert alert-success">{success}</div>}
 
                 {/* Step 1: Email */}
                 {step === 1 && (
