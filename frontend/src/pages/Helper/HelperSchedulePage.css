@@ -26,38 +26,46 @@
 }
 
 
-.date-range-picker {
+.month-navigation {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 24px;
+    gap: 16px;
     width: 100%;
 }
 
-.date-input-group {
+.month-nav-button {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    border: 1px solid #d1d5db;
+    background-color: #ffffff;
+    color: #1b4332;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 12px;
+    justify-content: center;
+    transition: all 0.2s ease;
 }
 
-.date-input-group label {
-    color: #1b4332;
-    font-weight: 600;
-    font-size: 15px;
-}
-
-.date-input-group input {
-    padding: 10px 16px;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    outline: none;
-    font-size: 14px;
-    color: #334155;
-    transition: border-color 0.2s;
-}
-
-.date-input-group input:focus {
+.month-nav-button:hover {
     border-color: #1b4332;
+    background-color: #edf5f0;
+}
+
+.month-nav-button:focus-visible {
+    outline: 2px solid #1b4332;
+    outline-offset: 2px;
+}
+
+.month-year-display {
+    min-width: 200px;
+    text-align: center;
+    color: #1b4332;
+    font-size: 20px;
+    font-weight: 700;
 }
 
 .info-banner {
@@ -121,6 +129,18 @@
     margin-bottom: 20px;
 }
 
+.section-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.section-title-row .section-title {
+    margin-bottom: 0;
+}
+
 .days-overview-container {
     margin-bottom: 40px;
 }
@@ -132,6 +152,7 @@
 }
 
 .day-item {
+    position: relative;
     padding: 16px 12px;
     border-radius: 16px;
     border: 2px solid transparent;
@@ -149,6 +170,11 @@
 .day-item.active {
     border-color: #1b4332;
     background-color: #fdfdfd;
+}
+
+.day-item.has-schedule {
+    border-color: #cbe6d8;
+    background-color: #f3faf6;
 }
 
 .day-name {
@@ -169,16 +195,49 @@
     color: #1b4332;
 }
 
+.day-item.has-schedule .day-name,
+.day-item.has-schedule .day-date {
+    color: #1b4332;
+}
+
+.day-item.has-schedule.active {
+    border-color: #1b4332;
+    box-shadow: 0 6px 14px rgba(27, 67, 50, 0.12);
+}
+
+.day-registered-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #1b4332;
+    margin: 8px auto 0;
+}
+
 .schedule-details {
     display: flex;
     flex-direction: column;
     gap: 32px;
 }
 
+.schedule-message {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 20px;
+    color: #475569;
+    font-weight: 500;
+}
+
+.schedule-message.error {
+    border-color: #fecaca;
+    background-color: #fff1f2;
+    color: #b91c1c;
+}
+
 .day-card {
     border: 1px solid #e2e8f0;
     border-radius: 16px;
-    overflow: hidden;
+    overflow: visible;
     background-color: #ffffff;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
 }
@@ -191,12 +250,59 @@
     font-size: 18px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    justify-content: space-between;
     border-bottom: 1px solid #dcfce7;
+}
+
+.day-card-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.day-card-header-actions {
+    display: flex;
+    align-items: center;
 }
 
 .header-icon {
     font-size: 20px;
+}
+
+.add-shift-button {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 999px;
+    background-color: #1b4332;
+    color: #ffffff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.add-shift-button:hover {
+    opacity: 0.95;
+}
+
+.register-schedule-button {
+    border: none;
+    border-radius: 999px;
+    background-color: #1b4332;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.register-schedule-button:hover {
+    transform: translateY(-1px);
+    opacity: 0.95;
 }
 
 .shift-list {
@@ -275,7 +381,13 @@
     color: #f59e0b;
 }
 
+.shift-action-wrapper {
+    position: relative;
+}
+
 .shift-action {
+    border: none;
+    background: transparent;
     color: #94a3b8;
     cursor: pointer;
     padding: 8px 12px;
@@ -291,4 +403,221 @@
 .shift-action:hover {
     background-color: #f1f5f9;
     color: #334155;
+}
+
+.shift-action:disabled {
+    cursor: wait;
+    opacity: 0.7;
+}
+
+.shift-action-dropdown {
+    position: fixed;
+    min-width: 170px;
+    width: max-content;
+    max-width: 210px;
+    border: 1px solid #dbe4dc;
+    border-radius: 10px;
+    background-color: #ffffff;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+    z-index: 30;
+    overflow: hidden;
+}
+
+.shift-action-dropdown-item {
+    width: 100%;
+    border: none;
+    background: #ffffff;
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 14px;
+    color: #334155;
+    cursor: pointer;
+}
+
+.shift-action-dropdown-item:hover {
+    background-color: #edf5f0;
+    color: #1b4332;
+}
+
+.empty-shift-message {
+    padding: 18px 24px;
+    color: #64748b;
+    font-size: 15px;
+}
+
+.schedule-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+}
+
+.schedule-register-modal {
+    width: 100%;
+    max-width: 460px;
+    border-radius: 16px;
+    overflow: hidden;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+}
+
+.add-shift-modal {
+    max-width: 400px;
+}
+
+.schedule-register-modal-header {
+    background-color: #edf5f0;
+    border-bottom: 1px solid #dbece2;
+    color: #1b4332;
+    text-align: left;
+    font-size: 22px;
+    font-weight: 700;
+    padding: 16px 20px;
+}
+
+.schedule-register-modal-body {
+    padding: 20px;
+}
+
+.register-row {
+    margin-bottom: 16px;
+}
+
+.register-row-dates,
+.register-row-times {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.register-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.register-field label,
+.register-title {
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.register-field input {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.register-field input:focus {
+    outline: 2px solid #cbe6d8;
+    border-color: #1b4332;
+}
+
+.weekday-chip-list {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.weekday-chip {
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    background-color: #f8fafc;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 10px 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.weekday-chip.active {
+    border-color: #1b4332;
+    background-color: #1b4332;
+    color: #ffffff;
+}
+
+.register-error-message {
+    margin-top: 4px;
+    color: #dc2626;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.schedule-register-modal-footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 0 20px 20px;
+}
+
+.register-cancel-button,
+.register-submit-button {
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 12px 14px;
+    cursor: pointer;
+}
+
+.register-cancel-button {
+    background-color: #94a3b8;
+}
+
+.register-submit-button {
+    background-color: #1b4332;
+}
+
+.register-cancel-button:hover,
+.register-submit-button:hover {
+    opacity: 0.95;
+}
+
+.register-cancel-button:disabled,
+.register-submit-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+    .section-title-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .day-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .register-schedule-button {
+        width: 100%;
+    }
+
+    .schedule-register-modal-header {
+        font-size: 20px;
+        padding: 14px 16px;
+    }
+
+    .register-cancel-button,
+    .register-submit-button {
+        font-size: 15px;
+    }
 }
