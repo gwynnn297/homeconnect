@@ -1,107 +1,71 @@
-# HomeConnect - Frontend
+# HomeConnect Frontend
 
-Ứng dụng React + Vite cho HomeConnect Core API.
+Frontend của hệ thống HomeConnect, xây dựng bằng React + Vite.
 
-## Yêu Cầu Hệ Thống
+## Công nghệ chính
 
-- Node.js (v18.0.0 trở lên)
-- npm hoặc yarn
+- React 19
+- Vite 7
+- React Router DOM
+- Axios
 
-## Cài Đặt
+## Yêu cầu hệ thống
 
-### 1. Clone Repository và vào thư mục frontend
+- Node.js >= 18
+- npm (khuyến nghị) hoặc yarn
 
-```bash
-git clone <repository-url>
-cd homeconnect/frontend
-```
-
-### 2. Cài đặt Dependencies
+## Cài đặt nhanh
 
 ```bash
+cd frontend
 npm install
 ```
 
-Hoặc nếu dùng yarn:
+## Cấu hình biến môi trường
 
-```bash
-yarn install
+1. Tạo file `.env` trong thư mục `frontend/` (hoặc copy từ `.env template`).
+2. Khai báo các biến cần thiết:
+
+```env
+VITE_API_URL=http://localhost:8080
+VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
+VITE_CLOUDINARY_UPLOAD_PRESET=your_upload_preset
+VITE_GOONG_JS_KEY=your_goong_js_key
+VITE_GOONG_REST_API_KEY=your_goong_rest_api_key
 ```
 
-## Chạy Dự Án
+### Ghi chú
 
-### Development Server
+- `VITE_API_URL` dùng cho toàn bộ API call ở frontend.  
+  Nếu không khai báo, ứng dụng sẽ mặc định gọi `http://localhost:8080`.
+- Không commit `.env` chứa key thật lên git.
+
+## Chạy dự án ở môi trường dev
 
 ```bash
 npm run dev
 ```
 
-Hoặc với yarn:
+Mặc định app chạy tại: `http://localhost:5173`
 
-```bash
-yarn dev
-```
-
-Frontend sẽ chạy tại **http://localhost:5173**
-
-## Build cho Production
+## Build và preview
 
 ```bash
 npm run build
-```
-
-Hoặc với yarn:
-
-```bash
-yarn build
-```
-
-Build output sẽ được tạo tại `dist/`
-
-## Các Lệnh Khác
-
-### Kiểm tra Lint (ESLint)
-
-```bash
-npm run lint
-```
-
-### Preview Build (xem production build cục bộ)
-
-```bash
 npm run preview
 ```
 
-## Các Package Cần Thiết
+- Thư mục build output: `dist/`
 
-Nếu cài đặt từ đầu hoặc thiếu package, chạy các lệnh sau:
+## Scripts
 
-### HTTP Client (Axios)
-
-```bash
-npm install axios
-```
-
-### Routing (React Router)
-
-```bash
-npm install react-router-dom
-```
-
-### Bản đồ (Leaflet)
-
-```bash
-npm install leaflet react-leaflet
-```
-
-### Cài tất cả cùng lúc
-
-```bash
-npm install axios react-router-dom leaflet react-leaflet
-```
+- `npm run dev`: chạy local development server
+- `npm run build`: build production
+- `npm run preview`: chạy thử bản build local
+- `npm run lint`: kiểm tra lint
 
 ## Troubleshooting
 
-- **Lỗi khi npm install:** Xóa `node_modules` và `package-lock.json`, rồi chạy lại `npm install`
-- **Port 5173 đã được sử dụng:** Vite sẽ tự động sử dụng port khác
-- **Module không tìm thấy:** Chạy `npm install` lại và xóa cache với `npm cache clean --force`
+- **Lỗi khi `npm install`:** xóa `node_modules` và `package-lock.json`, sau đó cài lại.
+- **Port 5173 bị chiếm:** Vite sẽ tự chuyển sang port khác.
+- **Lỗi thiếu module:** chạy lại `npm install`.
