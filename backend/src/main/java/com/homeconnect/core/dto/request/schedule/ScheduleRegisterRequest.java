@@ -26,8 +26,8 @@ public class ScheduleRegisterRequest {
     private LocalDate endDate;
 
     @NotEmpty(message = "Danh sách ngày trong tuần không được để trống")
-    @io.swagger.v3.oas.annotations.media.Schema(description = "Các thứ trong tuần (1: Thứ 2, ..., 7: Chủ nhật)", example = "[1, 3, 5]")
-    private List<Integer> daysOfWeek; // 1 (Mon) to 7 (Sun)
+    @io.swagger.v3.oas.annotations.media.Schema(description = "Các thứ trong tuần (2: Thứ 2, 3: Thứ 3, ..., 7: Thứ 7, 8: Chủ nhật)", example = "[2, 4, 6]")
+    private List<Integer> daysOfWeek; // 2 (Mon) to 8 (Sun)
 
     @NotEmpty(message = "Danh sách khung giờ không được để trống")
     @io.swagger.v3.oas.annotations.media.Schema(description = "Danh sách các khung giờ rảnh trong ngày")

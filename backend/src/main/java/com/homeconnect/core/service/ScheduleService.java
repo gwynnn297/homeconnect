@@ -78,7 +78,7 @@ public class ScheduleService {
 
         LocalDate currentDate = request.getStartDate();
         while (!currentDate.isAfter(request.getEndDate())) {
-            if (request.getDaysOfWeek().contains(currentDate.getDayOfWeek().getValue())) {
+            if (request.getDaysOfWeek().contains(currentDate.getDayOfWeek().getValue() + 1)) {
                 
                 for (ScheduleSlotRequest slot : request.getSlots()) {
                     // 1. Kiểm tra Conflict với BUSY (Đơn hàng)
@@ -91,13 +91,19 @@ public class ScheduleService {
                         }
                     }
 
-                    // 2. Kiểm tra chồng chéo với AVAILABLE/CANCELLED (Chống đăng ký đè)
+                    // 2. Kiểm tra chồng chéo với AVAILABLE/CANCELLED (có buffer di chuyển 30 phút)
                     List<HelperSchedule> existingSchedules = helperScheduleRepository.findByHelperIdAndWorkDateAndStatusIn(
                             helperId, currentDate, List.of(ScheduleStatus.AVAILABLE, ScheduleStatus.CANCELLED));
-                    
+
                     for (HelperSchedule existing : existingSchedules) {
-                        if (conflictEngine.checkConflict(slot.getStartTime(), slot.getEndTime(), existing)) {
-                            throw new ApiException("Xung đột với lịch đã đăng ký vào ngày " + currentDate + " (" + slot.getStartTime() + " - " + slot.getEndTime() + "). Vui lòng dùng lệnh Cập nhật nếu muốn thay đổi.", HttpStatus.CONFLICT);
+                        if (conflictEngine.checkConflictWithBuffer(
+                                slot.getStartTime(), slot.getEndTime(), existing,
+                                ConflictEngine.TRAVEL_BUFFER_MINUTES)) {
+                            throw new ApiException(
+                                "Xung đột với lịch đã đăng ký vào ngày " + currentDate
+                                + " (" + slot.getStartTime() + " - " + slot.getEndTime() + ")."
+                                + " Cần cách ít nhất 30 phút giữa các ca. Vui lòng dùng lệnh Cập nhật nếu muốn thay đổi.",
+                                HttpStatus.CONFLICT);
                         }
                     }
 
@@ -107,9 +113,8 @@ public class ScheduleService {
                             .workDate(currentDate)
                             .startTime(slot.getStartTime())
                             .endTime(slot.getEndTime())
-                            .dayOfWeek(currentDate.getDayOfWeek().getValue())
                             .status(ScheduleStatus.AVAILABLE)
-                            .groupId(groupId) // Gán groupId
+                            .groupId(groupId)
                             .build();
                     helperScheduleRepository.save(schedule);
                     createdCount++;
@@ -166,7 +171,6 @@ public class ScheduleService {
                     .workDate(request.getDate())
                     .startTime(slot.getStartTime())
                     .endTime(slot.getEndTime())
-                    .dayOfWeek(request.getDate().getDayOfWeek().getValue())
                     .status(ScheduleStatus.AVAILABLE)
                     .groupId(newGroupId)
                     .build();
@@ -215,7 +219,7 @@ public class ScheduleService {
         LocalTime now = LocalTime.now();
 
         List<LocalDate> distinctDates = groupSchedules.stream()
-                .filter(s -> s.getDayOfWeek().equals(baseSlot.getDayOfWeek()))
+                .filter(s -> s.getWorkDate().getDayOfWeek().getValue() == baseSlot.getWorkDate().getDayOfWeek().getValue())
                 .map(HelperSchedule::getWorkDate)
                 .distinct()
                 .filter(date -> !date.isBefore(today))
@@ -248,8 +252,8 @@ public class ScheduleService {
         }
 
         // 3. Xóa toàn bộ AVAILABLE/CANCELLED trong group cho đúng "thứ" đó
-        helperScheduleRepository.deleteByGroupIdAndDayOfWeekAndStatusIn(
-                groupId, baseSlot.getDayOfWeek(), List.of(ScheduleStatus.AVAILABLE, ScheduleStatus.CANCELLED));
+        helperScheduleRepository.deleteByGroupIdAndWorkDateInAndStatusIn(
+                groupId, distinctDates, List.of(ScheduleStatus.AVAILABLE, ScheduleStatus.CANCELLED));
 
         // 4. Tạo lại chuỗi mới với groupId mới
         String newGroupId = generateGroupId();
@@ -263,7 +267,6 @@ public class ScheduleService {
                         .workDate(date)
                         .startTime(slot.getStartTime())
                         .endTime(slot.getEndTime())
-                        .dayOfWeek(date.getDayOfWeek().getValue())
                         .status(ScheduleStatus.AVAILABLE)
                         .groupId(newGroupId)
                         .build();
@@ -309,10 +312,10 @@ public class ScheduleService {
             throw new ApiException("Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.", HttpStatus.BAD_REQUEST);
         }
 
-        // 3. daysOfWeek phải từ 1 đến 7
+        // 3. daysOfWeek phải từ 2 đến 8
         for (Integer day : request.getDaysOfWeek()) {
-            if (day < 1 || day > 7) {
-                throw new ApiException("Ngày trong tuần phải từ 1 (Thứ 2) đến 7 (Chủ nhật). Giá trị không hợp lệ: " + day, HttpStatus.BAD_REQUEST);
+            if (day < 2 || day > 8) {
+                throw new ApiException("Ngày trong tuần phải từ 2 (Thứ 2) đến 8 (Chủ nhật). Giá trị không hợp lệ: " + day, HttpStatus.BAD_REQUEST);
             }
         }
 
@@ -326,7 +329,7 @@ public class ScheduleService {
 
         // 5. Nếu startDate = hôm nay, các slot phải có startTime > giờ hiện tại
         if (request.getStartDate().isEqual(today)
-                && request.getDaysOfWeek().contains(today.getDayOfWeek().getValue())) {
+                && request.getDaysOfWeek().contains(today.getDayOfWeek().getValue() + 1)) {
             for (ScheduleSlotRequest slot : request.getSlots()) {
                 if (!slot.getStartTime().isAfter(now)) {
                     throw new ApiException("Không thể đăng ký khung giờ đã qua trong ngày hôm nay. Khung giờ " + slot.getStartTime() + " - " + slot.getEndTime() + " không hợp lệ.", HttpStatus.BAD_REQUEST);
@@ -381,7 +384,7 @@ public class ScheduleService {
         List<HelperSchedule> toCancel = groupSchedules.stream()
                 .filter(s -> !s.getWorkDate().isBefore(baseSchedule.getWorkDate()))
                 .filter(s -> s.getStartTime().equals(baseSchedule.getStartTime()) && s.getEndTime().equals(baseSchedule.getEndTime()))
-                .filter(s -> s.getDayOfWeek().equals(baseSchedule.getDayOfWeek()))
+                .filter(s -> s.getWorkDate().getDayOfWeek() == baseSchedule.getWorkDate().getDayOfWeek())
                 .filter(s -> s.getStatus() == ScheduleStatus.AVAILABLE || s.getStatus() == ScheduleStatus.BUSY)
                 .collect(Collectors.toList());
 
@@ -476,7 +479,7 @@ public class ScheduleService {
                 .status(schedule.getStatus())
                 .cancelReason(schedule.getCancelReason())
                 .bookingId(schedule.getBooking() != null ? schedule.getBooking().getId() : null)
-                .dayOfWeek(schedule.getDayOfWeek())
+                .dayOfWeek(schedule.getWorkDate().getDayOfWeek().getValue() + 1)
                 .build();
     }
 

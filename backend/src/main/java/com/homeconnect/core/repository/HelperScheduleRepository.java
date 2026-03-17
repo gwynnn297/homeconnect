@@ -46,10 +46,10 @@ public interface HelperScheduleRepository extends JpaRepository<HelperSchedule, 
                                                        @Param("statuses") List<ScheduleStatus> statuses);
 
     @Modifying
-    @Query("DELETE FROM HelperSchedule hs WHERE hs.groupId = :groupId AND hs.dayOfWeek = :dayOfWeek AND hs.status IN :statuses")
-    void deleteByGroupIdAndDayOfWeekAndStatusIn(@Param("groupId") String groupId, 
-                                                @Param("dayOfWeek") Integer dayOfWeek, 
-                                                @Param("statuses") List<ScheduleStatus> statuses);
+    @Query("DELETE FROM HelperSchedule hs WHERE hs.groupId = :groupId AND hs.workDate IN :dates AND hs.status IN :statuses")
+    void deleteByGroupIdAndWorkDateInAndStatusIn(@Param("groupId") String groupId,
+                                                 @Param("dates") List<LocalDate> dates,
+                                                 @Param("statuses") List<ScheduleStatus> statuses);
 
     long countByHelperIdAndStatusAndWorkDateBetween(Long helperId, ScheduleStatus status, LocalDate startDate, LocalDate endDate);
 }
