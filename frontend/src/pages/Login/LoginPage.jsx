@@ -4,16 +4,30 @@ import './LoginPage.css';
 import logoHomieConnect from '../../assets/LogoHomieConnect.png';
 import AuthService from '../../services/AuthService';
 import NotificationModal from '../../components/NotificationModal';
+import { generateCaptcha, isCaptchaValid } from '../../utils/captchaUtils';
 
 const LoginPage = () => {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [captchaInput, setCaptchaInput] = useState('');
+    const [captchaCode, setCaptchaCode] = useState(() => generateCaptcha());
     const [notification, setNotification] = useState(null); // { type, message }
+
+    const refreshCaptcha = () => {
+        setCaptchaCode(generateCaptcha());
+        setCaptchaInput('');
+    };
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setNotification(null);
+
+        if (!isCaptchaValid(captchaInput, captchaCode)) {
+            setNotification({ type: 'error', message: 'Captcha không đúng. Vui lòng nhập lại.' });
+            refreshCaptcha();
+            return;
+        }
 
         try {
             const response = await AuthService.login({ email, password });
@@ -120,6 +134,38 @@ const LoginPage = () => {
                                 required
                             />
                         </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="captcha">Captcha</label>
+                        <div className="captcha-wrap">
+                            <div className="captcha-code" aria-label="Mã captcha">
+                                {captchaCode}
+                            </div>
+                            <button
+                                type="button"
+                                className="captcha-refresh-btn"
+                                onClick={refreshCaptcha}
+                                title="Đổi mã captcha"
+                                aria-label="Đổi mã captcha"
+                            >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="23 4 23 10 17 10" />
+                                    <polyline points="1 20 1 14 7 14" />
+                                    <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10" />
+                                    <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14" />
+                                </svg>
+                            </button>
+                        </div>
+                        <input
+                            type="text"
+                            id="captcha"
+                            placeholder="Nhập mã captcha"
+                            className="form-input captcha-input"
+                            value={captchaInput}
+                            onChange={(e) => setCaptchaInput(e.target.value)}
+                            required
+                        />
                     </div>
 
                     <div className="form-actions">

@@ -182,6 +182,11 @@
     background-color: #fff1f2;
 }
 
+.day-item.mixed-schedule {
+    border-color: #fcd34d;
+    background-color: #fffbeb;
+}
+
 .day-name {
     font-size: 15px;
     color: #64748b;
@@ -210,6 +215,11 @@
     color: #b91c1c;
 }
 
+.day-item.mixed-schedule .day-name,
+.day-item.mixed-schedule .day-date {
+    color: #92400e;
+}
+
 .day-item.has-schedule.active {
     border-color: #1b4332;
     box-shadow: 0 6px 14px rgba(27, 67, 50, 0.12);
@@ -218,6 +228,11 @@
 .day-item.cancelled-only.active {
     border-color: #dc2626;
     box-shadow: 0 6px 14px rgba(220, 38, 38, 0.18);
+}
+
+.day-item.mixed-schedule.active {
+    border-color: #f59e0b;
+    box-shadow: 0 6px 14px rgba(245, 158, 11, 0.2);
 }
 
 .day-registered-dot {
@@ -230,6 +245,10 @@
 
 .day-registered-dot.cancelled {
     background-color: #dc2626;
+}
+
+.day-registered-dot.mixed {
+    background-color: #f59e0b;
 }
 
 .schedule-details {
