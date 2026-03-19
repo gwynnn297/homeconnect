@@ -42,7 +42,7 @@ public class AdminController {
     @Operation(summary = "Review Helper KYC", description = "Admin review hồ sơ KYC và approve/reject Helper")
     @PatchMapping("/helpers/{helperId}/review")
     public ResponseEntity<HelperReviewResponse> reviewHelper(
-            @PathVariable Long helperId,
+            @PathVariable("helperId") Long helperId,
             @Valid @RequestBody HelperReviewRequest request,
             Authentication authentication) {
 
@@ -58,15 +58,15 @@ public class AdminController {
     @Operation(summary = "Danh sách Helper", description = "Lấy danh sách Helper với filter theo KYC status")
     @GetMapping("/helpers")
     public ResponseEntity<HelperListResponse> getHelpers(
-            @Parameter(description = "Filter theo KYC status: PENDING, WAITING_APPROVAL, VERIFIED, REJECTED") @RequestParam(required = false) KycStatus status,
+            @Parameter(description = "Filter theo KYC status: PENDING, WAITING_APPROVAL, VERIFIED, REJECTED") @RequestParam(value = "status", required = false) KycStatus status,
 
-            @Parameter(description = "Số trang (bắt đầu từ 0)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Số trang (bắt đầu từ 0)") @RequestParam(value = "page", defaultValue = "0") int page,
 
-            @Parameter(description = "Số lượng item mỗi trang") @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Số lượng item mỗi trang") @RequestParam(value = "size", defaultValue = "20") int size,
 
-            @Parameter(description = "Sắp xếp theo: user.createdAt, user.fullName, updatedAt, kycStatus") @RequestParam(defaultValue = "user.createdAt") String sortBy,
+            @Parameter(description = "Sắp xếp theo: user.createdAt, user.fullName, updatedAt, kycStatus") @RequestParam(value = "sortBy", defaultValue = "user.createdAt") String sortBy,
 
-            @Parameter(description = "Hướng sắp xếp: asc hoặc desc") @RequestParam(defaultValue = "desc") String sortDir) {
+            @Parameter(description = "Hướng sắp xếp: asc hoặc desc") @RequestParam(value = "sortDir", defaultValue = "desc") String sortDir) {
 
         Sort.Direction direction = sortDir.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
         Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
@@ -82,7 +82,7 @@ public class AdminController {
     @Operation(summary = "Chi tiết Helper", description = "Xem chi tiết đầy đủ hồ sơ Helper bao gồm KYC, dịch vụ, khu vực làm việc")
     @GetMapping("/helpers/{helperId}")
     public ResponseEntity<HelperDetailResponse> getHelperDetail(
-            @PathVariable Long helperId) {
+            @PathVariable("helperId") Long helperId) {
 
         HelperDetailResponse response = adminService.getHelperDetail(helperId);
         return ResponseEntity.ok(response);
@@ -112,7 +112,6 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
-
     /**
      * POST /api/v1/admin/services
      * BE-Admin-01: Tạo mới dịch vụ hệ thống
@@ -138,7 +137,7 @@ public class AdminController {
     @Operation(summary = "Chi tiết dịch vụ", description = "Xem cấu hình chi tiết (giá, đơn vị, trạng thái) của một dịch vụ")
     @GetMapping("/services/{serviceId}")
     public ResponseEntity<ApiResponse<ServiceResponse>> getServiceDetail(
-            @PathVariable Integer serviceId) {
+            @PathVariable("serviceId") Integer serviceId) {
 
         ServiceResponse response = adminService.getServiceDetail(serviceId);
         return ResponseEntity.ok(ApiResponse.<ServiceResponse>builder()
@@ -154,7 +153,7 @@ public class AdminController {
     @Operation(summary = "Cập nhật dịch vụ", description = "Admin thay đổi giá sàn, đơn vị tính hoặc bật/tắt dịch vụ")
     @PatchMapping("/services/{serviceId}")
     public ResponseEntity<ApiResponse<ServiceResponse>> updateService(
-            @PathVariable Integer serviceId,
+            @PathVariable("serviceId") Integer serviceId,
             @Valid @RequestBody UpdateServiceRequest request) {
 
         ServiceResponse response = adminService.updateService(serviceId, request);
@@ -167,7 +166,7 @@ public class AdminController {
 
     @Operation(summary = "Xóa dịch vụ nhỏ", description = "Admin xóa một dịch vụ khỏi hệ thống")
     @DeleteMapping("/services/{serviceId}")
-    public ResponseEntity<ApiResponse<Void>> deleteService(@PathVariable Integer serviceId) {
+    public ResponseEntity<ApiResponse<Void>> deleteService(@PathVariable("serviceId") Integer serviceId) {
         adminService.deleteService(serviceId);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .message("Xóa dịch vụ thành công")

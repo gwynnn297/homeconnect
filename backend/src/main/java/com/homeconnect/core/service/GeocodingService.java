@@ -24,6 +24,11 @@ public class GeocodingService {
     @org.springframework.beans.factory.annotation.Value("${app.goong.geocoding-url}")
     private String goongUrl;
 
+    @org.springframework.beans.factory.annotation.Value("${app.goong.place-detail-url:https://rsapi.goong.io/Place/Detail}")
+    private String goongPlaceDetailUrl;
+
+    private static final double MAX_PLACE_COORD_DISTANCE_METERS = 150.0;
+
     public GeocodingService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
@@ -33,6 +38,52 @@ public class GeocodingService {
     public static class GeoResult {
         private BigDecimal latitude;
         private BigDecimal longitude;
+        private String normalizedAddress;
+    }
+
+    /**
+     * Validate tọa độ do client gửi có khớp với placeId từ Goong hay không.
+     */
+    @RateLimiter(name = "goong")
+    public void validatePlaceCoordinates(String placeId, BigDecimal latitude, BigDecimal longitude) {
+        try {
+            String url = UriComponentsBuilder.fromUriString(goongPlaceDetailUrl)
+                    .queryParam("place_id", placeId)
+                    .queryParam("api_key", apiKey)
+                    .build()
+                    .toUriString();
+
+            org.springframework.http.ResponseEntity<Map> responseEntity = restTemplate.getForEntity(url, Map.class);
+            Map<String, Object> response = responseEntity.getBody();
+
+            if (response == null || !"OK".equals(response.get("status"))) {
+                throw new IllegalArgumentException("placeId Goong không hợp lệ hoặc không truy xuất được");
+            }
+
+            Map<String, Object> result = (Map<String, Object>) response.get("result");
+            if (result == null) {
+                throw new IllegalArgumentException("Không tìm thấy chi tiết địa điểm từ Goong");
+            }
+
+            Map<String, Object> geometry = (Map<String, Object>) result.get("geometry");
+            Map<String, Object> location = geometry != null ? (Map<String, Object>) geometry.get("location") : null;
+            if (location == null || location.get("lat") == null || location.get("lng") == null) {
+                throw new IllegalArgumentException("Goong không trả về tọa độ hợp lệ cho placeId");
+            }
+
+            BigDecimal goongLat = new BigDecimal(location.get("lat").toString());
+            BigDecimal goongLng = new BigDecimal(location.get("lng").toString());
+
+            double distanceMeters = calculateDistanceMeters(latitude, longitude, goongLat, goongLng);
+            if (distanceMeters > MAX_PLACE_COORD_DISTANCE_METERS) {
+                throw new IllegalArgumentException("Tọa độ không khớp với địa chỉ đã chọn từ Goong");
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Lỗi xác thực placeId {} với Goong: {}", placeId, e.getMessage());
+            throw new RuntimeException("Không thể xác thực địa chỉ với Goong");
+        }
     }
 
     /**
@@ -84,6 +135,36 @@ public class GeocodingService {
     }
 
     /**
+     * Geocode theo địa chỉ tự do (dùng cho tạo Job Post).
+     * Backend tự xử lý lat/lng từ addressDetail để không phụ thuộc tọa độ FE gửi lên.
+     */
+    @RateLimiter(name = "goong")
+    public GeoResult geocodeByAddressText(String addressDetail) {
+        if (addressDetail == null || addressDetail.isBlank()) {
+            throw new IllegalArgumentException("Địa chỉ không được để trống");
+        }
+
+        String normalizedAddress = addressDetail.trim();
+        GeoResult result = tryGeocode(normalizedAddress + ", Vietnam");
+        if (result != null) {
+            if (result.getNormalizedAddress() == null || result.getNormalizedAddress().isBlank()) {
+                result.setNormalizedAddress(normalizedAddress);
+            }
+            return result;
+        }
+
+        result = tryGeocode(normalizedAddress);
+        if (result != null) {
+            if (result.getNormalizedAddress() == null || result.getNormalizedAddress().isBlank()) {
+                result.setNormalizedAddress(normalizedAddress);
+            }
+            return result;
+        }
+
+        throw new RuntimeException("Không thể định vị địa chỉ này: " + normalizedAddress);
+    }
+
+    /**
      * Loại bỏ các tiền tố địa danh phổ biến của Việt Nam
      */
     private String cleanPrefix(String name) {
@@ -114,15 +195,36 @@ public class GeocodingService {
             List<Map<String, Object>> results = (List<Map<String, Object>>) response.get("results");
             if (results != null && !results.isEmpty()) {
                 // Lấy kết quả đầu tiên (Best match)
-                Map<String, Object> geometry = (Map<String, Object>) results.get(0).get("geometry");
+                Map<String, Object> firstResult = results.get(0);
+                Map<String, Object> geometry = (Map<String, Object>) firstResult.get("geometry");
                 Map<String, Object> location = (Map<String, Object>) geometry.get("location");
+                String formattedAddress = firstResult.get("formatted_address") != null
+                        ? firstResult.get("formatted_address").toString()
+                        : null;
                 
                 return GeoResult.builder()
                         .latitude(new BigDecimal(location.get("lat").toString()))
                         .longitude(new BigDecimal(location.get("lng").toString()))
+                        .normalizedAddress(formattedAddress)
                         .build();
             }
         }
         return null;
+    }
+
+    private double calculateDistanceMeters(BigDecimal lat1, BigDecimal lng1,
+                                           BigDecimal lat2, BigDecimal lng2) {
+        final int EARTH_RADIUS = 6371000;
+
+        double dLat = Math.toRadians(lat2.doubleValue() - lat1.doubleValue());
+        double dLng = Math.toRadians(lng2.doubleValue() - lng1.doubleValue());
+
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1.doubleValue())) *
+                        Math.cos(Math.toRadians(lat2.doubleValue())) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return EARTH_RADIUS * c;
     }
 }

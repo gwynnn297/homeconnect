@@ -56,7 +56,7 @@ const ForgotPasswordPage = () => {
             if (response.success) {
                 setSuccess('Mã OTP đã được gửi tới email của bạn');
                 setStep(2);
-                setOtpTimer(300);
+                setOtpTimer(60);
                 setCanResendOtp(false);
             } else {
                 setError(response.message || 'Có lỗi xảy ra');
@@ -170,7 +170,7 @@ const ForgotPasswordPage = () => {
             const response = await AuthService.forgotPassword({ email });
             if (response.success) {
                 setSuccess('Mã OTP mới đã được gửi tới email');
-                setOtpTimer(300);
+                setOtpTimer(60);
                 setCanResendOtp(false);
                 setOtp('');
             } else {
