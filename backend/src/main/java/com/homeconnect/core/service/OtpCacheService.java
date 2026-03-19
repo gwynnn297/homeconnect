@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 🗄️ Service quản lý OTP Cache trong memory
+ * Service quản lý OTP Cache trong memory
  * Production nên dùng Redis cho distributed cache
  */
 @Service
@@ -23,11 +23,11 @@ public class OtpCacheService {
      */
     public void saveOtp(String email, OtpCache otpData) {
         otpCache.put(email.toLowerCase(), otpData);
-        log.info("💾 Đã lưu OTP cho email: {}, expires: {}",
+        log.info("Đã lưu OTP cho email: {}, expires: {}",
                 email, otpData.getExpiryTime());
 
-        // Auto cleanup sau 10 phút
-        scheduleCleanup(email, otpData.getExpiryTime().plusMinutes(5));
+        // Auto cleanup sau 1 phút
+        scheduleCleanup(email, otpData.getExpiryTime().plusMinutes(1));
     }
 
     /**
@@ -39,7 +39,7 @@ public class OtpCacheService {
         // Tự động xóa nếu hết hạn
         if (cached != null && cached.isExpired()) {
             otpCache.remove(email.toLowerCase());
-            log.info("🗑️ Đã xóa OTP hết hạn cho email: {}", email);
+            log.info("Đã xóa OTP hết hạn cho email: {}", email);
             return null;
         }
 
@@ -71,7 +71,7 @@ public class OtpCacheService {
             // Xóa cache nếu thử quá 5 lần
             if (cached.getAttemptCount() >= 5) {
                 otpCache.remove(email.toLowerCase());
-                log.warn("🚫 Đã xóa OTP do thử sai quá 5 lần: {}", email);
+                log.warn("Đã xóa OTP do thử sai quá 5 lần: {}", email);
             }
 
             return false;
@@ -83,7 +83,7 @@ public class OtpCacheService {
      */
     public void removeOtp(String email) {
         otpCache.remove(email.toLowerCase());
-        log.info("🗑️ Đã xóa OTP cho email: {}", email);
+        log.info(" Đã xóa OTP cho email: {}", email);
     }
 
     /**
@@ -100,7 +100,7 @@ public class OtpCacheService {
         // Simple cleanup - production nên dùng scheduled task
         new Thread(() -> {
             try {
-                Thread.sleep(300_000); // 5 phút
+                Thread.sleep(60_000); // 1 phút
                 OtpCache cached = otpCache.get(email.toLowerCase());
                 if (cached != null && cached.isExpired()) {
                     otpCache.remove(email.toLowerCase());

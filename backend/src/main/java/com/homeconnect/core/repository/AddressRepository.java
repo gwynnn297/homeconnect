@@ -15,6 +15,8 @@ public interface AddressRepository extends JpaRepository<Address, Integer> {
 
     Optional<Address> findByUser_IdAndIsDefaultTrue(Long userId);
 
+    List<Address> findByUser_IdAndIsDefaultTrueOrderByAddressIdAsc(Long userId);
+
     // Batch fetch default addresses cho nhiều users
     @Query("SELECT a FROM Address a WHERE a.user.id IN :userIds AND a.isDefault = true")
     List<Address> findDefaultAddressesByUserIds(@Param("userIds") List<Long> userIds);

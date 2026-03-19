@@ -15,6 +15,9 @@ public interface HelperWorkingDistrictRepository extends JpaRepository<HelperWor
     // Admin: lấy danh sách working district của helper
     List<HelperWorkingDistrict> findByHelper_Id(Long helperId);
 
+    // Matching: lấy working districts theo danh sách helper để lọc theo khu vực
+    List<HelperWorkingDistrict> findByHelper_IdIn(List<Long> helperIds);
+
     // đếm số lượng working district của helper
     long countByHelper_Id(Long helperId);
 }
