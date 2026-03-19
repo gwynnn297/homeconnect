@@ -230,6 +230,58 @@ body {
     color: #94a3b8;
 }
 
+/* Captcha */
+.captcha-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.captcha-code {
+    flex: 1;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--border-radius);
+    border: 1px dashed #94a3b8;
+    background: #f8fafc;
+    color: #1e293b;
+    font-size: 1.05rem;
+    letter-spacing: 4px;
+    font-weight: 700;
+    user-select: none;
+}
+
+.captcha-refresh-btn {
+    width: 44px;
+    height: 44px;
+    border: 1px solid #d1d5db;
+    border-radius: 50%;
+    background: #fff;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.captcha-refresh-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.captcha-refresh-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.captcha-input {
+    text-transform: uppercase;
+}
+
 /* Actions: Checkbox & Forgot Password */
 .form-actions {
     display: flex;

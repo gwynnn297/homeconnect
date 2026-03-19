@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import './HelperSchedulePage.css';
 import HelperLayout from '../../layouts/HelperLayout';
 import HelperScheduleService from '../../services/HelperScheduleService';
+import NotificationModal from '../../components/NotificationModal';
 
 const formatMonthYear = (date) =>
     `Tháng ${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
@@ -61,6 +62,8 @@ const getMonthEndDate = (date) => formatIsoDate(new Date(date.getFullYear(), dat
 
 const convertJsDayToApiDay = (jsDay) => (jsDay === 0 ? 7 : jsDay);
 const getTodayIsoDate = () => formatIsoDate(new Date());
+const LEAVE_LIMIT_MESSAGE = 'Bạn đã vượt quá giới hạn 3 ca nghỉ trong tháng này.';
+const LEAVE_LIMIT_PATTERN = /vượt quá giới hạn\s*3\s*ca nghỉ/i;
 const getDefaultActiveDayIdx = (monthDate) => {
     const today = new Date();
     const isCurrentMonth = today.getFullYear() === monthDate.getFullYear()
@@ -105,6 +108,7 @@ const HelperSchedulePage = () => {
     const [openShiftMenuId, setOpenShiftMenuId] = useState(null);
     const [processingShiftId, setProcessingShiftId] = useState(null);
     const [shiftMenuStyle, setShiftMenuStyle] = useState({ top: 0, left: 0 });
+    const [toast, setToast] = useState(null);
     const [registerForm, setRegisterForm] = useState(() => ({
         startDate: getMonthStartDate(new Date()),
         endDate: getMonthEndDate(new Date()),
@@ -132,10 +136,17 @@ const HelperSchedulePage = () => {
             }
 
             const normalizedStatus = String(item.status || '').toUpperCase();
-            const current = statusMap[item.workDate] || { hasActive: false, hasCancelled: false };
+            const current = statusMap[item.workDate] || {
+                hasActive: false,
+                hasAvailable: false,
+                hasCancelled: false
+            };
 
             if (normalizedStatus === 'CANCELLED') {
                 current.hasCancelled = true;
+            } else if (normalizedStatus === 'AVAILABLE') {
+                current.hasAvailable = true;
+                current.hasActive = true;
             } else {
                 current.hasActive = true;
             }
@@ -165,6 +176,23 @@ const HelperSchedulePage = () => {
             .sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
     }, [visibleMonthlySchedules, selectedDay]);
 
+    const showApiNotification = (message) => {
+        const text = String(message || '');
+
+        if (LEAVE_LIMIT_PATTERN.test(text)) {
+            setToast({
+                type: 'warning',
+                message: LEAVE_LIMIT_MESSAGE
+            });
+            return;
+        }
+
+        setToast({
+            type: 'error',
+            message: text || 'Đã có lỗi xảy ra. Vui lòng thử lại.'
+        });
+    };
+
     const loadMonthlySchedule = async () => {
         try {
             setIsLoading(true);
@@ -178,7 +206,8 @@ const HelperSchedulePage = () => {
             setMonthlySchedules(Array.isArray(data) ? data : []);
         } catch (error) {
             setMonthlySchedules([]);
-            setErrorMessage(error?.message || 'Không thể tải lịch làm việc. Vui lòng thử lại.');
+            const message = error?.message || 'Không thể tải lịch làm việc. Vui lòng thử lại.';
+            setErrorMessage(message);
         } finally {
             setIsLoading(false);
         }
@@ -302,7 +331,8 @@ const HelperSchedulePage = () => {
             setIsRegisterModalOpen(false);
             await loadMonthlySchedule();
         } catch (error) {
-            setRegisterError(error?.message || 'Không thể đăng ký lịch. Vui lòng thử lại.');
+            const message = error?.message || 'Không thể đăng ký lịch. Vui lòng thử lại.';
+            showApiNotification(message);
         } finally {
             setIsSubmittingRegister(false);
         }
@@ -365,7 +395,8 @@ const HelperSchedulePage = () => {
             setIsAddShiftModalOpen(false);
             await loadMonthlySchedule();
         } catch (error) {
-            setAddShiftError(error?.message || 'Không thể đăng kí thêm ca cho ngày này.');
+            const message = error?.message || 'Không thể đăng kí thêm ca cho ngày này.';
+            showApiNotification(message);
         } finally {
             setIsSubmittingAddShift(false);
         }
@@ -493,7 +524,8 @@ const HelperSchedulePage = () => {
             setIsUpdateShiftModalOpen(false);
             await loadMonthlySchedule();
         } catch (error) {
-            setUpdateShiftError(error?.message || 'Không thể cập nhật ca làm việc.');
+            const message = error?.message || 'Không thể cập nhật ca làm việc.';
+            showApiNotification(message);
         } finally {
             setIsSubmittingUpdateShift(false);
         }
@@ -519,7 +551,8 @@ const HelperSchedulePage = () => {
 
             await loadMonthlySchedule();
         } catch (error) {
-            setErrorMessage(error?.message || 'Không thể hủy đăng kí ca. Vui lòng thử lại.');
+            const message = error?.message || 'Không thể hủy đăng kí ca. Vui lòng thử lại.';
+            showApiNotification(message);
         } finally {
             setProcessingShiftId(null);
         }
@@ -527,6 +560,13 @@ const HelperSchedulePage = () => {
 
     return (
         <HelperLayout>
+            {toast && (
+                <NotificationModal
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
             <div className="schedule-container">
                 <h1 className="schedule-header">Lịch làm việc</h1>
 
@@ -581,18 +621,19 @@ const HelperSchedulePage = () => {
                         {monthDays.map((day, idx) => {
                             const hasRegisteredSchedules = registeredDateSet.has(day.isoDate);
                             const dayStatus = dayScheduleStatusMap[day.isoDate];
+                            const isMixedScheduleDay = Boolean(dayStatus?.hasCancelled && dayStatus?.hasAvailable);
                             const isCancelledOnlyDay = Boolean(dayStatus?.hasCancelled && !dayStatus?.hasActive);
 
                             return (
                                 <div
                                     key={day.isoDate}
-                                    className={`day-item ${hasRegisteredSchedules ? 'has-schedule' : ''} ${isCancelledOnlyDay ? 'cancelled-only' : ''} ${idx === activeDayIdx ? 'active' : ''}`}
+                                    className={`day-item ${hasRegisteredSchedules ? 'has-schedule' : ''} ${isCancelledOnlyDay ? 'cancelled-only' : ''} ${isMixedScheduleDay ? 'mixed-schedule' : ''} ${idx === activeDayIdx ? 'active' : ''}`}
                                     onClick={() => setActiveDayIdx(idx)}
                                 >
                                     <div className="day-name">{day.dayName}</div>
                                     <div className="day-date">{day.dateText}</div>
                                     {(hasRegisteredSchedules || isCancelledOnlyDay) && (
-                                        <div className={`day-registered-dot ${isCancelledOnlyDay ? 'cancelled' : ''}`}></div>
+                                        <div className={`day-registered-dot ${isMixedScheduleDay ? 'mixed' : ''} ${isCancelledOnlyDay ? 'cancelled' : ''}`}></div>
                                     )}
                                 </div>
                             );

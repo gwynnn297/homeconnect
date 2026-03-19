@@ -24,6 +24,14 @@ public class HelperRegistrationStage2Request {
     private String cccdBackUrl;
 
     @NotBlank(message = "Ảnh selfie không được để trống")
-    @Schema(description = "URL ảnh chân dung", example = "https://storage.com/selfie.jpg")
+    @Schema(description = "URL ảnh chân dung (Mặt trước)", example = "https://storage.com/selfie.jpg")
     private String selfieUrl;
+
+    @NotBlank(message = "Ảnh mặt bên phải không được để trống")
+    @Schema(description = "URL ảnh mặt bên phải", example = "https://storage.com/face-right.jpg")
+    private String faceRightUrl;
+
+    @NotBlank(message = "Ảnh mặt bên trái không được để trống")
+    @Schema(description = "URL ảnh mặt bên trái", example = "https://storage.com/face-left.jpg")
+    private String faceLeftUrl;
 }

@@ -41,4 +41,8 @@ public class CreateServiceRequest {
     @JsonProperty("is_active")
     @Schema(description = "Trạng thái hoạt động", example = "true")
     private Boolean isActive;
+
+    @JsonProperty("category_id")
+    @Schema(description = "ID danh mục cha (service_categories)", example = "1")
+    private Integer categoryId;
 }

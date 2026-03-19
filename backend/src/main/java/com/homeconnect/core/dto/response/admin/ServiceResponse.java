@@ -33,7 +33,13 @@ public class ServiceResponse {
     
     @JsonProperty("is_active")
     private Boolean isActive;
-    
+
+    @JsonProperty("category_id")
+    private Integer categoryId;
+
+    @JsonProperty("category_name")
+    private String categoryName;
+
     @JsonProperty("created_at")
     private LocalDateTime createdAt;
 

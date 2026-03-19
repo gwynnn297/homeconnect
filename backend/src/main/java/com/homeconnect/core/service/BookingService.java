@@ -59,7 +59,26 @@ public class BookingService {
             throw new ApiException("Không tìm thấy lịch rảnh phù hợp.", HttpStatus.CONFLICT);
         }
 
-        // 2. Cập nhật trạng thái
+        // 2b. Kiểm tra buffer di chuyển 30 phút với các slot BUSY khác trong ngày
+        List<HelperSchedule> busySlotsOnDay = helperScheduleRepository.findByHelperIdAndWorkDateAndStatusIn(
+                booking.getHelper().getId(),
+                booking.getScheduledStartTime().toLocalDate(),
+                List.of(ScheduleStatus.BUSY));
+
+        for (HelperSchedule busySlot : busySlotsOnDay) {
+            if (busySlot.getId().equals(targetSchedule.getId())) continue; // bỏ qua chính nó
+            if (conflictEngine.checkConflictWithBuffer(
+                    booking.getScheduledStartTime().toLocalTime(),
+                    booking.getScheduledEndTime().toLocalTime(),
+                    busySlot,
+                    ConflictEngine.TRAVEL_BUFFER_MINUTES)) {
+                throw new ApiException(
+                    "Không thể xác nhận đơn hàng: Helper cần ít nhất 30 phút di chuyển giữa các đơn.",
+                    HttpStatus.CONFLICT);
+            }
+        }
+
+        // 3. Cập nhật trạng thái
         booking.setStatus(BookingStatus.CONFIRMED);
         targetSchedule.setStatus(ScheduleStatus.BUSY);
         targetSchedule.setBooking(booking);

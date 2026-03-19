@@ -20,14 +20,14 @@ public class SecurityToken {
     private Integer tokenId;
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = true)
     private User user;
     
     @Column(name = "token_value", nullable = false)
     private String tokenValue;
     
     @Column(name = "token_type", nullable = false, length = 50)
-    private String tokenType; // FORGOT_PASSWORD_OTP, RESET_PASSWORD_TOKEN
+    private String tokenType; // FORGOT_PASSWORD_OTP, RESET_PASSWORD_TOKEN, LOGIN_CAPTCHA
     
     @Column(name = "expiry_date", nullable = false)
     private LocalDateTime expiryDate;

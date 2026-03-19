@@ -3,7 +3,7 @@ package com.homeconnect.core.controller;
 import com.homeconnect.core.dto.request.HelperRegistrationStage1Request;
 import com.homeconnect.core.dto.request.HelperRegistrationStage2Request;
 import com.homeconnect.core.dto.response.UpdateKycResponse;
-import com.homeconnect.core.repository.ServiceRepository;
+import com.homeconnect.core.repository.ServiceCategoryRepository;
 import com.homeconnect.core.service.HelperRegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -26,15 +26,23 @@ import java.util.Map;
 public class HelperRegistrationController {
 
     private final HelperRegistrationService helperRegistrationService;
-    private final ServiceRepository serviceRepository;
+    private final ServiceCategoryRepository serviceCategoryRepository;
 
     @GetMapping("/services")
-    @Operation(summary = "Lấy danh sách dịch vụ", description = "Dùng để chọn dịch vụ đăng ký ở Stage 1")
+    @Operation(summary = "Lấy danh sách dịch vụ", description = "Dùng để chọn dịch vụ đăng ký ở Stage 1 (Phân loại theo danh mục)")
     public ResponseEntity<List<Map<String, Object>>> getServices() {
-        return ResponseEntity.ok(serviceRepository.findByIsActiveTrue().stream()
-                .map(s -> Map.<String, Object>of(
-                        "id", s.getServiceId(),
-                        "name", s.getName()
+        return ResponseEntity.ok(serviceCategoryRepository.findAll().stream()
+                .filter(cat -> cat.getIsActive() != null && cat.getIsActive())
+                .map(cat -> Map.of(
+                        "categoryId", cat.getCategoryId(),
+                        "categoryName", cat.getName(),
+                        "services", cat.getServices().stream()
+                                .filter(s -> s.getIsActive() != null && s.getIsActive())
+                                .map(s -> Map.of(
+                                        "id", s.getServiceId(),
+                                        "name", s.getName()
+                                ))
+                                .toList()
                 ))
                 .toList());
     }

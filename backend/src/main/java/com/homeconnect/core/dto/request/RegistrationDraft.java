@@ -33,6 +33,8 @@ public class RegistrationDraft {
     private String cccdFrontUrl;
     private String cccdBackUrl;
     private String selfieUrl;
+    private String faceRightUrl;
+    private String faceLeftUrl;
 
     public boolean isStage1Complete() {
         return dateOfBirth != null && hometownName != null && 
@@ -45,6 +47,7 @@ public class RegistrationDraft {
 
     public boolean isStage2Complete() {
         return identityNumber != null && cccdFrontUrl != null && 
-               cccdBackUrl != null && selfieUrl != null;
+               cccdBackUrl != null && selfieUrl != null &&
+               faceRightUrl != null && faceLeftUrl != null;
     }
 }

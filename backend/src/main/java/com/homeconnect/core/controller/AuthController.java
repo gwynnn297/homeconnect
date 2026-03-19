@@ -83,12 +83,18 @@ public class AuthController {
 
         // ========== Đăng nhập ==========
         @PostMapping("/login")
-        @Operation(summary = "Đăng nhập", description = "Đăng nhập vào hệ thống bằng email/phone và mật khẩu", responses = {
-                        @ApiResponse(responseCode = "200", description = "Đăng nhập thành công"),
-                        @ApiResponse(responseCode = "401", description = "Thông tin đăng nhập không đúng")
+        @Operation(summary = "Đăng nhập", description = "Đăng nhập vào hệ thống bằng email/phone và mật khẩu kèm mã Captcha", responses = {
+                        @ApiResponse(responseCode = "200", description = "Đăng nhập thành công Adler"),
+                        @ApiResponse(responseCode = "401", description = "Thông tin đăng nhập không đúng hoặc Captcha sai")
         })
         public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
                 return ResponseEntity.ok(authService.login(request));
+        }
+
+        @GetMapping("/captcha")
+        @Operation(summary = "Lấy mã Captcha", description = "Lấy mã Captcha mới để dùng cho đăng nhập")
+        public ResponseEntity<CaptchaResponse> getCaptcha() {
+                return ResponseEntity.ok(authService.generateCaptcha());
         }
 
         // ========== Quên mật khẩu ==========
