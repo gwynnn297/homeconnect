@@ -17,4 +17,10 @@ public class LoginRequest {
     @NotBlank(message = "Mật khẩu không được để trống")
     @Size(min = 1, max = 50, message = "Mật khẩu không được quá 50 ký tự")
     private String password;
+
+    @NotBlank(message = "Captcha ID không được để trống")
+    private String captchaId;
+
+    @NotBlank(message = "Mã Captcha không được để trống")
+    private String captchaCode;
 }

@@ -2,6 +2,7 @@ package com.homeconnect.core.service;
 
 import com.homeconnect.core.dto.request.*;
 import com.homeconnect.core.dto.response.LoginResponse;
+import com.homeconnect.core.dto.response.CaptchaResponse;
 import com.homeconnect.core.entity.SecurityToken;
 import com.homeconnect.core.entity.User;
 import com.homeconnect.core.enums.UserRole;
@@ -10,6 +11,7 @@ import com.homeconnect.core.repository.HelperProfileRepository;
 import com.homeconnect.core.repository.SecurityTokenRepository;
 import com.homeconnect.core.repository.UserRepository;
 import com.homeconnect.core.security.JwtUtil;
+import com.homeconnect.core.util.CaptchaUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -138,8 +140,40 @@ public class AuthService {
         return savedUser;
     }
 
+    public CaptchaResponse generateCaptcha() {
+        String text = CaptchaUtil.generateCaptchaText();
+
+        SecurityToken token = SecurityToken.builder()
+                .tokenValue(text)
+                .tokenType("LOGIN_CAPTCHA")
+                .expiryDate(java.time.LocalDateTime.now().plusMinutes(2))
+                .isUsed(false)
+                .build();
+        securityTokenRepository.save(token);
+
+        return CaptchaResponse.builder()
+                .captchaId(token.getTokenId().toString())
+                .captchaText(text) // In production, return an image
+                .build();
+    }
+
     public LoginResponse login(LoginRequest request) {
-        // Authenticate
+        // 0. Verify Captcha
+        SecurityToken captchaToken = securityTokenRepository.findById(Integer.parseInt(request.getCaptchaId()))
+                .filter(t -> "LOGIN_CAPTCHA".equals(t.getTokenType()))
+                .filter(t -> !t.getIsUsed())
+                .filter(t -> t.getExpiryDate().isAfter(java.time.LocalDateTime.now()))
+                .orElseThrow(() -> new RuntimeException("Captcha không hợp lệ hoặc đã hết hạn"));
+
+        if (!captchaToken.getTokenValue().equalsIgnoreCase(request.getCaptchaCode())) {
+            throw new RuntimeException("Mã Captcha không chính xác");
+        }
+
+        // Use the captcha token
+        captchaToken.setIsUsed(true);
+        securityTokenRepository.save(captchaToken);
+
+        // 1. Authenticate
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
 

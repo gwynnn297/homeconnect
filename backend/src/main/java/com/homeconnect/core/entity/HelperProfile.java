@@ -52,7 +52,13 @@ public class HelperProfile {
     private String identityBackUrl;  // Ảnh mặt sau CMND
     
     @Column(name = "selfie_url", columnDefinition = "TEXT")
-    private String selfieUrl;  // Ảnh selfie
+    private String selfieUrl;  // Ảnh selfie (Mặt trước)
+    
+    @Column(name = "face_right_url", columnDefinition = "TEXT")
+    private String faceRightUrl; // Ảnh mặt bên phải
+    
+    @Column(name = "face_left_url", columnDefinition = "TEXT")
+    private String faceLeftUrl; // Ảnh mặt bên trái
     
     @Enumerated(EnumType.STRING)
     @Column(name = "kyc_status", length = 20)

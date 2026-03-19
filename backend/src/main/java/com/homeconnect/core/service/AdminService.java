@@ -2,10 +2,13 @@ package com.homeconnect.core.service;
 
 import com.homeconnect.core.dto.request.BroadcastNotificationRequest;
 import com.homeconnect.core.dto.request.HelperReviewRequest;
+import com.homeconnect.core.dto.request.admin.CreateCategoryRequest;
 import com.homeconnect.core.dto.request.admin.CreateServiceRequest;
+import com.homeconnect.core.dto.request.admin.UpdateCategoryRequest;
 import com.homeconnect.core.dto.request.admin.UpdateServiceRequest;
 import com.homeconnect.core.dto.response.*;
 import com.homeconnect.core.dto.response.admin.ServiceResponse;
+import com.homeconnect.core.dto.response.service.CategoryResponse;
 import com.homeconnect.core.entity.*;
 import com.homeconnect.core.enums.KycStatus;
 import com.homeconnect.core.enums.UserRole;
@@ -42,6 +45,7 @@ public class AdminService {
         private final HelperServiceRepository helperServiceRepository;
         private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
         private final ServiceRepository serviceRepository;
+        private final ServiceCategoryRepository serviceCategoryRepository;
         private final AddressRepository addressRepository;
         private final EmailService emailService;
 
@@ -459,6 +463,8 @@ AdminStatisticsResponse.UserStats userStats = AdminStatisticsResponse.UserStats.
                                 .basePrice(service.getBasePrice())
                                 .unit(service.getUnit())
                                 .isActive(service.getIsActive())
+                                .categoryId(service.getCategory() != null ? service.getCategory().getCategoryId() : null)
+                                .categoryName(service.getCategory() != null ? service.getCategory().getName() : null)
                                 .createdAt(service.getCreatedAt())
                                 .updatedAt(service.getUpdatedAt())
                                 .build();
@@ -543,12 +549,20 @@ if (request.getName() != null && !request.getName().equals(service.getName())) {
                 validateServicePrice(request.getBasePrice());
 
                 // 2. Map DTO sang Entity
+                ServiceCategory category = null;
+                if (request.getCategoryId() != null) {
+                        category = serviceCategoryRepository.findById(request.getCategoryId())
+                                .orElseThrow(() -> new BadRequestException(
+                                        "Danh mục ID " + request.getCategoryId() + " không tồn tại"));
+                }
+
                 com.homeconnect.core.entity.Service service = com.homeconnect.core.entity.Service.builder()
                                 .name(request.getName())
                                 .description(request.getDescription())
                                 .basePrice(request.getBasePrice())
                                 .unit(request.getUnit())
                                 .isActive(request.getIsActive() == null || request.getIsActive())
+                                .category(category)
                                 .build();
 
                 // 3. Lưu entity
@@ -560,4 +574,79 @@ if (request.getName() != null && !request.getName().equals(service.getName())) {
                 return mapToServiceResponse(service);
         }
 
+
+        // --- BE-Admin-01: Danh muc Cha (ServiceCategory) ---
+
+        @Transactional
+        public ServiceCategory createCategory(CreateCategoryRequest request) {
+                if (serviceCategoryRepository.existsByName(request.getName())) {
+                        throw new BadRequestException("Ten danh muc da ton tai");
+                }
+                return serviceCategoryRepository.save(ServiceCategory.builder()
+                        .name(request.getName())
+                        .description(request.getDescription())
+                        .basePrice(request.getBasePrice())
+                        .unit(request.getUnit() != null ? com.homeconnect.core.enums.ServiceUnit.valueOf(request.getUnit()) : null)
+                        .isActive(true)
+                        .build());
+        }
+
+        @Transactional(readOnly = true)
+        public List<CategoryResponse> getRootCategories() {
+                return serviceCategoryRepository.findAll().stream()
+                        .map(cat -> CategoryResponse.builder()
+                                .categoryId(cat.getCategoryId())
+                                .name(cat.getName())
+                                .description(cat.getDescription())
+                                .basePrice(cat.getBasePrice())
+                                .unit(cat.getUnit() != null ? cat.getUnit().name() : null)
+                                .isActive(cat.getIsActive())
+                                .build())
+                        .collect(Collectors.toList());
+        }
+
+        @Transactional(readOnly = true)
+        public List<ServiceResponse> getChildrenServicesByCategory(Integer categoryId) {
+                ServiceCategory category = serviceCategoryRepository.findById(categoryId)
+                        .orElseThrow(() -> new BadRequestException("Danh muc khong ton tai"));
+                return category.getServices().stream()
+                        .map(this::mapToServiceResponse)
+                        .collect(Collectors.toList());
+        }
+
+        @Transactional
+        public CategoryResponse updateCategory(Integer categoryId, UpdateCategoryRequest request) {
+                ServiceCategory category = serviceCategoryRepository.findById(categoryId)
+                        .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại"));
+
+                if (request.getName() != null && !request.getName().equals(category.getName())) {
+                        if (serviceCategoryRepository.existsByName(request.getName())) {
+                                throw new BadRequestException("Tên danh mục đã tồn tại");
+                        }
+                        category.setName(request.getName());
+                }
+
+                if (request.getDescription() != null) category.setDescription(request.getDescription());
+                if (request.getBasePrice() != null) category.setBasePrice(request.getBasePrice());
+                if (request.getUnit() != null) category.setUnit(com.homeconnect.core.enums.ServiceUnit.valueOf(request.getUnit()));
+                if (request.getIsActive() != null) category.setIsActive(request.getIsActive());
+
+                category = serviceCategoryRepository.save(category);
+                return CategoryResponse.builder()
+                        .categoryId(category.getCategoryId())
+                        .name(category.getName())
+                        .description(category.getDescription())
+                        .basePrice(category.getBasePrice())
+                        .unit(category.getUnit() != null ? category.getUnit().name() : null)
+                        .isActive(category.getIsActive())
+                        .build();
+        }
+
+        @Transactional
+        public void deleteCategory(Integer categoryId) {
+                ServiceCategory category = serviceCategoryRepository.findById(categoryId)
+                        .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại"));
+                
+                serviceCategoryRepository.delete(category);
+        }
 }

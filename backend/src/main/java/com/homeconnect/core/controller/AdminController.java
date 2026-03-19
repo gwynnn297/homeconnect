@@ -2,10 +2,13 @@ package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.BroadcastNotificationRequest;
 import com.homeconnect.core.dto.request.HelperReviewRequest;
+import com.homeconnect.core.dto.request.admin.CreateCategoryRequest;
 import com.homeconnect.core.dto.request.admin.CreateServiceRequest;
+import com.homeconnect.core.dto.request.admin.UpdateCategoryRequest;
 import com.homeconnect.core.dto.request.admin.UpdateServiceRequest;
 import com.homeconnect.core.dto.response.*;
 import com.homeconnect.core.dto.response.admin.ServiceResponse;
+import com.homeconnect.core.dto.response.service.CategoryResponse;
 import com.homeconnect.core.enums.KycStatus;
 import com.homeconnect.core.service.AdminService;
 
@@ -21,6 +24,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * AdminController - API dành cho Admin quản lý hệ thống
@@ -112,6 +117,72 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
+    // ============================================================
+    // BE-Admin-01: Quản lý Danh mục Cha (service_categories)
+    // ============================================================
+
+    @Operation(summary = "Tạo mới danh mục cha", description = "Admin tạo danh mục cha cho các dịch vụ (VD: Dịch vụ Gia đình)")
+    @PostMapping("/categories")
+    public ResponseEntity<ApiResponse<CategoryResponse>> createCategory(
+            @Valid @RequestBody CreateCategoryRequest request) {
+
+        var category = adminService.createCategory(request);
+        return ResponseEntity.status(201).body(ApiResponse.<CategoryResponse>builder()
+                .message("Tạo danh mục cha thành công")
+                .data(CategoryResponse.builder()
+                        .categoryId(category.getCategoryId())
+                        .name(category.getName())
+                        .description(category.getDescription())
+                        .basePrice(category.getBasePrice())
+                        .unit(category.getUnit() != null ? category.getUnit().name() : null)
+                        .isActive(category.getIsActive())
+                        .build())
+                .build());
+    }
+
+    @Operation(summary = "Lấy danh sách danh mục cha", description = "Admin xem danh sách các danh mục để chọn khi tạo/sửa dịch vụ con")
+    @GetMapping("/categories/parents")
+    public ResponseEntity<ApiResponse<List<CategoryResponse>>> getParentCategories() {
+        return ResponseEntity.ok(ApiResponse.<List<CategoryResponse>>builder()
+                .message("Thành công")
+                .data(adminService.getRootCategories())
+                .build());
+    }
+
+    @Operation(summary = "Cập nhật danh mục cha", description = "Thay đổi tên, mô tả hoặc giá cơ bản của danh mục")
+    @PatchMapping("/categories/{categoryId}")
+    public ResponseEntity<ApiResponse<CategoryResponse>> updateCategory(
+            @PathVariable Integer categoryId,
+            @Valid @RequestBody UpdateCategoryRequest request) {
+
+        return ResponseEntity.ok(ApiResponse.<CategoryResponse>builder()
+                .message("Cập nhật danh mục thành công")
+                .data(adminService.updateCategory(categoryId, request))
+                .build());
+    }
+
+    @Operation(summary = "Xóa danh mục cha", description = "Xóa danh mục (Sẽ xóa tất cả dịch vụ con bên trong)")
+    @DeleteMapping("/categories/{categoryId}")
+    public ResponseEntity<ApiResponse<Void>> deleteCategory(@PathVariable Integer categoryId) {
+        adminService.deleteCategory(categoryId);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Xóa danh mục thành công")
+                .build());
+    }
+
+    @Operation(summary = "Lấy dịch vụ con theo danh mục", description = "Admin chọn danh mục cha rồi lấy danh sách dịch vụ để set giá")
+    @GetMapping("/categories/{categoryId}/services")
+    public ResponseEntity<ApiResponse<List<ServiceResponse>>> getServicesByCategory(
+            @PathVariable Integer categoryId) {
+        return ResponseEntity.ok(ApiResponse.<List<ServiceResponse>>builder()
+                .message("Thành công")
+                .data(adminService.getChildrenServicesByCategory(categoryId))
+                .build());
+    }
+
+    // ============================================================
+    // BE-Admin-01: Quản lý Dịch vụ Con (services) & Set giá
+    // ============================================================
 
     /**
      * POST /api/v1/admin/services

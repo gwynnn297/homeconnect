@@ -115,6 +115,8 @@ public class HelperRegistrationService {
         draft.setCccdFrontUrl(request.getCccdFrontUrl());
         draft.setCccdBackUrl(request.getCccdBackUrl());
         draft.setSelfieUrl(request.getSelfieUrl());
+        draft.setFaceRightUrl(request.getFaceRightUrl());
+        draft.setFaceLeftUrl(request.getFaceLeftUrl());
 
         registrationCacheService.saveDraft(email, draft);
         log.info("Stage 2 draft updated in cache for: {}", email);
@@ -145,6 +147,8 @@ public class HelperRegistrationService {
         profile.setIdentityFrontUrl(draft.getCccdFrontUrl());
         profile.setIdentityBackUrl(draft.getCccdBackUrl());
         profile.setSelfieUrl(draft.getSelfieUrl());
+        profile.setFaceRightUrl(draft.getFaceRightUrl());
+        profile.setFaceLeftUrl(draft.getFaceLeftUrl());
         profile.setKycStatus(KycStatus.WAITING_APPROVAL);
         profile.setHometownName(draft.getHometownName());
 
