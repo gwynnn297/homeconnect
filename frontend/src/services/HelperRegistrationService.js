@@ -63,6 +63,8 @@ const HelperRegistrationService = {
      * @param {string} request.cccdFrontUrl - URL ảnh mặt trước CCCD
      * @param {string} request.cccdBackUrl - URL ảnh mặt sau CCCD
      * @param {string} request.selfieUrl - URL ảnh chân dung
+     * @param {string} request.faceRightUrl - URL ảnh mặt bên phải
+     * @param {string} request.faceLeftUrl - URL ảnh mặt bên trái
      * @returns {Promise<Object>} Kết quả đăng ký giai đoạn 2
      */
     registerStage2: async (request) => {

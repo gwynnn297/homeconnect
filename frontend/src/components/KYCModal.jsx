@@ -6,6 +6,23 @@ import logoHomieConnect from '../assets/LogoHomieConnect.png';
 import { reverseGeocodeStreet, autocompleteAddressGoong, getPlaceDetailGoong, geocodeAddressGoong } from '../utils/mapLocationUtils';
 import MapGoongComponent from './MapGoongComponent';
 
+const normalizeCategoryOptions = (rawData) => {
+    if (!Array.isArray(rawData)) return [];
+    return rawData
+        .map((cat) => {
+            const categoryId = Number(cat?.categoryId);
+            const categoryName = String(cat?.categoryName ?? '').trim();
+            const serviceIds = Array.isArray(cat?.services)
+                ? cat.services
+                    .map((s) => Number(s?.id ?? s?.serviceId ?? s?.service_id))
+                    .filter((id) => Number.isInteger(id) && id > 0)
+                : [];
+            if (!categoryName || serviceIds.length === 0) return null;
+            return { categoryId, categoryName, serviceIds };
+        })
+        .filter(Boolean);
+};
+
 const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     const [currentStage, setCurrentStage] = useState(1);
     const [provinces, setProvinces] = useState([]);
@@ -40,11 +57,15 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     const [cccdFrontPreview, setCccdFrontPreview] = useState(null);
     const [cccdBackPreview, setCccdBackPreview] = useState(null);
     const [avatarPreview, setAvatarPreview] = useState(null);
+    const [faceLeftPreview, setFaceLeftPreview] = useState(null);
+    const [faceRightPreview, setFaceRightPreview] = useState(null);
 
     // File references
     const [cccdFrontFile, setCccdFrontFile] = useState(null);
     const [cccdBackFile, setCccdBackFile] = useState(null);
     const [avatarFile, setAvatarFile] = useState(null);
+    const [faceLeftFile, setFaceLeftFile] = useState(null);
+    const [faceRightFile, setFaceRightFile] = useState(null);
 
     // UI state
     const [isLoading, setIsLoading] = useState(false);
@@ -62,6 +83,8 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     const cccdFrontRef = useRef(null);
     const cccdBackRef = useRef(null);
     const avatarRef = useRef(null);
+    const faceLeftRef = useRef(null);
+    const faceRightRef = useRef(null);
 
     // ── Reset toàn bộ form khi modal đóng ────────────────────────────────────────
     // Đảm bảo mỗi lần mở lại modal đều bắt đầu từ đầu, không giữ data cũ
@@ -90,9 +113,13 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         setCccdFrontPreview(null);
         setCccdBackPreview(null);
         setAvatarPreview(null);
+        setFaceLeftPreview(null);
+        setFaceRightPreview(null);
         setCccdFrontFile(null);
         setCccdBackFile(null);
         setAvatarFile(null);
+        setFaceLeftFile(null);
+        setFaceRightFile(null);
         setError('');
         setSuccess('');
         setAddressSuggestions([]);
@@ -115,7 +142,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                 const provincesData = provincesRes?.data || provincesRes;
                 const servicesData = servicesRes?.data || servicesRes;
                 setProvinces(Array.isArray(provincesData) ? provincesData : []);
-                setServices(Array.isArray(servicesData) ? servicesData : []);
+                setServices(normalizeCategoryOptions(servicesData));
             } catch (err) {
                 console.error('Lỗi khi tải dữ liệu:', err);
                 setProvinces([]);
@@ -277,6 +304,21 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         if (error) setError('');
     };
 
+    const toggleCategory = (categoryServiceIds) => {
+        setFormData(prev => {
+            const allSelected = categoryServiceIds.every(id => prev.serviceIds.includes(id));
+            if (allSelected) {
+                return { ...prev, serviceIds: prev.serviceIds.filter(id => !categoryServiceIds.includes(id)) };
+            }
+            const merged = [...prev.serviceIds, ...categoryServiceIds.filter(id => !prev.serviceIds.includes(id))];
+            return { ...prev, serviceIds: merged };
+        });
+        if (error) setError('');
+    };
+
+    const isCategorySelected = (categoryServiceIds) =>
+        categoryServiceIds.length > 0 && categoryServiceIds.every(id => formData.serviceIds.includes(id));
+
     const handleSelectAddressSuggestion = async (suggestion) => {
         const streetOnly = suggestion.structured_formatting?.main_text || suggestion.description;
         setFormData(prev => ({ ...prev, currentAddress: streetOnly }));
@@ -352,6 +394,14 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                 setAvatarFile(file);
                 setAvatarPreview(previewUrl);
                 break;
+            case 'faceLeft':
+                setFaceLeftFile(file);
+                setFaceLeftPreview(previewUrl);
+                break;
+            case 'faceRight':
+                setFaceRightFile(file);
+                setFaceRightPreview(previewUrl);
+                break;
         }
 
         if (error) setError('');
@@ -373,6 +423,16 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                 setAvatarFile(null);
                 setAvatarPreview(null);
                 if (avatarRef.current) avatarRef.current.value = '';
+                break;
+            case 'faceLeft':
+                setFaceLeftFile(null);
+                setFaceLeftPreview(null);
+                if (faceLeftRef.current) faceLeftRef.current.value = '';
+                break;
+            case 'faceRight':
+                setFaceRightFile(null);
+                setFaceRightPreview(null);
+                if (faceRightRef.current) faceRightRef.current.value = '';
                 break;
         }
     };
@@ -438,6 +498,14 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             setError('Vui lòng tải lên ảnh chân dung');
             return false;
         }
+        if (!faceLeftFile) {
+            setError('Vui lòng tải lên ảnh mặt bên trái');
+            return false;
+        }
+        if (!faceRightFile) {
+            setError('Vui lòng tải lên ảnh mặt bên phải');
+            return false;
+        }
         return true;
     };
 
@@ -495,11 +563,13 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         setSuccess('');
 
         try {
-            // Upload 3 ảnh lên Cloudinary song song
-            const [cccdFrontUrl, cccdBackUrl, avatarUrl] = await CloudinaryService.uploadMultiple([
+            // Upload ảnh KYC lên Cloudinary song song
+            const [cccdFrontUrl, cccdBackUrl, avatarUrl, faceLeftUrl, faceRightUrl] = await CloudinaryService.uploadMultiple([
                 { file: cccdFrontFile, folder: 'kyc/cccd' },
                 { file: cccdBackFile, folder: 'kyc/cccd' },
                 { file: avatarFile, folder: 'kyc/avatar' },
+                { file: faceLeftFile, folder: 'kyc/face' },
+                { file: faceRightFile, folder: 'kyc/face' },
             ]);
 
             const stage2Data = {
@@ -507,6 +577,8 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                 cccdFrontUrl: cccdFrontUrl,
                 cccdBackUrl: cccdBackUrl,
                 selfieUrl: avatarUrl,
+                faceLeftUrl: faceLeftUrl,
+                faceRightUrl: faceRightUrl,
             };
 
             await HelperRegistrationService.registerStage2(stage2Data);
@@ -888,38 +960,38 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                             ) : services.length > 0 ? (
                                 <div style={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
                                     gap: '0.75rem'
                                 }}>
-                                    {services.map((service) => (
-                                        <label
-                                            key={service.id}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                padding: '0.75rem',
-                                                border: formData.serviceIds.includes(service.id)
-                                                    ? '2px solid #3b82f6'
-                                                    : '1px solid #e2e8f0',
-                                                borderRadius: '8px',
-                                                cursor: 'pointer',
-                                                backgroundColor: formData.serviceIds.includes(service.id)
-                                                    ? '#eff6ff'
-                                                    : 'white',
-                                                transition: 'all 0.2s'
-                                            }}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                name="serviceIds"
-                                                value={service.id}
-                                                checked={formData.serviceIds.includes(service.id)}
-                                                onChange={handleInputChange}
-                                                style={{ marginRight: '0.5rem' }}
-                                            />
-                                            <span style={{ fontSize: '0.9rem' }}>{service.name}</span>
-                                        </label>
-                                    ))}
+                                    {services.map((cat) => {
+                                        const selected = isCategorySelected(cat.serviceIds);
+                                        return (
+                                            <label
+                                                key={cat.categoryId}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    padding: '0.75rem',
+                                                    border: selected ? '2px solid #346252' : '1px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    cursor: 'pointer',
+                                                    backgroundColor: selected ? '#f0faf5' : 'white',
+                                                    transition: 'all 0.2s',
+                                                    gap: '0.5rem'
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selected}
+                                                    onChange={() => toggleCategory(cat.serviceIds)}
+                                                    style={{ accentColor: '#346252', width: '16px', height: '16px', flexShrink: 0 }}
+                                                />
+                                                <span style={{ fontSize: '0.9rem', fontWeight: selected ? '600' : '400', color: selected ? '#1b4332' : '#334155' }}>
+                                                    {cat.categoryName}
+                                                </span>
+                                            </label>
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div style={{ padding: '1rem', textAlign: 'center', color: '#64748b' }}>
@@ -1095,6 +1167,92 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                         <span className="kyc-upload-hint">Ảnh rõ mặt, không đội mũ/kính</span>
                                     </div>
                                 )}
+                            </div>
+                        </div>
+
+                        {/* Ảnh mặt trái & phải */}
+                        <div className="kyc-form-group">
+                            <label>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                    <circle cx="12" cy="7" r="4" />
+                                </svg>
+                                Ảnh khuôn mặt bên trái & bên phải <span className="kyc-required">*</span>
+                            </label>
+                            <div className="kyc-image-row">
+                                <div>
+                                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.4rem' }}>Mặt bên trái</p>
+                                    <div
+                                        className={`kyc-upload-area ${faceLeftPreview ? 'has-file' : ''}`}
+                                        onClick={() => faceLeftRef.current?.click()}
+                                    >
+                                        <input
+                                            ref={faceLeftRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="kyc-upload-input"
+                                            onChange={(e) => handleFileSelect(e, 'faceLeft')}
+                                        />
+                                        {faceLeftPreview ? (
+                                            <div className="kyc-image-preview-wrapper">
+                                                <img src={faceLeftPreview} alt="Mặt bên trái" className="kyc-image-preview" />
+                                                <button
+                                                    type="button"
+                                                    className="kyc-remove-image"
+                                                    onClick={(e) => { e.stopPropagation(); removeImage('faceLeft'); }}
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="kyc-upload-placeholder">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                                    <polyline points="17 8 12 3 7 8" />
+                                                    <line x1="12" y1="3" x2="12" y2="15" />
+                                                </svg>
+                                                <span>Tải ảnh lên</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.4rem' }}>Mặt bên phải</p>
+                                    <div
+                                        className={`kyc-upload-area ${faceRightPreview ? 'has-file' : ''}`}
+                                        onClick={() => faceRightRef.current?.click()}
+                                    >
+                                        <input
+                                            ref={faceRightRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="kyc-upload-input"
+                                            onChange={(e) => handleFileSelect(e, 'faceRight')}
+                                        />
+                                        {faceRightPreview ? (
+                                            <div className="kyc-image-preview-wrapper">
+                                                <img src={faceRightPreview} alt="Mặt bên phải" className="kyc-image-preview" />
+                                                <button
+                                                    type="button"
+                                                    className="kyc-remove-image"
+                                                    onClick={(e) => { e.stopPropagation(); removeImage('faceRight'); }}
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="kyc-upload-placeholder">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                                    <polyline points="17 8 12 3 7 8" />
+                                                    <line x1="12" y1="3" x2="12" y2="15" />
+                                                </svg>
+                                                <span>Tải ảnh lên</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

@@ -1,255 +1,250 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import AdminLayout from '../../layouts/AdminLayout';
 import NotificationModal from '../../components/NotificationModal';
-import AdminService from '../../services/AdminService';
 import ServiceManagerService from '../../services/ServiceManagerService';
-import HelperRegistrationService from '../../services/HelperRegistrationService';
 import './ServiceManagerPage.css';
 
 const UNIT_OPTIONS = [
     { value: 'PER_HOUR', label: 'Theo giờ' },
     { value: 'PER_SERVICE', label: 'Theo dịch vụ' },
-    { value: 'PER_METERS', label: 'Theo m2' },
-    { value: 'PER_ROOM', label: 'Theo phòng' }
+    { value: 'PER_METERS', label: 'Theo m²' },
+    { value: 'PER_ROOM', label: 'Theo phòng' },
 ];
 
-const EMPTY_FORM = {
-    name: '',
-    description: '',
-    basePrice: '',
-    unit: 'PER_HOUR',
-    isActive: true
-};
-
-const normalizeService = (service) => ({
-    serviceId: service?.serviceId ?? service?.service_id ?? service?.id ?? null,
-    name: service?.name ?? '',
-    description: service?.description ?? '',
-    iconUrl: service?.iconUrl ?? service?.icon_url ?? service?.icon ?? '',
-    basePrice: service?.basePrice ?? service?.base_price ?? 0,
-    unit: service?.unit ?? 'PER_HOUR',
-    isActive: service?.isActive ?? service?.is_active ?? false,
-    createdAt: service?.createdAt ?? service?.created_at ?? null,
-    updatedAt: service?.updatedAt ?? service?.updated_at ?? null
-});
+const EMPTY_CAT_FORM = { name: '', description: '', basePrice: '', unit: 'PER_SERVICE' };
+const EMPTY_SVC_FORM = { name: '', description: '', basePrice: '', unit: 'PER_HOUR', categoryId: '', isActive: true };
 
 const formatMoney = (value) => {
-    if (value === null || value === undefined || Number.isNaN(Number(value))) {
-        return '0';
-    }
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '0';
     return Number(value).toLocaleString('vi-VN');
 };
 
+const normalizeCat = (c) => ({
+    categoryId: c?.categoryId ?? c?.category_id ?? c?.id ?? null,
+    name: c?.name ?? '',
+    description: c?.description ?? '',
+    basePrice: c?.basePrice ?? c?.base_price ?? 0,
+    unit: c?.unit ?? null,
+    isActive: c?.isActive ?? c?.is_active ?? true,
+});
+
+const normalizeSvc = (s) => ({
+    serviceId: s?.serviceId ?? s?.service_id ?? s?.id ?? null,
+    name: s?.name ?? '',
+    description: s?.description ?? '',
+    basePrice: s?.basePrice ?? s?.base_price ?? 0,
+    unit: s?.unit ?? 'PER_HOUR',
+    isActive: s?.isActive ?? s?.is_active ?? false,
+    categoryId: s?.categoryId ?? s?.category_id ?? null,
+});
+
 const ServiceManagerPage = () => {
-    const [services, setServices] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
+    const [activeTab, setActiveTab] = useState('categories');
     const [toast, setToast] = useState(null);
 
+    // ── Danh mục cha state ───────────────────────────────────────────
+    const [categories, setCategories] = useState([]);
+    const [catLoading, setCatLoading] = useState(false);
+    const [catSubmitting, setCatSubmitting] = useState(false);
+    const [editingCatId, setEditingCatId] = useState(null);
+    const [catForm, setCatForm] = useState(EMPTY_CAT_FORM);
+
+    // ── Dịch vụ con state ────────────────────────────────────────────
+    const [selectedCatId, setSelectedCatId] = useState('');
+    const [services, setServices] = useState([]);
+    const [svcLoading, setSvcLoading] = useState(false);
+    const [svcSubmitting, setSvcSubmitting] = useState(false);
     const [editingServiceId, setEditingServiceId] = useState(null);
-    const [formData, setFormData] = useState(EMPTY_FORM);
+    const [svcForm, setSvcForm] = useState(EMPTY_SVC_FORM);
 
-    const isEditMode = useMemo(() => editingServiceId !== null, [editingServiceId]);
-    const showNotification = (type, message) => {
-        setToast({ type, message });
-    };
+    const isEditCat = editingCatId !== null;
+    const isEditSvc = editingServiceId !== null;
 
-    const upsertService = (list, service) => {
-        if (!service || service.serviceId === null || service.serviceId === undefined) return list;
-        const idx = list.findIndex((item) => item.serviceId === service.serviceId);
-        if (idx === -1) {
-            return [...list, service].sort((a, b) => (a.serviceId || 0) - (b.serviceId || 0));
-        }
-        const next = [...list];
-        next[idx] = { ...next[idx], ...service };
-        return next.sort((a, b) => (a.serviceId || 0) - (b.serviceId || 0));
-    };
+    const showNotification = (type, message) => setToast({ type, message });
 
-    const loadServices = async () => {
-        setLoading(true);
+    // ── Load danh mục ────────────────────────────────────────────────
+    // Admin API: GET /api/v1/admin/categories/parents
+    // apiClient interceptor trả về: { message, data: [CategoryResponse] }
+    const loadCategories = useCallback(async () => {
+        setCatLoading(true);
         try {
-            const serviceMap = new Map();
-
-            const basicServices = await HelperRegistrationService.getServices();
-            const detailResponses = await Promise.all(
-                (basicServices || []).map(async (item) => {
-                    const itemId = item?.id ?? item?.serviceId ?? item?.service_id;
-                    if (!itemId) return null;
-                    try {
-                        const detail = await ServiceManagerService.getServiceDetail(itemId);
-                        return normalizeService(detail?.data ?? detail);
-                    } catch {
-                        return normalizeService(item);
-                    }
-                })
-            );
-
-            detailResponses.forEach((item) => {
-                if (item && item.serviceId !== null && item.serviceId !== undefined) {
-                    serviceMap.set(item.serviceId, item);
-                }
-            });
-
-            // Endpoint public chỉ trả dịch vụ active.
-            // Dùng totalServices từ admin statistics để quét thêm các dịch vụ inactive.
-            let totalServices = null;
-            try {
-                const stats = await AdminService.getStatistics();
-                totalServices = stats?.systemStats?.totalServices ?? null;
-            } catch {
-                totalServices = null;
-            }
-
-            if (totalServices && serviceMap.size < totalServices) {
-                const knownIds = Array.from(serviceMap.keys()).filter((id) => Number.isInteger(id));
-                const maxKnownId = knownIds.length > 0 ? Math.max(...knownIds) : 0;
-                const maxScanId = Math.max(maxKnownId + 80, totalServices * 4, 120);
-
-                let nextId = 1;
-                let consecutiveMisses = 0;
-                const maxConsecutiveMisses = 40;
-                const batchSize = 10;
-
-                while (
-                    serviceMap.size < totalServices &&
-                    nextId <= maxScanId &&
-                    consecutiveMisses < maxConsecutiveMisses
-                ) {
-                    const batchIds = [];
-                    while (batchIds.length < batchSize && nextId <= maxScanId) {
-                        if (!serviceMap.has(nextId)) {
-                            batchIds.push(nextId);
-                        }
-                        nextId += 1;
-                    }
-
-                    const batchResults = await Promise.all(
-                        batchIds.map(async (id) => {
-                            try {
-                                const detail = await ServiceManagerService.getServiceDetail(id);
-                                return normalizeService(detail?.data ?? detail);
-                            } catch {
-                                return null;
-                            }
-                        })
-                    );
-
-                    let foundInBatch = 0;
-                    batchResults.forEach((item) => {
-                        if (item && item.serviceId !== null && item.serviceId !== undefined) {
-                            serviceMap.set(item.serviceId, item);
-                            foundInBatch += 1;
-                        }
-                    });
-
-                    consecutiveMisses = foundInBatch === 0
-                        ? consecutiveMisses + batchIds.length
-                        : 0;
-                }
-            }
-
-            const normalized = Array.from(serviceMap.values())
-                .filter((item) => item && item.serviceId !== null && item.serviceId !== undefined)
-                .sort((a, b) => (a.serviceId || 0) - (b.serviceId || 0));
-
-            setServices(normalized);
+            const res = await ServiceManagerService.getParentCategories();
+            const list = res?.data ?? res;
+            const arr = Array.isArray(list) ? list : [];
+            setCategories(arr.map(normalizeCat));
         } catch (err) {
-            showNotification('error', err?.message || 'Không thể tải danh sách dịch vụ');
+            console.error('loadCategories error:', err);
+            showNotification('error', err?.message || 'Không thể tải danh mục');
         } finally {
-            setLoading(false);
+            setCatLoading(false);
         }
-    };
-
-    useEffect(() => {
-        loadServices();
     }, []);
 
-    const resetForm = () => {
-        setEditingServiceId(null);
-        setFormData(EMPTY_FORM);
-    };
+    useEffect(() => { loadCategories(); }, [loadCategories]);
 
-    const handleChange = (field, value) => {
-        setFormData((prev) => ({
-            ...prev,
-            [field]: field === 'isActive' ? Boolean(value) : value
-        }));
-    };
+    // ── Load dịch vụ theo danh mục ───────────────────────────────────
+    const loadServices = useCallback(async (catId) => {
+        if (!catId) { setServices([]); return; }
+        setSvcLoading(true);
+        try {
+            const res = await ServiceManagerService.getServicesByCategory(catId);
+            const list = res?.data ?? res ?? [];
+            setServices(Array.isArray(list) ? list.map(normalizeSvc) : []);
+        } catch (err) {
+            showNotification('error', err?.message || 'Không thể tải dịch vụ');
+            setServices([]);
+        } finally {
+            setSvcLoading(false);
+        }
+    }, []);
 
-    const handleEdit = (service) => {
-        setEditingServiceId(service.serviceId);
-        setFormData({
-            name: service.name || '',
-            description: service.description || '',
-            basePrice: service.basePrice?.toString?.() || '',
-            unit: service.unit || 'PER_HOUR',
-            isActive: Boolean(service.isActive)
+    useEffect(() => { loadServices(selectedCatId); }, [selectedCatId, loadServices]);
+
+    // ── Category CRUD ────────────────────────────────────────────────
+    const resetCatForm = () => { setEditingCatId(null); setCatForm(EMPTY_CAT_FORM); };
+
+    const handleCatChange = (field, value) =>
+        setCatForm((prev) => ({ ...prev, [field]: value }));
+
+    const handleEditCat = (cat) => {
+        setEditingCatId(cat.categoryId);
+        setCatForm({
+            name: cat.name || '',
+            description: cat.description || '',
+            basePrice: cat.basePrice?.toString() || '',
+            unit: cat.unit || 'PER_SERVICE',
         });
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmitCat = async (e) => {
         e.preventDefault();
-
-        if (!formData.name.trim()) {
-            showNotification('warning', 'Vui lòng nhập tên dịch vụ');
-            return;
-        }
-        if (formData.basePrice === '' || Number.isNaN(Number(formData.basePrice))) {
-            showNotification('warning', 'Vui lòng nhập giá hợp lệ');
-            return;
-        }
-
+        if (!catForm.name.trim()) { showNotification('warning', 'Vui lòng nhập tên danh mục'); return; }
         const payload = {
-            name: formData.name.trim(),
-            description: formData.description.trim() || null,
-            base_price: Number(formData.basePrice),
-            unit: formData.unit,
-            is_active: formData.isActive
+            name: catForm.name.trim(),
+            description: catForm.description.trim() || null,
+            basePrice: catForm.basePrice !== '' ? Number(catForm.basePrice) : null,
+            unit: catForm.unit || null,
         };
-
-        setSubmitting(true);
+        setCatSubmitting(true);
         try {
-            if (isEditMode) {
-                const updatedResponse = await ServiceManagerService.updateService(editingServiceId, payload);
-                const updatedService = normalizeService(updatedResponse?.data ?? updatedResponse);
-                setServices((prev) => upsertService(prev, updatedService));
-                showNotification('success', 'Cập nhật dịch vụ thành công');
+            if (isEditCat) {
+                const res = await ServiceManagerService.updateCategory(editingCatId, payload);
+                const updated = normalizeCat(res?.data ?? res);
+                setCategories((prev) => prev.map((c) => c.categoryId === updated.categoryId ? updated : c));
+                showNotification('success', 'Cập nhật danh mục thành công');
             } else {
-                const createdResponse = await ServiceManagerService.createService(payload);
-                const createdService = normalizeService(createdResponse?.data ?? createdResponse);
-                setServices((prev) => upsertService(prev, createdService));
-                showNotification('success', 'Tạo dịch vụ mới thành công');
+                const res = await ServiceManagerService.createCategory(payload);
+                const created = normalizeCat(res?.data ?? res);
+                setCategories((prev) => [...prev, created]);
+                showNotification('success', 'Tạo danh mục thành công');
             }
-            resetForm();
+            resetCatForm();
         } catch (err) {
-            showNotification('error', err?.message || 'Thao tác thất bại, vui lòng thử lại');
+            showNotification('error', err?.message || 'Thao tác thất bại');
         } finally {
-            setSubmitting(false);
+            setCatSubmitting(false);
         }
     };
 
-    const handleDelete = async (service) => {
-        const confirmed = window.confirm(`Bạn có chắc muốn xóa dịch vụ "${service.name}"?`);
-        if (!confirmed) return;
-
+    const handleDeleteCat = async (cat) => {
+        if (!window.confirm(`Xóa danh mục "${cat.name}"?\nLưu ý: Tất cả dịch vụ con bên trong cũng sẽ bị xóa.`)) return;
         try {
-            await ServiceManagerService.deleteService(service.serviceId);
-            setServices((prev) => prev.filter((item) => item.serviceId !== service.serviceId));
-            showNotification('success', 'Xóa dịch vụ thành công');
-            if (editingServiceId === service.serviceId) {
-                resetForm();
+            await ServiceManagerService.deleteCategory(cat.categoryId);
+            setCategories((prev) => prev.filter((c) => c.categoryId !== cat.categoryId));
+            if (Number(selectedCatId) === cat.categoryId) { setSelectedCatId(''); setServices([]); }
+            if (editingCatId === cat.categoryId) resetCatForm();
+            showNotification('success', 'Xóa danh mục thành công');
+        } catch (err) {
+            showNotification('error', err?.message || 'Không thể xóa danh mục');
+        }
+    };
+
+    // ── Service CRUD ─────────────────────────────────────────────────
+    const resetSvcForm = (categoryId = selectedCatId || '') => {
+        setEditingServiceId(null);
+        setSvcForm({ ...EMPTY_SVC_FORM, categoryId });
+    };
+
+    const handleSvcChange = (field, value) =>
+        setSvcForm((prev) => ({ ...prev, [field]: field === 'isActive' ? Boolean(value) : value }));
+
+    const handleEditSvc = (svc) => {
+        setEditingServiceId(svc.serviceId);
+        setSvcForm({
+            name: svc.name || '',
+            description: svc.description || '',
+            basePrice: svc.basePrice?.toString() || '',
+            unit: svc.unit || 'PER_HOUR',
+            categoryId: svc.categoryId || selectedCatId || '',
+            isActive: Boolean(svc.isActive),
+        });
+    };
+
+    const handleSubmitSvc = async (e) => {
+        e.preventDefault();
+        if (!svcForm.name.trim()) { showNotification('warning', 'Vui lòng nhập tên dịch vụ'); return; }
+        if (!svcForm.categoryId) { showNotification('warning', 'Vui lòng chọn danh mục'); return; }
+        if (svcForm.basePrice === '' || Number.isNaN(Number(svcForm.basePrice))) {
+            showNotification('warning', 'Vui lòng nhập giá hợp lệ'); return;
+        }
+        const payload = {
+            name: svcForm.name.trim(),
+            description: svcForm.description.trim() || null,
+            base_price: Number(svcForm.basePrice),
+            unit: svcForm.unit,
+            category_id: Number(svcForm.categoryId),
+            is_active: svcForm.isActive,
+        };
+        setSvcSubmitting(true);
+        try {
+            if (isEditSvc) {
+                const res = await ServiceManagerService.updateService(editingServiceId, payload);
+                const updated = normalizeSvc(res?.data ?? res);
+                setServices((prev) => prev.map((s) => s.serviceId === updated.serviceId ? updated : s));
+                showNotification('success', 'Cập nhật dịch vụ thành công');
+            } else {
+                const res = await ServiceManagerService.createService(payload);
+                const created = normalizeSvc(res?.data ?? res);
+                if (!selectedCatId || Number(selectedCatId) === payload.category_id) {
+                    setServices((prev) =>
+                        [...prev, created].sort((a, b) => (a.serviceId || 0) - (b.serviceId || 0))
+                    );
+                }
+                showNotification('success', 'Tạo dịch vụ thành công');
             }
+            resetSvcForm();
+        } catch (err) {
+            showNotification('error', err?.message || 'Thao tác thất bại');
+        } finally {
+            setSvcSubmitting(false);
+        }
+    };
+
+    const handleDeleteSvc = async (svc) => {
+        if (!window.confirm(`Bạn có chắc muốn xóa dịch vụ "${svc.name}"?`)) return;
+        try {
+            await ServiceManagerService.deleteService(svc.serviceId);
+            setServices((prev) => prev.filter((s) => s.serviceId !== svc.serviceId));
+            if (editingServiceId === svc.serviceId) resetSvcForm();
+            showNotification('success', 'Xóa dịch vụ thành công');
         } catch (err) {
             showNotification('error', err?.message || 'Không thể xóa dịch vụ');
         }
     };
 
+    const selectedCatName = categories.find((c) => c.categoryId === Number(selectedCatId))?.name;
+
     return (
         <AdminLayout>
             <div className="service-manager-page">
                 <div className="page-header">
-                    <h1>Quản lý dịch vụ</h1>
-                    <p>Tổng: {services.length} dịch vụ</p>
+                    <div>
+                        <h1>Quản lý dịch vụ</h1>
+                        <p className="text-muted">
+                            {categories.length} danh mục
+                            {selectedCatId && ` · ${services.length} dịch vụ trong "${selectedCatName}"`}
+                        </p>
+                    </div>
                 </div>
 
                 {toast && (
@@ -260,164 +255,437 @@ const ServiceManagerPage = () => {
                     />
                 )}
 
-                <div className="service-manager-grid">
-                    <section className="service-list-card">
-                        <div className="card-header">
-                            <h2>Danh sách dịch vụ</h2>
-                            <button
-                                className="btn btn-secondary"
-                                type="button"
-                                onClick={loadServices}
-                                disabled={loading}
-                            >
-                                {loading ? 'Đang tải...' : 'Làm mới'}
-                            </button>
-                        </div>
-
-                        {loading ? (
-                            <p className="text-muted">Đang tải dữ liệu...</p>
-                        ) : services.length === 0 ? (
-                            <p className="text-muted">Chưa có dịch vụ nào</p>
-                        ) : (
-                            <div className="table-wrapper">
-                                <table className="service-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Tên dịch vụ</th>
-                                            <th>Đơn vị</th>
-                                            <th>Giá cơ bản</th>
-                                            <th>Trạng thái</th>
-                                            <th>Thao tác</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {services.map((service, index) => (
-                                            <tr key={service?.serviceId ?? `${service?.name ?? 'service'}-${index}`}>
-                                                <td>
-                                                    <div className="service-name-cell">
-                                                        <span>{service.name}</span>
-                                                    </div>
-                                                </td>
-                                                <td>{service.unit}</td>
-                                                <td>{formatMoney(service.basePrice)} VNĐ</td>
-                                                <td>
-                                                    <span className={`status-badge ${service.isActive ? 'active' : 'inactive'}`}>
-                                                        {service.isActive ? 'Đang hoạt động' : 'Đã tắt'}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div className="row-actions">
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-secondary"
-                                                            onClick={() => handleEdit(service)}
-                                                        >
-                                                            Sửa
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-danger"
-                                                            onClick={() => handleDelete(service)}
-                                                        >
-                                                            Xóa
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                {/* ── Tab bar ─────────────────────────────────────────── */}
+                <div className="smp-tabs">
+                    <button
+                        type="button"
+                        className={`smp-tab ${activeTab === 'categories' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('categories')}
+                    >
+                        Danh mục cha
+                        <span className="smp-tab-badge">{categories.length}</span>
+                    </button>
+                    <button
+                        type="button"
+                        className={`smp-tab ${activeTab === 'services' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('services')}
+                    >
+                        Dịch vụ con
+                        {selectedCatId && (
+                            <span className="smp-tab-badge">{services.length}</span>
                         )}
-                    </section>
+                    </button>
+                </div>
 
-                    <section className="service-form-card">
-                        <div className="card-header">
-                            <h2>{isEditMode ? `Cập nhật dịch vụ #${editingServiceId}` : 'Tạo dịch vụ mới'}</h2>
-                            {isEditMode && (
+                {/* ══════════════════════════════════════════════════════
+                    Tab: Danh mục cha
+                ══════════════════════════════════════════════════════ */}
+                {activeTab === 'categories' && (
+                    <div className="service-manager-grid">
+                        {/* Danh sách danh mục */}
+                        <section className="service-list-card">
+                            <div className="card-header">
+                                <h2>Danh sách danh mục</h2>
                                 <button
                                     type="button"
                                     className="btn btn-secondary"
-                                    onClick={resetForm}
-                                    disabled={submitting}
+                                    onClick={loadCategories}
+                                    disabled={catLoading}
                                 >
-                                    Hủy sửa
+                                    {catLoading ? 'Đang tải...' : 'Làm mới'}
                                 </button>
+                            </div>
+
+                            {catLoading ? (
+                                <p className="text-muted">Đang tải dữ liệu...</p>
+                            ) : categories.length === 0 ? (
+                                <div className="empty-hint">
+                                    <span>📂</span>
+                                    <p>Chưa có danh mục nào. Hãy tạo danh mục đầu tiên bằng form bên phải.</p>
+                                </div>
+                            ) : (
+                                <div className="table-wrapper">
+                                    <table className="service-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Tên danh mục</th>
+                                                <th>Đơn vị</th>
+                                                <th>Giá cơ bản</th>
+                                                <th className="action-col">Thao tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {categories.map((cat, idx) => (
+                                                <tr
+                                                    key={cat.categoryId ?? `cat-${idx}`}
+                                                    className={editingCatId === cat.categoryId ? 'row-editing' : ''}
+                                                >
+                                                    <td>
+                                                        <div className="service-name-cell">
+                                                            <div>
+                                                                <div className="cell-name">{cat.name}</div>
+                                                                {cat.description && (
+                                                                    <div className="cell-sub">{cat.description}</div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td>{cat.unit ?? '—'}</td>
+                                                    <td>
+                                                        {cat.basePrice
+                                                            ? `${formatMoney(cat.basePrice)} VNĐ`
+                                                            : '—'}
+                                                    </td>
+                                                    <td className="action-col">
+                                                        <div className="row-actions">
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-outline-green"
+                                                                title="Xem dịch vụ con của danh mục này"
+                                                                onClick={() => {
+                                                                    setSelectedCatId(cat.categoryId);
+                                                                    resetSvcForm(cat.categoryId);
+                                                                    setActiveTab('services');
+                                                                }}
+                                                            >
+                                                                Dịch vụ
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-secondary"
+                                                                onClick={() => handleEditCat(cat)}
+                                                            >
+                                                                Sửa
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-danger"
+                                                                onClick={() => handleDeleteCat(cat)}
+                                                            >
+                                                                Xóa
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             )}
-                        </div>
+                        </section>
 
-                        <form className="service-form" onSubmit={handleSubmit}>
-                            <div className="form-group">
-                                <label>Tên dịch vụ *</label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => handleChange('name', e.target.value)}
-                                    placeholder="Ví dụ: Dọn nhà theo giờ"
-                                    maxLength={100}
-                                    disabled={submitting}
-                                />
+                        {/* Form danh mục */}
+                        <section className="service-form-card">
+                            <div className="card-header">
+                                <h2>
+                                    {isEditCat ? `Sửa danh mục #${editingCatId}` : 'Tạo danh mục mới'}
+                                </h2>
+                                {isEditCat && (
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        onClick={resetCatForm}
+                                        disabled={catSubmitting}
+                                    >
+                                        Hủy
+                                    </button>
+                                )}
                             </div>
 
-                            <div className="form-group">
-                                <label>Giá cơ bản (VNĐ) *</label>
-                                <input
-                                    type="number"
-                                    value={formData.basePrice}
-                                    onChange={(e) => handleChange('basePrice', e.target.value)}
-                                    step="any"
-                                    placeholder="80000"
-                                    disabled={submitting}
-                                />
-                            </div>
+                            <form className="service-form" onSubmit={handleSubmitCat}>
+                                <div className="form-group">
+                                    <label>Tên danh mục *</label>
+                                    <input
+                                        type="text"
+                                        value={catForm.name}
+                                        onChange={(e) => handleCatChange('name', e.target.value)}
+                                        placeholder="Ví dụ: Dịch vụ Gia đình"
+                                        maxLength={100}
+                                        disabled={catSubmitting}
+                                    />
+                                </div>
 
-                            <div className="form-group">
-                                <label>Đơn vị tính *</label>
-                                <select
-                                    value={formData.unit}
-                                    onChange={(e) => handleChange('unit', e.target.value)}
-                                    disabled={submitting}
+                                <div className="form-group">
+                                    <label>Giá cơ bản (VNĐ)</label>
+                                    <input
+                                        type="number"
+                                        value={catForm.basePrice}
+                                        onChange={(e) => handleCatChange('basePrice', e.target.value)}
+                                        placeholder="Ví dụ: 50000"
+                                        disabled={catSubmitting}
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Đơn vị tính</label>
+                                    <select
+                                        value={catForm.unit}
+                                        onChange={(e) => handleCatChange('unit', e.target.value)}
+                                        disabled={catSubmitting}
+                                    >
+                                        {UNIT_OPTIONS.map((o) => (
+                                            <option key={o.value} value={o.value}>{o.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Mô tả</label>
+                                    <textarea
+                                        rows={3}
+                                        value={catForm.description}
+                                        onChange={(e) => handleCatChange('description', e.target.value)}
+                                        placeholder="Mô tả ngắn về danh mục dịch vụ"
+                                        disabled={catSubmitting}
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    className="btn btn-primary"
+                                    disabled={catSubmitting}
                                 >
-                                    {UNIT_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                            {option.label} ({option.value})
+                                    {catSubmitting
+                                        ? 'Đang xử lý...'
+                                        : isEditCat ? 'Lưu cập nhật' : 'Tạo danh mục'}
+                                </button>
+                            </form>
+                        </section>
+                    </div>
+                )}
+
+                {/* ══════════════════════════════════════════════════════
+                    Tab: Dịch vụ con
+                ══════════════════════════════════════════════════════ */}
+                {activeTab === 'services' && (
+                    <>
+                        {/* Bộ lọc danh mục */}
+                        <div className="smp-filter-bar">
+                            <div className="smp-filter-left">
+                                <label className="filter-label">Danh mục:</label>
+                                <select
+                                    className="filter-select"
+                                    value={selectedCatId}
+                                    onChange={(e) => {
+                                        const nextCatId = e.target.value ? Number(e.target.value) : '';
+                                        setSelectedCatId(nextCatId);
+                                        resetSvcForm(nextCatId);
+                                    }}
+                                >
+                                    <option value="">— Chọn danh mục —</option>
+                                    {categories.map((cat) => (
+                                        <option key={cat.categoryId} value={cat.categoryId}>
+                                            {cat.name}
                                         </option>
                                     ))}
                                 </select>
                             </div>
+                            {selectedCatId && (
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary smp-filter-refresh"
+                                    onClick={() => loadServices(selectedCatId)}
+                                    disabled={svcLoading}
+                                >
+                                    {svcLoading ? 'Đang tải...' : 'Làm mới'}
+                                </button>
+                            )}
+                        </div>
 
-                            <div className="form-group">
-                                <label>Mô tả</label>
-                                <textarea
-                                    rows={4}
-                                    value={formData.description}
-                                    onChange={(e) => handleChange('description', e.target.value)}
-                                    placeholder="Mô tả ngắn về dịch vụ"
-                                    disabled={submitting}
-                                />
-                            </div>
+                        <div className="service-manager-grid">
+                            {/* Danh sách dịch vụ */}
+                            <section className="service-list-card">
+                                <div className="card-header">
+                                    <h2>
+                                        {selectedCatName
+                                            ? `Dịch vụ – ${selectedCatName}`
+                                            : 'Dịch vụ con'}
+                                    </h2>
+                                    <span className="text-muted" style={{ fontSize: '0.85rem' }}>
+                                        {selectedCatId ? `${services.length} dịch vụ` : ''}
+                                    </span>
+                                </div>
 
-                            <div className="form-group checkbox-row">
-                                <input
-                                    id="isActive"
-                                    type="checkbox"
-                                    checked={formData.isActive}
-                                    onChange={(e) => handleChange('isActive', e.target.checked)}
-                                    disabled={submitting}
-                                />
-                                <label htmlFor="isActive">Kích hoạt dịch vụ</label>
-                            </div>
+                                {!selectedCatId ? (
+                                    <div className="empty-hint">
+                                        <p>Chọn một danh mục để xem và quản lý dịch vụ con</p>
+                                    </div>
+                                ) : svcLoading ? (
+                                    <p className="text-muted">Đang tải dữ liệu...</p>
+                                ) : services.length === 0 ? (
+                                    <div className="empty-hint">
+                                        <p>Danh mục này chưa có dịch vụ con nào</p>
+                                    </div>
+                                ) : (
+                                    <div className="table-wrapper">
+                                        <table className="service-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Tên dịch vụ</th>
+                                                    <th>Đơn vị</th>
+                                                    <th>Giá cơ bản</th>
+                                                    <th>Trạng thái</th>
+                                                    <th className="action-col">Thao tác</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {services.map((svc, idx) => (
+                                                    <tr
+                                                        key={svc.serviceId ?? `svc-${idx}`}
+                                                        className={editingServiceId === svc.serviceId ? 'row-editing' : ''}
+                                                    >
+                                                        <td>
+                                                            <div className="service-name-cell">
+                                                                <div>
+                                                                    <div className="cell-name">{svc.name}</div>
+                                                                    {svc.description && (
+                                                                        <div className="cell-sub">{svc.description}</div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td>{svc.unit}</td>
+                                                        <td>{formatMoney(svc.basePrice)} VNĐ</td>
+                                                        <td>
+                                                            <span className={`status-badge ${svc.isActive ? 'active' : 'inactive'}`}>
+                                                                {svc.isActive ? 'Hoạt động' : 'Đã tắt'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="action-col">
+                                                            <div className="row-actions">
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-secondary"
+                                                                    onClick={() => handleEditSvc(svc)}
+                                                                >
+                                                                    Sửa
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-danger"
+                                                                    onClick={() => handleDeleteSvc(svc)}
+                                                                >
+                                                                    Xóa
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </section>
 
-                            <button type="submit" className="btn btn-primary" disabled={submitting}>
-                                {submitting
-                                    ? 'Đang xử lý...'
-                                    : isEditMode
-                                        ? 'Lưu cập nhật'
-                                        : 'Tạo dịch vụ'}
-                            </button>
-                        </form>
-                    </section>
-                </div>
+                            {/* Form dịch vụ */}
+                            <section className="service-form-card">
+                                <div className="card-header">
+                                    <h2>
+                                        {isEditSvc
+                                            ? `Sửa dịch vụ #${editingServiceId}`
+                                            : 'Tạo dịch vụ mới'}
+                                    </h2>
+                                    {isEditSvc && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            onClick={resetSvcForm}
+                                            disabled={svcSubmitting}
+                                        >
+                                            Hủy
+                                        </button>
+                                    )}
+                                </div>
+
+                                <form className="service-form" onSubmit={handleSubmitSvc}>
+                                    <div className="form-group">
+                                        <label>Danh mục *</label>
+                                        <select
+                                            value={svcForm.categoryId}
+                                            onChange={(e) => handleSvcChange('categoryId', e.target.value)}
+                                            disabled={svcSubmitting}
+                                        >
+                                            <option value="">— Chọn danh mục —</option>
+                                            {categories.map((cat) => (
+                                                <option key={cat.categoryId} value={cat.categoryId}>
+                                                    {cat.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Tên dịch vụ *</label>
+                                        <input
+                                            type="text"
+                                            value={svcForm.name}
+                                            onChange={(e) => handleSvcChange('name', e.target.value)}
+                                            placeholder="Ví dụ: Dọn nhà theo giờ"
+                                            maxLength={100}
+                                            disabled={svcSubmitting}
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Giá cơ bản (VNĐ) *</label>
+                                        <input
+                                            type="number"
+                                            value={svcForm.basePrice}
+                                            onChange={(e) => handleSvcChange('basePrice', e.target.value)}
+                                            placeholder="80000"
+                                            disabled={svcSubmitting}
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Đơn vị tính *</label>
+                                        <select
+                                            value={svcForm.unit}
+                                            onChange={(e) => handleSvcChange('unit', e.target.value)}
+                                            disabled={svcSubmitting}
+                                        >
+                                            {UNIT_OPTIONS.map((o) => (
+                                                <option key={o.value} value={o.value}>{o.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Mô tả</label>
+                                        <textarea
+                                            rows={3}
+                                            value={svcForm.description}
+                                            onChange={(e) => handleSvcChange('description', e.target.value)}
+                                            placeholder="Mô tả ngắn về dịch vụ"
+                                            disabled={svcSubmitting}
+                                        />
+                                    </div>
+
+                                    <div className="form-group checkbox-row">
+                                        <input
+                                            id="svcIsActive"
+                                            type="checkbox"
+                                            checked={svcForm.isActive}
+                                            onChange={(e) => handleSvcChange('isActive', e.target.checked)}
+                                            disabled={svcSubmitting}
+                                        />
+                                        <label htmlFor="svcIsActive">Kích hoạt dịch vụ</label>
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        className="btn btn-primary"
+                                        disabled={svcSubmitting}
+                                    >
+                                        {svcSubmitting
+                                            ? 'Đang xử lý...'
+                                            : isEditSvc ? 'Lưu cập nhật' : 'Tạo dịch vụ'}
+                                    </button>
+                                </form>
+                            </section>
+                        </div>
+                    </>
+                )}
             </div>
         </AdminLayout>
     );

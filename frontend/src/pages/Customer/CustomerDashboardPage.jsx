@@ -100,10 +100,12 @@ const CustomerDashboardPage = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [serviceCategories, setServiceCategories] = useState([]);
     const [categoryPage, setCategoryPage] = useState(0);
+    const [isShowingAllCategories, setIsShowingAllCategories] = useState(false);
     const PAGE_SIZE = 6;
     const totalPages = Math.max(1, Math.ceil(serviceCategories.length / PAGE_SIZE));
     const startIndex = categoryPage * PAGE_SIZE;
     const visibleCategories = serviceCategories.slice(startIndex, startIndex + PAGE_SIZE);
+    const displayedCategories = isShowingAllCategories ? serviceCategories : visibleCategories;
     const canSlidePrev = categoryPage > 0;
     const canSlideNext = categoryPage < totalPages - 1;
 
@@ -113,14 +115,22 @@ const CustomerDashboardPage = () => {
         const fetchServices = async () => {
             try {
                 const res = await HelperRegistrationService.getServices();
-                const rawServices = Array.isArray(res) ? res : (res?.data || []);
-                const normalized = rawServices
-                    .map((service, index) => ({
-                        id: service?.id ?? service?.serviceId ?? `service-${index}`,
-                        label: service?.name ?? service?.serviceName ?? 'Dịch vụ',
-                        color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
-                        icon: getServiceIcon(service?.name ?? service?.serviceName ?? ''),
-                    }))
+                const rawItems = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+                const normalized = rawItems
+                    .map((item, index) => {
+                        const label =
+                            item?.categoryName ??
+                            item?.name ??
+                            item?.serviceName ??
+                            '';
+
+                        return {
+                            id: item?.categoryId ?? item?.id ?? item?.serviceId ?? `category-${index}`,
+                            label,
+                            color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+                            icon: getServiceIcon(label),
+                        };
+                    })
                     .filter((item) => item.label && item.label.trim().length > 0);
 
                 if (isMounted) {
@@ -174,19 +184,30 @@ const CustomerDashboardPage = () => {
                 <section className="cdb-section">
                     <div className="cdb-section-header">
                         <h2 className="cdb-section-title">Danh mục dịch vụ</h2>
-                        <a className="cdb-section-link" href="#">Xem tất cả &rsaquo;</a>
+                        <a
+                            className="cdb-section-link"
+                            href="#"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                setIsShowingAllCategories((prev) => !prev);
+                            }}
+                        >
+                            {isShowingAllCategories ? 'Thu gọn' : 'Xem tất cả'} &rsaquo;
+                        </a>
                     </div>
                     <div className="cdb-categories-carousel">
-                        <button
-                            className="cdb-category-nav"
-                            aria-label="Xem nhóm dịch vụ trước"
-                            onClick={() => setCategoryPage((prev) => Math.max(0, prev - 1))}
-                            disabled={!canSlidePrev}
-                        >
-                            &lsaquo;
-                        </button>
+                        {!isShowingAllCategories && (
+                            <button
+                                className="cdb-category-nav"
+                                aria-label="Xem nhóm dịch vụ trước"
+                                onClick={() => setCategoryPage((prev) => Math.max(0, prev - 1))}
+                                disabled={!canSlidePrev}
+                            >
+                                &lsaquo;
+                            </button>
+                        )}
                         <div className="cdb-categories-grid">
-                            {visibleCategories.map(cat => (
+                            {displayedCategories.map(cat => (
                                 <button key={cat.id} className="cdb-category-card">
                                     <div className="cdb-category-icon" style={{ backgroundColor: cat.color }}>
                                         {cat.icon}
@@ -198,14 +219,16 @@ const CustomerDashboardPage = () => {
                                 <p className="cdb-empty-note">Chưa có danh mục dịch vụ.</p>
                             )}
                         </div>
-                        <button
-                            className="cdb-category-nav"
-                            aria-label="Xem nhóm dịch vụ tiếp theo"
-                            onClick={() => setCategoryPage((prev) => Math.min(totalPages - 1, prev + 1))}
-                            disabled={!canSlideNext}
-                        >
-                            &rsaquo;
-                        </button>
+                        {!isShowingAllCategories && (
+                            <button
+                                className="cdb-category-nav"
+                                aria-label="Xem nhóm dịch vụ tiếp theo"
+                                onClick={() => setCategoryPage((prev) => Math.min(totalPages - 1, prev + 1))}
+                                disabled={!canSlideNext}
+                            >
+                                &rsaquo;
+                            </button>
+                        )}
                     </div>
                 </section>
 

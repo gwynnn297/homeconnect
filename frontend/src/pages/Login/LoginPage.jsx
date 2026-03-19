@@ -1,36 +1,60 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 import logoHomieConnect from '../../assets/LogoHomieConnect.png';
 import AuthService from '../../services/AuthService';
 import NotificationModal from '../../components/NotificationModal';
-import { generateCaptcha, isCaptchaValid } from '../../utils/captchaUtils';
 
 const LoginPage = () => {
     const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [captchaInput, setCaptchaInput] = useState('');
-    const [captchaCode, setCaptchaCode] = useState(() => generateCaptcha());
+    const [captchaCode, setCaptchaCode] = useState('');
+    const [captchaId, setCaptchaId] = useState('');
+    const [isLoadingCaptcha, setIsLoadingCaptcha] = useState(false);
     const [notification, setNotification] = useState(null); // { type, message }
 
-    const refreshCaptcha = () => {
-        setCaptchaCode(generateCaptcha());
+    const refreshCaptcha = async () => {
+        try {
+            setIsLoadingCaptcha(true);
+            const response = await AuthService.getCaptcha();
+            setCaptchaCode(response?.captchaText || '');
+            setCaptchaId(response?.captchaId || '');
+        } catch (error) {
+            setCaptchaCode('');
+            setCaptchaId('');
+            setNotification({
+                type: 'error',
+                message: error?.message || 'Không thể tải captcha. Vui lòng thử lại.'
+            });
+        } finally {
+            setIsLoadingCaptcha(false);
+        }
+
         setCaptchaInput('');
     };
+
+    useEffect(() => {
+        refreshCaptcha();
+    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setNotification(null);
 
-        if (!isCaptchaValid(captchaInput, captchaCode)) {
-            setNotification({ type: 'error', message: 'Captcha không đúng. Vui lòng nhập lại.' });
-            refreshCaptcha();
+        if (!captchaId || !captchaCode) {
+            setNotification({ type: 'error', message: 'Captcha chưa sẵn sàng. Vui lòng tải lại mã.' });
             return;
         }
 
         try {
-            const response = await AuthService.login({ email, password });
+            const response = await AuthService.login({
+                email,
+                password,
+                captchaId,
+                captchaCode: captchaInput
+            });
 
             if (response.accessToken) {
                 localStorage.setItem('user', JSON.stringify(response.user));
@@ -52,6 +76,7 @@ const LoginPage = () => {
         } catch (err) {
             console.error(err);
             setNotification({ type: 'error', message: err.message || 'Có lỗi xảy ra khi đăng nhập' });
+            refreshCaptcha();
         }
     };
 
@@ -140,7 +165,7 @@ const LoginPage = () => {
                         <label htmlFor="captcha">Captcha</label>
                         <div className="captcha-wrap">
                             <div className="captcha-code" aria-label="Mã captcha">
-                                {captchaCode}
+                                {isLoadingCaptcha ? 'Đang tải...' : (captchaCode || '-----')}
                             </div>
                             <button
                                 type="button"
@@ -148,6 +173,7 @@ const LoginPage = () => {
                                 onClick={refreshCaptcha}
                                 title="Đổi mã captcha"
                                 aria-label="Đổi mã captcha"
+                                disabled={isLoadingCaptcha}
                             >
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <polyline points="23 4 23 10 17 10" />

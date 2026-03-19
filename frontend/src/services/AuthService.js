@@ -42,6 +42,14 @@ const AuthService = {
     },
 
     /**
+     * Lấy captcha cho đăng nhập
+     * Endpoint: GET /api/auth/captcha
+     */
+    getCaptcha: async () => {
+        return apiClient.get('/api/auth/captcha');
+    },
+
+    /**
      * Quên mật khẩu - Gửi OTP
      * Endpoint: POST /api/auth/forgot-password
      * 
