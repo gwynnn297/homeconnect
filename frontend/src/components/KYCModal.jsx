@@ -17,7 +17,7 @@ const normalizeCategoryOptions = (rawData) => {
                     .map((s) => Number(s?.id ?? s?.serviceId ?? s?.service_id))
                     .filter((id) => Number.isInteger(id) && id > 0)
                 : [];
-            if (!categoryName || serviceIds.length === 0) return null;
+            if (!Number.isInteger(categoryId) || categoryId <= 0 || !categoryName) return null;
             return { categoryId, categoryName, serviceIds };
         })
         .filter(Boolean);
@@ -47,6 +47,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         currentAddress: '',
         workingDistrictCodes: [],
         serviceIds: [],
+        selectedCategoryIds: [],
         latitude: 16.0544,  // Default Da Nang
         longitude: 108.2022,
         // Stage 2
@@ -104,6 +105,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             currentAddress: '',
             workingDistrictCodes: [],
             serviceIds: [],
+            selectedCategoryIds: [],
             latitude: 16.0544,
             longitude: 108.2022,
             identityNumber: '',
@@ -304,20 +306,35 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         if (error) setError('');
     };
 
-    const toggleCategory = (categoryServiceIds) => {
+    const mapCategoryIdsToServiceIds = (categoryIds) => {
+        const selectedSet = new Set((categoryIds || []).map(Number));
+        const nextServiceIds = [];
+        services.forEach((cat) => {
+            if (!selectedSet.has(Number(cat.categoryId))) return;
+            (cat.serviceIds || []).forEach((id) => nextServiceIds.push(Number(id)));
+        });
+        return Array.from(new Set(nextServiceIds)).filter((id) => Number.isInteger(id) && id > 0);
+    };
+
+    const toggleCategory = (categoryId) => {
         setFormData(prev => {
-            const allSelected = categoryServiceIds.every(id => prev.serviceIds.includes(id));
-            if (allSelected) {
-                return { ...prev, serviceIds: prev.serviceIds.filter(id => !categoryServiceIds.includes(id)) };
-            }
-            const merged = [...prev.serviceIds, ...categoryServiceIds.filter(id => !prev.serviceIds.includes(id))];
-            return { ...prev, serviceIds: merged };
+            const normalizedId = Number(categoryId);
+            const currentlySelected = prev.selectedCategoryIds.includes(normalizedId);
+            const nextCategoryIds = currentlySelected
+                ? prev.selectedCategoryIds.filter((id) => id !== normalizedId)
+                : [...prev.selectedCategoryIds, normalizedId];
+
+            return {
+                ...prev,
+                selectedCategoryIds: nextCategoryIds,
+                serviceIds: mapCategoryIdsToServiceIds(nextCategoryIds),
+            };
         });
         if (error) setError('');
     };
 
-    const isCategorySelected = (categoryServiceIds) =>
-        categoryServiceIds.length > 0 && categoryServiceIds.every(id => formData.serviceIds.includes(id));
+    const isCategorySelected = (categoryId) =>
+        formData.selectedCategoryIds.includes(Number(categoryId));
 
     const handleSelectAddressSuggestion = async (suggestion) => {
         const streetOnly = suggestion.structured_formatting?.main_text || suggestion.description;
@@ -964,7 +981,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                     gap: '0.75rem'
                                 }}>
                                     {services.map((cat) => {
-                                        const selected = isCategorySelected(cat.serviceIds);
+                                        const selected = isCategorySelected(cat.categoryId);
                                         return (
                                             <label
                                                 key={cat.categoryId}
@@ -983,7 +1000,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                                 <input
                                                     type="checkbox"
                                                     checked={selected}
-                                                    onChange={() => toggleCategory(cat.serviceIds)}
+                                                    onChange={() => toggleCategory(cat.categoryId)}
                                                     style={{ accentColor: '#346252', width: '16px', height: '16px', flexShrink: 0 }}
                                                 />
                                                 <span style={{ fontSize: '0.9rem', fontWeight: selected ? '600' : '400', color: selected ? '#1b4332' : '#334155' }}>

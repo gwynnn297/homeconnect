@@ -5,6 +5,16 @@ const SCHEDULE_BASE_URL = '/api/v1/schedules';
 const buildOptionalParams = (params) =>
     Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== null));
 
+const sanitizeSlotRequest = (slot) => {
+    if (!slot) return null;
+    // DTO ScheduleSlotRequest chỉ có startTime/endTime.
+    // Frontend có thể đang truyền thêm `id` -> loại bỏ để khớp backend.
+    return {
+        startTime: slot.startTime,
+        endTime: slot.endTime
+    };
+};
+
 const HelperScheduleService = {
     /**
      * Đăng ký lịch rảnh hàng loạt
@@ -21,7 +31,13 @@ const HelperScheduleService = {
      * @param {Object} data - ScheduleUpdateDayRequest
      */
     updateDaySchedule: async (data) => {
-        return apiClient.put(`${SCHEDULE_BASE_URL}/day`, data);
+        const payload = {
+            ...data,
+            slots: Array.isArray(data?.slots)
+                ? data.slots.map(sanitizeSlotRequest).filter(Boolean)
+                : []
+        };
+        return apiClient.put(`${SCHEDULE_BASE_URL}/day`, payload);
     },
 
     /**
@@ -31,7 +47,10 @@ const HelperScheduleService = {
      * @param {Array<Object>} newSlots - Danh sách ScheduleSlotRequest mới
      */
     updateGroupSchedule: async (scheduleId, newSlots) => {
-        return apiClient.put(`${SCHEDULE_BASE_URL}/${scheduleId}/group`, newSlots);
+        const slotsPayload = Array.isArray(newSlots)
+            ? newSlots.map(sanitizeSlotRequest).filter(Boolean)
+            : [];
+        return apiClient.put(`${SCHEDULE_BASE_URL}/${scheduleId}/group`, slotsPayload);
     },
 
     /**
@@ -84,7 +103,7 @@ const HelperScheduleService = {
      * @param {string} reason - Lý do nghỉ
      */
     cancelSchedule: async (scheduleId, reason) => {
-        return apiClient.patch(`${SCHEDULE_BASE_URL}/${scheduleId}/cancel`, { reason });
+        return apiClient.patch(`${SCHEDULE_BASE_URL}/${scheduleId}/cancel`, { reason: reason ?? 'No reason provided' });
     },
 
     /**
@@ -94,7 +113,7 @@ const HelperScheduleService = {
      * @param {string} reason - Lý do nghỉ
      */
     bulkCancelSchedule: async (scheduleId, reason) => {
-        return apiClient.patch(`${SCHEDULE_BASE_URL}/${scheduleId}/cancel-bulk`, { reason });
+        return apiClient.patch(`${SCHEDULE_BASE_URL}/${scheduleId}/cancel-bulk`, { reason: reason ?? 'No reason provided' });
     }
 };
 

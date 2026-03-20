@@ -776,10 +776,28 @@ const ProfessionalProfileTab = () => {
         workProvinceCode: '',      // UI-only: filter for working districts
         workingDistricts: [],      // array of { code, name } objects
         serviceIds: [],
+        selectedCategoryIds: [],   // UI-only: cho phép tick cả category chưa có dịch vụ con
     });
 
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState(null);
+
+    const getSelectedCategoryIdsFromServiceIds = (serviceIds, categories) => {
+        const selectedServiceSet = new Set((serviceIds || []).map(String));
+        return categories
+            .filter((cat) => (cat.serviceIds || []).some((id) => selectedServiceSet.has(String(id))))
+            .map((cat) => String(cat.value));
+    };
+
+    const mapCategoryIdsToServiceIds = (categoryIds, categories) => {
+        const selectedCategorySet = new Set((categoryIds || []).map(String));
+        const nextServiceIds = [];
+        categories.forEach((cat) => {
+            if (!selectedCategorySet.has(String(cat.value))) return;
+            (cat.serviceIds || []).forEach((id) => nextServiceIds.push(String(id)));
+        });
+        return Array.from(new Set(nextServiceIds));
+    };
 
     const toOptionsArr = (res) => {
         const arr = Array.isArray(res) ? res : (res?.data || []);
@@ -803,6 +821,7 @@ const ProfessionalProfileTab = () => {
                     // workingDistricts from backend: [{ code, name, type }]
                     workingDistricts: data.workingDistricts?.map((d) => ({ code: String(d.code), name: d.name })) || [],
                     serviceIds: data.services?.map((s) => String(s.id)) || [],
+                    selectedCategoryIds: [],
                 }));
             })
             .catch((err) => console.error('[ProfessionalTab] fetch failed:', err))
@@ -829,12 +848,37 @@ const ProfessionalProfileTab = () => {
         setLoadingSvc(true);
         HelperRegistrationService.getServices()
             .then((res) => {
-                const arr = Array.isArray(res) ? res : (res?.data || []);
-                setAllServices(arr.map((s) => ({ value: String(s.id), label: s.name })));
+                const arr = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+                const categories = arr
+                    .map((cat) => {
+                        const children = Array.isArray(cat?.services) ? cat.services : [];
+                        return {
+                            value: String(cat?.categoryId ?? cat?.id ?? ''),
+                            label: cat?.categoryName || cat?.name || 'Danh mục dịch vụ',
+                            serviceIds: children
+                                .filter((s) => s?.id != null)
+                                .map((s) => String(s.id)),
+                        };
+                    })
+                    .filter((cat) => cat.value && cat.label);
+
+                setAllServices(categories);
             })
             .catch(() => { })
             .finally(() => setLoadingSvc(false));
     }, []);
+
+    // Đồng bộ tick category từ serviceIds đã đăng ký (chạy khi đã có danh mục)
+    useEffect(() => {
+        if (!allServices.length) return;
+        setForm((f) => {
+            if (Array.isArray(f.selectedCategoryIds) && f.selectedCategoryIds.length > 0) {
+                return f;
+            }
+            const inferred = getSelectedCategoryIdsFromServiceIds(f.serviceIds, allServices);
+            return { ...f, selectedCategoryIds: inferred };
+        });
+    }, [allServices]);
 
     // When workingDistricts loaded from profile, detect workProvinceCode
     // by finding first saved district's code in each province's district list
@@ -931,6 +975,8 @@ const ProfessionalProfileTab = () => {
             </div>
         );
     }
+
+    const selectedCategoryIds = form.selectedCategoryIds || [];
 
     return (
         <div className="hpp-tab-content">
@@ -1125,17 +1171,23 @@ const ProfessionalProfileTab = () => {
                         <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
                     </svg>
                     <span>Dịch vụ cung cấp</span>
-                    <span className="hpp-selected-count">{form.serviceIds.length} dịch vụ đã chọn</span>
+                    <span className="hpp-selected-count">{selectedCategoryIds.length} danh mục đã chọn</span>
                 </div>
 
                 <MultiCheckboxField
                     id="prof-services"
-                    label="Chọn các dịch vụ bạn cung cấp"
+                    label="Chọn các dịch vụ lớn bạn cung cấp"
                     options={allServices}
-                    selectedIds={form.serviceIds.map(String)}
-                    onChange={(ids) => setForm((f) => ({ ...f, serviceIds: ids }))}
+                    selectedIds={selectedCategoryIds}
+                    onChange={(categoryIds) =>
+                        setForm((f) => ({
+                            ...f,
+                            selectedCategoryIds: categoryIds,
+                            serviceIds: mapCategoryIdsToServiceIds(categoryIds, allServices),
+                        }))
+                    }
                     loading={loadingSvc}
-                    emptyText="Không có dịch vụ nào"
+                    emptyText="Không có danh mục dịch vụ nào"
                 />
 
                 <div className="hpp-form-actions">

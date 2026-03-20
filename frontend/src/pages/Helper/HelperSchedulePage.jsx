@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import './HelperSchedulePage.css';
 import HelperLayout from '../../layouts/HelperLayout';
 import HelperScheduleService from '../../services/HelperScheduleService';
@@ -48,19 +48,24 @@ const STATUS_UI_MAP = {
 };
 
 const WEEKDAY_OPTIONS = [
-    { label: 'CN', value: 7 },
-    { label: 'T2', value: 1 },
-    { label: 'T3', value: 2 },
-    { label: 'T4', value: 3 },
-    { label: 'T5', value: 4 },
-    { label: 'T6', value: 5 },
-    { label: 'T7', value: 6 }
+    // Backend expects: 2 (Thứ 2) ... 8 (Chủ nhật)
+    { label: 'CN', value: 8 },
+    { label: 'T2', value: 2 },
+    { label: 'T3', value: 3 },
+    { label: 'T4', value: 4 },
+    { label: 'T5', value: 5 },
+    { label: 'T6', value: 6 },
+    { label: 'T7', value: 7 }
 ];
 
 const getMonthStartDate = (date) => formatIsoDate(new Date(date.getFullYear(), date.getMonth(), 1));
 const getMonthEndDate = (date) => formatIsoDate(new Date(date.getFullYear(), date.getMonth() + 1, 0));
 
-const convertJsDayToApiDay = (jsDay) => (jsDay === 0 ? 7 : jsDay);
+const convertJsDayToApiDay = (jsDay) => {
+    // JS Date.getDay(): 0 (CN) ... 6 (T7)
+    // Backend daysOfWeek: 8 (CN) ... 7 (T7)
+    return jsDay === 0 ? 8 : jsDay + 1;
+};
 const getTodayIsoDate = () => formatIsoDate(new Date());
 const LEAVE_LIMIT_MESSAGE = 'Bạn đã vượt quá giới hạn 3 ca nghỉ trong tháng này.';
 const LEAVE_LIMIT_PATTERN = /vượt quá giới hạn\s*3\s*ca nghỉ/i;
@@ -84,6 +89,7 @@ const HelperSchedulePage = () => {
     });
     const [monthlySchedules, setMonthlySchedules] = useState([]);
     const [activeDayIdx, setActiveDayIdx] = useState(() => getDefaultActiveDayIdx(new Date()));
+    const [dayPageOffset, setDayPageOffset] = useState(() => Math.floor(getDefaultActiveDayIdx(new Date()) / 10) * 10);
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -92,6 +98,8 @@ const HelperSchedulePage = () => {
     const [isAddShiftModalOpen, setIsAddShiftModalOpen] = useState(false);
     const [addShiftError, setAddShiftError] = useState('');
     const [isSubmittingAddShift, setIsSubmittingAddShift] = useState(false);
+    const [addingShiftDay, setAddingShiftDay] = useState(null);
+    const addingShiftDayRef = useRef(null);
     const [addShiftForm, setAddShiftForm] = useState({
         startTime: '08:00',
         endTime: '12:00'
@@ -104,6 +112,7 @@ const HelperSchedulePage = () => {
         endTime: '12:00'
     });
     const [updatingShiftId, setUpdatingShiftId] = useState(null);
+    const [updatingShiftDate, setUpdatingShiftDate] = useState(null);
     const [isBulkUpdateMode, setIsBulkUpdateMode] = useState(false);
     const [openShiftMenuId, setOpenShiftMenuId] = useState(null);
     const [processingShiftId, setProcessingShiftId] = useState(null);
@@ -112,15 +121,30 @@ const HelperSchedulePage = () => {
     const [registerForm, setRegisterForm] = useState(() => ({
         startDate: getMonthStartDate(new Date()),
         endDate: getMonthEndDate(new Date()),
-        daysOfWeek: [1],
+        daysOfWeek: [2], // mặc định Thứ 2
         startTime: '08:00',
         endTime: '12:00'
     }));
+
+    // Chỉ auto-scroll khi user bấm chọn một ngày trong lưới.
+    const [scrollRequest, setScrollRequest] = useState(0);
+
+    const DAYS_PER_PAGE = 11;
 
     const monthDays = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
     const todayIsoDate = useMemo(() => getTodayIsoDate(), []);
 
     const selectedDay = monthDays[activeDayIdx];
+
+    const maxDayPageOffset = useMemo(
+        () => Math.floor((monthDays.length - 1) / DAYS_PER_PAGE) * DAYS_PER_PAGE,
+        [monthDays.length]
+    );
+
+    const visibleDayPage = useMemo(
+        () => monthDays.slice(dayPageOffset, dayPageOffset + DAYS_PER_PAGE),
+        [monthDays, dayPageOffset]
+    );
 
     const visibleMonthlySchedules = useMemo(
         () => monthlySchedules,
@@ -222,6 +246,19 @@ const HelperSchedulePage = () => {
     }, [currentMonth]);
 
     useEffect(() => {
+        if (!selectedDay) return;
+        if (scrollRequest === 0) return;
+        const el = document.getElementById(`day-card-${selectedDay.isoDate}`);
+        if (el) {
+            // Tránh bị che bởi header/sticky toolbar (scrollIntoView thường căn đúng mép trên).
+            const HEADER_OFFSET_PX = 90;
+            const targetTop = window.scrollY + el.getBoundingClientRect().top - HEADER_OFFSET_PX;
+            window.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+            setScrollRequest(0);
+        }
+    }, [selectedDay, scrollRequest, dayPageOffset]);
+
+    useEffect(() => {
         const handleOutsideClick = () => {
             setOpenShiftMenuId(null);
         };
@@ -246,6 +283,14 @@ const HelperSchedulePage = () => {
 
     const goToNextMonth = () => {
         setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    };
+
+    const goToPrevDayPage = () => {
+        setDayPageOffset((prev) => Math.max(0, prev - DAYS_PER_PAGE));
+    };
+
+    const goToNextDayPage = () => {
+        setDayPageOffset((prev) => Math.min(maxDayPageOffset, prev + DAYS_PER_PAGE));
     };
 
     const openRegisterModal = () => {
@@ -338,10 +383,13 @@ const HelperSchedulePage = () => {
         }
     };
 
-    const openAddShiftModal = () => {
-        if (!selectedDay) {
+    const openAddShiftModal = (day) => {
+        const targetDay = day || selectedDay;
+        if (!targetDay) {
             return;
         }
+        setAddingShiftDay(targetDay);
+        addingShiftDayRef.current = targetDay;
         setAddShiftForm({
             startTime: '08:00',
             endTime: '12:00'
@@ -356,6 +404,8 @@ const HelperSchedulePage = () => {
         }
         setIsAddShiftModalOpen(false);
         setAddShiftError('');
+        setAddingShiftDay(null);
+        addingShiftDayRef.current = null;
     };
 
     const handleAddShiftFormChange = (field, value) => {
@@ -363,7 +413,8 @@ const HelperSchedulePage = () => {
     };
 
     const handleSubmitAddShift = async () => {
-        if (!selectedDay) {
+        const targetDay = addingShiftDayRef.current || addingShiftDay || selectedDay;
+        if (!targetDay) {
             setAddShiftError('Không tìm thấy ngày để đăng kí ca.');
             return;
         }
@@ -377,12 +428,12 @@ const HelperSchedulePage = () => {
             setIsSubmittingAddShift(true);
             setAddShiftError('');
 
-            const selectedDate = new Date(`${selectedDay.isoDate}T00:00:00`);
-            const dayOfWeek = convertJsDayToApiDay(selectedDate.getDay());
+            const targetDate = new Date(`${targetDay.isoDate}T00:00:00`);
+            const dayOfWeek = convertJsDayToApiDay(targetDate.getDay());
 
             await HelperScheduleService.registerSchedule({
-                startDate: selectedDay.isoDate,
-                endDate: selectedDay.isoDate,
+                startDate: targetDay.isoDate,
+                endDate: targetDay.isoDate,
                 daysOfWeek: [dayOfWeek],
                 slots: [
                     {
@@ -443,6 +494,7 @@ const HelperSchedulePage = () => {
 
         setOpenShiftMenuId(null);
         setUpdatingShiftId(shift.id);
+        setUpdatingShiftDate(shift.workDate || null);
         setIsBulkUpdateMode(isBulk);
         setUpdateShiftForm({
             startTime: formatTime(shift.startTime) || '08:00',
@@ -465,7 +517,8 @@ const HelperSchedulePage = () => {
     };
 
     const handleSubmitUpdateShift = async () => {
-        if (!selectedDay || !updatingShiftId) {
+        const workDate = updatingShiftDate || selectedDay?.isoDate;
+        if (!workDate || !updatingShiftId) {
             setUpdateShiftError('Không tìm thấy ca cần cập nhật.');
             return;
         }
@@ -487,22 +540,22 @@ const HelperSchedulePage = () => {
                     }
                 ]);
             } else {
-                const editableSlotsOfDay = selectedDaySchedules
-                    .filter((item) => item.status === 'AVAILABLE' || item.status === 'CANCELLED')
+                const slotsOfDay = visibleMonthlySchedules
+                    .filter((item) => item.workDate === workDate && (item.status === 'AVAILABLE' || item.status === 'CANCELLED'))
                     .map((item) => ({
                         id: item.id,
                         startTime: formatTime(item.startTime),
                         endTime: formatTime(item.endTime)
                     }));
 
-                const targetSlot = selectedDaySchedules.find((item) => item.id === updatingShiftId);
+                const targetSlot = visibleMonthlySchedules.find((item) => item.id === updatingShiftId);
 
                 if (!targetSlot || (targetSlot.status !== 'AVAILABLE' && targetSlot.status !== 'CANCELLED')) {
                     setUpdateShiftError('Chỉ có thể cập nhật ca ở trạng thái Lịch trống hoặc Đã hủy.');
                     return;
                 }
 
-                const updatedSlots = editableSlotsOfDay.map((slot) => {
+                const updatedSlots = slotsOfDay.map((slot) => {
                     if (slot.id === updatingShiftId) {
                         return {
                             startTime: updateShiftForm.startTime,
@@ -516,7 +569,7 @@ const HelperSchedulePage = () => {
                 });
 
                 await HelperScheduleService.updateDaySchedule({
-                    date: selectedDay.isoDate,
+                    date: workDate,
                     slots: updatedSlots
                 });
             }
@@ -570,6 +623,18 @@ const HelperSchedulePage = () => {
             <div className="schedule-container">
                 <h1 className="schedule-header">Lịch làm việc</h1>
 
+                {/* Info Banner */}
+                <div className="info-banner" onClick={openRegisterModal}>
+                    <div className="banner-content">
+                        <div className="banner-icon">i</div>
+                        <div>
+                            <h3 className="banner-title">Đăng ký lịch </h3>
+                            <p className="banner-subtitle">Tăng cơ hội nhận việc</p>
+                        </div>
+                    </div>
+                    <div className="banner-arrow">›</div>
+                </div>
+
                 {/* Toolbar / Filters Area */}
                 <div className="schedule-filters">
                     <div className="month-navigation">
@@ -593,17 +658,7 @@ const HelperSchedulePage = () => {
                     </div>
                 </div>
 
-                {/* Info Banner */}
-                <div className="info-banner" onClick={openRegisterModal}>
-                    <div className="banner-content">
-                        <div className="banner-icon">i</div>
-                        <div>
-                            <h3 className="banner-title">Đăng ký lịch </h3>
-                            <p className="banner-subtitle">Tăng cơ hội nhận việc</p>
-                        </div>
-                    </div>
-                    <div className="banner-arrow">›</div>
-                </div>
+                
 
                 {/* Days Overview Grid based on Date Range */}
                 <div className="days-overview-container">
@@ -617,27 +672,54 @@ const HelperSchedulePage = () => {
                             Đăng kí
                         </button>
                     </div>
-                    <div className="days-overview-grid">
-                        {monthDays.map((day, idx) => {
-                            const hasRegisteredSchedules = registeredDateSet.has(day.isoDate);
-                            const dayStatus = dayScheduleStatusMap[day.isoDate];
-                            const isMixedScheduleDay = Boolean(dayStatus?.hasCancelled && dayStatus?.hasAvailable);
-                            const isCancelledOnlyDay = Boolean(dayStatus?.hasCancelled && !dayStatus?.hasActive);
+                    <div className="days-overview-pager">
+                        <button
+                            type="button"
+                            className="days-page-nav-button"
+                            onClick={goToPrevDayPage}
+                            disabled={dayPageOffset === 0}
+                            aria-label="Trang ngày trước"
+                        >
+                            ‹
+                        </button>
+                        <div className="days-overview-grid">
+                            {visibleDayPage.map((day) => {
+                                const idx = monthDays.indexOf(day);
+                                const hasRegisteredSchedules = registeredDateSet.has(day.isoDate);
+                                const dayStatus = dayScheduleStatusMap[day.isoDate];
+                                const isMixedScheduleDay = Boolean(dayStatus?.hasCancelled && dayStatus?.hasAvailable);
+                                const isCancelledOnlyDay = Boolean(dayStatus?.hasCancelled && !dayStatus?.hasActive);
 
-                            return (
-                                <div
-                                    key={day.isoDate}
-                                    className={`day-item ${hasRegisteredSchedules ? 'has-schedule' : ''} ${isCancelledOnlyDay ? 'cancelled-only' : ''} ${isMixedScheduleDay ? 'mixed-schedule' : ''} ${idx === activeDayIdx ? 'active' : ''}`}
-                                    onClick={() => setActiveDayIdx(idx)}
-                                >
-                                    <div className="day-name">{day.dayName}</div>
-                                    <div className="day-date">{day.dateText}</div>
-                                    {(hasRegisteredSchedules || isCancelledOnlyDay) && (
-                                        <div className={`day-registered-dot ${isMixedScheduleDay ? 'mixed' : ''} ${isCancelledOnlyDay ? 'cancelled' : ''}`}></div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                return (
+                                    <div
+                                        key={day.isoDate}
+                                        className={`day-item ${hasRegisteredSchedules ? 'has-schedule' : ''} ${isCancelledOnlyDay ? 'cancelled-only' : ''} ${isMixedScheduleDay ? 'mixed-schedule' : ''} ${idx === activeDayIdx ? 'active' : ''}`}
+                                    onClick={() => {
+                                        setActiveDayIdx(idx);
+                                        setScrollRequest((r) => r + 1);
+                                    }}
+                                    >
+                                        <div className="day-name">{day.dayName}</div>
+                                        <div className="day-date">{day.dateText}</div>
+                                        {(hasRegisteredSchedules || isCancelledOnlyDay) && (
+                                            <div className={`day-registered-dot ${isMixedScheduleDay ? 'mixed' : ''} ${isCancelledOnlyDay ? 'cancelled' : ''}`}></div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <button
+                            type="button"
+                            className="days-page-nav-button"
+                            onClick={goToNextDayPage}
+                            disabled={dayPageOffset >= maxDayPageOffset}
+                            aria-label="Trang ngày sau"
+                        >
+                            ›
+                        </button>
+                    </div>
+                    <div className="days-pager-indicator">
+                        {Math.floor(dayPageOffset / DAYS_PER_PAGE) + 1} / {Math.ceil(monthDays.length / DAYS_PER_PAGE)}
                     </div>
                 </div>
 
@@ -653,110 +735,124 @@ const HelperSchedulePage = () => {
                             <div className="schedule-message error">{errorMessage}</div>
                         )}
 
-                        {!isLoading && !errorMessage && selectedDay && (
-                            <div className="day-card">
-                                <div className="day-card-header">
-                                    <div className="day-card-header-left">
-                                        <span className="header-icon">📅</span>
-                                        {selectedDay.fullDateText}
-                                    </div>
-                                    <div className="day-card-header-actions">
-                                        <button
-                                            type="button"
-                                            className="add-shift-button"
-                                            onClick={openAddShiftModal}
-                                            title="Đăng kí thêm ca cho ngày này"
-                                            aria-label="Đăng kí thêm ca cho ngày này"
+                        {!isLoading && !errorMessage && monthDays.map((day, idx) => {
+                            const daySchedules = visibleMonthlySchedules
+                                .filter((item) => item.workDate === day.isoDate)
+                                .sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+
+                            return (
+                                <div
+                                    key={day.isoDate}
+                                    className={`day-card ${idx === activeDayIdx ? 'active' : ''}`}
+                                    id={`day-card-${day.isoDate}`}
+                                >
+                                    <div className="day-card-header">
+                                        <div
+                                            className="day-card-header-left"
+                                            onClick={() => setActiveDayIdx(idx)}
+                                            style={{ cursor: 'pointer' }}
                                         >
-                                            +
-                                        </button>
+                                            <span className="header-icon">📅</span>
+                                            {day.fullDateText}
+                                        </div>
+                                        <div className="day-card-header-actions">
+                                            <button
+                                                type="button"
+                                                className="add-shift-button"
+                                                onClick={() => openAddShiftModal(day)}
+                                                title="Đăng kí thêm ca cho ngày này"
+                                                aria-label="Đăng kí thêm ca cho ngày này"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
 
-                                {selectedDaySchedules.length > 0 ? (
-                                    <div className="shift-list">
-                                        {selectedDaySchedules.map((shift) => {
-                                            const statusUi = STATUS_UI_MAP[shift.status] || {
-                                                typeText: shift.status || 'Không xác định',
-                                                typeClass: 'unregistered'
-                                            };
+                                    {daySchedules.length > 0 ? (
+                                        <div className="shift-list">
+                                            {daySchedules.map((shift) => {
+                                                const statusUi = STATUS_UI_MAP[shift.status] || {
+                                                    typeText: shift.status || 'Không xác định',
+                                                    typeClass: 'unregistered'
+                                                };
 
-                                            return (
-                                                <div key={shift.id} className="shift-item">
-                                                    <div className="shift-info">
-                                                        <div className={`status-dot ${statusUi.typeClass}`}></div>
-                                                        <div className="shift-time-details">
-                                                            <div className="shift-time">
-                                                                {formatTime(shift.startTime)} - {formatTime(shift.endTime)}
-                                                            </div>
-                                                            <div className={`shift-status-text ${statusUi.typeClass}`}>
-                                                                {statusUi.typeText}
+                                                return (
+                                                    <div key={shift.id} className="shift-item">
+                                                        <div className="shift-info">
+                                                            <div className={`status-dot ${statusUi.typeClass}`}></div>
+                                                            <div className="shift-time-details">
+                                                                <div className="shift-time">
+                                                                    {formatTime(shift.startTime)} - {formatTime(shift.endTime)}
+                                                                </div>
+                                                                <div className={`shift-status-text ${statusUi.typeClass}`}>
+                                                                    {statusUi.typeText}
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="shift-action-wrapper" onClick={(event) => event.stopPropagation()}>
-                                                        <button
-                                                            type="button"
-                                                            className="shift-action"
-                                                            onClick={(event) => toggleShiftMenu(event, shift.id)}
-                                                            disabled={processingShiftId === shift.id}
-                                                        >
-                                                            {processingShiftId === shift.id ? '...' : '⋮'}
-                                                        </button>
-
-                                                        {openShiftMenuId === shift.id && (
-                                                            <div
-                                                                className="shift-action-dropdown"
-                                                                style={shiftMenuStyle}
+                                                        <div className="shift-action-wrapper" onClick={(event) => event.stopPropagation()}>
+                                                            <button
+                                                                type="button"
+                                                                className="shift-action"
+                                                                onClick={(event) => toggleShiftMenu(event, shift.id)}
+                                                                disabled={processingShiftId === shift.id}
                                                             >
-                                                                <button
-                                                                    type="button"
-                                                                    className="shift-action-dropdown-item"
-                                                                    onClick={() => openUpdateShiftModal(shift, false)}
-                                                                >
-                                                                    Cập nhật ca này
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    className="shift-action-dropdown-item"
-                                                                    onClick={() => openUpdateShiftModal(shift, true)}
-                                                                >
-                                                                    Cập nhật nhiều ca
-                                                                </button>
-                                                                {shift.status !== 'CANCELLED' && (
-                                                                    <>
-                                                                        <button
-                                                                            type="button"
-                                                                            className="shift-action-dropdown-item"
-                                                                            onClick={() => handleCancelAction(shift.id, false)}
-                                                                        >
-                                                                            Hủy đăng kí ca này
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            className="shift-action-dropdown-item"
-                                                                            onClick={() => handleCancelAction(shift.id, true)}
-                                                                        >
-                                                                            Hủy đăng kí nhiều ca
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                ) : (
-                                    <div className="empty-shift-message">
-                                        Không có khung giờ đăng kí cho ngày này.
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                                                                {processingShiftId === shift.id ? '...' : '⋮'}
+                                                            </button>
 
-                        {!isLoading && !errorMessage && !selectedDay && (
+                                                            {openShiftMenuId === shift.id && (
+                                                                <div
+                                                                    className="shift-action-dropdown"
+                                                                    style={shiftMenuStyle}
+                                                                >
+                                                                    <button
+                                                                        type="button"
+                                                                        className="shift-action-dropdown-item"
+                                                                        onClick={() => openUpdateShiftModal(shift, false)}
+                                                                    >
+                                                                        Cập nhật ca này
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="shift-action-dropdown-item"
+                                                                        onClick={() => openUpdateShiftModal(shift, true)}
+                                                                    >
+                                                                        Cập nhật nhiều ca
+                                                                    </button>
+                                                                    {shift.status !== 'CANCELLED' && (
+                                                                        <>
+                                                                            <button
+                                                                                type="button"
+                                                                                className="shift-action-dropdown-item"
+                                                                                onClick={() => handleCancelAction(shift.id, false)}
+                                                                            >
+                                                                                Hủy đăng kí ca này
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                className="shift-action-dropdown-item"
+                                                                                onClick={() => handleCancelAction(shift.id, true)}
+                                                                            >
+                                                                                Hủy đăng kí nhiều ca
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="empty-shift-message">
+                                            Chưa có ca đăng kí.
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+
+                        {!isLoading && !errorMessage && monthDays.length === 0 && (
                             <div className="schedule-message">
                                 Không có dữ liệu ngày trong tháng này.
                             </div>
