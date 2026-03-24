@@ -1,7 +1,6 @@
 package com.homeconnect.core.dto.request.admin;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.homeconnect.core.enums.ServiceUnit;
 import jakarta.validation.constraints.Positive;
 import lombok.*;
 
@@ -23,11 +22,10 @@ public class UpdateServiceRequest {
     @JsonProperty("base_price")
     private BigDecimal basePrice;
 
-    private ServiceUnit unit;
 
     private String description;
 
-    private String note;
+
     
     @JsonProperty("is_active")
     private Boolean isActive;

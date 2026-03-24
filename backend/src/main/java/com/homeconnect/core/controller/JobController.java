@@ -41,8 +41,10 @@ public class JobController {
     public ResponseEntity<ApiResponse<EstimatePriceResponse>> estimatePrice(
             @Valid @RequestBody EstimatePriceRequest request) {
 
-        log.info("Received estimate price request: serviceId={}, durationHours={}",
-                request.getServiceId(), request.getDurationHours());
+        log.info("Received estimate price request: categoryId={}, serviceIds={}, durationHours={}",
+                request.getCategoryId(), request.getServiceIds(), request.getDurationHours());
+
+
 
         EstimatePriceResponse response = jobService.estimatePrice(request);
 
@@ -65,8 +67,10 @@ public class JobController {
 
         Long customerId = securityUtil.getCurrentUserId(authentication);
 
-        log.info("Customer {} creating job post for service {}",
-                customerId, request.getServiceId());
+        log.info("Customer {} creating job post for category {} (services {})",
+                customerId, request.getCategoryId(), request.getServiceIds());
+
+
 
         JobPostResponse response = jobService.createJobPost(request, customerId);
 

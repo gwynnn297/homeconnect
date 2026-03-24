@@ -52,4 +52,16 @@ public interface HelperScheduleRepository extends JpaRepository<HelperSchedule, 
                                                  @Param("statuses") List<ScheduleStatus> statuses);
 
     long countByHelperIdAndStatusAndWorkDateBetween(Long helperId, ScheduleStatus status, LocalDate startDate, LocalDate endDate);
+
+    @Query("SELECT COUNT(hs) FROM HelperSchedule hs " +
+           "WHERE hs.helper.id = :helperId " +
+           "AND hs.workDate = :workDate " +
+           "AND hs.status = 'AVAILABLE' " +
+           "AND hs.startTime <= :startTime " +
+           "AND hs.endTime >= :endTime ")
+    long countAvailableSchedules(@Param("helperId") Long helperId,
+                                 @Param("workDate") java.time.LocalDate workDate,
+                                 @Param("startTime") java.time.LocalTime startTime,
+                                 @Param("endTime") java.time.LocalTime endTime);
 }
+

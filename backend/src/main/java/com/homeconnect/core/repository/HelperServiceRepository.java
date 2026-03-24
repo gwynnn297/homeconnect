@@ -17,4 +17,7 @@ public interface HelperServiceRepository extends JpaRepository<HelperService, In
 
     // Admin: đếm số lượng service của helper
     long countByHelper_Id(Long helperId);
+
+    // Kiểm tra helper có đăng ký danh mục cha này không
+    boolean existsByHelper_IdAndCategory_CategoryId(Long helperId, Integer categoryId);
 }

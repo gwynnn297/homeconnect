@@ -1,6 +1,8 @@
 package com.homeconnect.core.dto.request;
 
 import jakarta.validation.constraints.*;
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,9 +22,14 @@ import java.time.LocalTime;
 @AllArgsConstructor
 public class CreateJobPostRequest {
 
-    @NotNull(message = "Service ID không được để trống")
-    @Positive(message = "Service ID phải là số dương")
-    private Integer serviceId;
+    @Schema(description = "Danh sách ID dịch vụ con (extra services)", example = "[6, 7]")
+    private java.util.List<Integer> serviceIds;
+
+
+    @NotNull(message = "Category ID (Cha) không được để trống")
+    @Schema(description = "Category ID (Cha) - Bắt buộc", example = "1")
+    private Integer categoryId;
+
 
     @NotNull(message = "Ngày làm việc không được để trống")
     @FutureOrPresent(message = "Ngày làm việc không được ở quá khứ")
@@ -37,8 +44,9 @@ public class CreateJobPostRequest {
     private Integer durationHours;
 
     @NotBlank(message = "Địa chỉ chi tiết không được để trống")
-    @Size(max = 500, message = "Địa chỉ chi tiết không được vượt quá 500 ký tự")
+    @Size(min = 10, max = 500, message = "Địa chỉ chi tiết phải có ít nhất 10 ký tự (ví dụ: '123 Nguyễn Huệ, Quận 1, TP.HCM')")
     private String addressDetail;
+
 
     // Optional: FE có thể gửi, nhưng backend sẽ tự geocode lại từ địa chỉ để đảm
     // bảo nhất quán
@@ -56,4 +64,8 @@ public class CreateJobPostRequest {
 
     @Size(max = 1000, message = "Mô tả không được vượt quá 1000 ký tự")
     private String description;
+
+
 }
+
+

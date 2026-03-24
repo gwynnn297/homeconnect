@@ -35,8 +35,8 @@ public class JobPost {
     @Column(name = "customer_id", nullable = false)
     private Long customerId;
 
-    @Column(name = "service_id", nullable = false)
-    private Integer serviceId;
+
+
 
     @Column(name = "title")
     private String title;
@@ -69,6 +69,20 @@ public class JobPost {
     @Column(name = "status", length = 20)
     private String status = "PUBLISHED"; // PUBLISHED, ASSIGNED, COMPLETED, CANCELLED, EXPIRED
 
+    @Column(name = "service_id", length = 255)
+    private String serviceId;
+
+
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", nullable = false)
+    private ServiceCategory category;
+
+
+
+
+
+
     @CreationTimestamp
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -76,12 +90,7 @@ public class JobPost {
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
-    // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", referencedColumnName = "id", insertable = false, updatable = false)
     private User customer;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "service_id", referencedColumnName = "service_id", insertable = false, updatable = false)
-    private Service service;
 }

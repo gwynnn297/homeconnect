@@ -31,9 +31,11 @@ public class HelperRegistrationService {
     private final UserRepository userRepository;
     private final HelperProfileRepository helperProfileRepository;
     private final ServiceRepository serviceRepository;
+    private final ServiceCategoryRepository serviceCategoryRepository;
     private final AddressRepository addressRepository;
 
     private final ExternalLocationService externalLocationService;
+
     private final GeocodingService geocodingService;
 
     @Transactional
@@ -63,12 +65,13 @@ public class HelperRegistrationService {
             draft = new RegistrationDraft();
         }
 
-        // Kiểm tra danh sách Dịch vụ
-        for (Integer sId : request.getServiceIds()) {
-            if (!serviceRepository.existsById(sId)) {
-                throw new RuntimeException("Dịch vụ không hợp lệ: " + sId);
+        // Kiểm tra danh mục Dịch vụ (Cha)
+        for (Integer catId : request.getCategoryIds()) {
+            if (!serviceCategoryRepository.existsById(catId)) {
+                throw new RuntimeException("Danh mục không hợp lệ: " + catId);
             }
         }
+
 
         // Update draft với Stage 1 data
         draft.setDateOfBirth(request.getDateOfBirth());
@@ -80,7 +83,8 @@ public class HelperRegistrationService {
         draft.setWorkingDistricts(request.getWorkingDistricts());
         draft.setBio(request.getBio());
         draft.setExperienceYears(request.getExperienceYears());
-        draft.setServiceIds(request.getServiceIds());
+        draft.setCategoryIds(request.getCategoryIds());
+
         draft.setLatitude(request.getLatitude());
         draft.setLongitude(request.getLongitude());
 
@@ -165,18 +169,19 @@ public class HelperRegistrationService {
                     .build());
         }
 
-        // 3. Lưu Registered Services
+        // 3. Lưu Registered Services (Dành cho Danh mục Cha)
         helperServiceRepository.deleteByHelper_Id(user.getId());
         helperServiceRepository.flush();
-        for (Integer serviceId : new java.util.HashSet<>(draft.getServiceIds())) {
-            com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
-                    .orElseThrow(() -> new RuntimeException("Dịch vụ không hợp lệ: " + serviceId));
+        for (Integer catId : new java.util.HashSet<>(draft.getCategoryIds())) {
+            ServiceCategory category = serviceCategoryRepository.findById(catId)
+                    .orElseThrow(() -> new RuntimeException("Danh mục không hợp lệ: " + catId));
             helperServiceRepository.save(HelperService.builder()
                     .helper(user)
-                    .service(service)
+                    .category(category)
                     .isActive(true)
                     .build());
         }
+
 
         // 4. Update User status, Avatar & Date of Birth
         user.setStatus(UserStatus.PENDING_REVIEW);

@@ -4,7 +4,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import com.homeconnect.core.enums.ServiceUnit;
+
 
 import java.time.LocalDateTime;
 
@@ -40,11 +40,8 @@ public class Service {
     @Column(name = "base_price", precision = 15, scale = 2)
     private BigDecimal basePrice;  // Giá cơ bản (VNĐ)
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "unit", length = 20)
-    private ServiceUnit unit; // Đơn vị tính: PER_HOUR, PER_M2...
-
     @Builder.Default
+
     @Column(name = "is_active")
     private Boolean isActive = true;
 

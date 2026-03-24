@@ -63,26 +63,30 @@ public class MatchingService {
             JobPost jobPost = jobPostRepository.findById(postId)
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy job post với ID: " + postId));
 
-            log.info("Chi tiết Job Post: Service ID={}, Ngày={}, Giờ={}, Thời lượng={}h, Địa điểm={}",
-                    jobPost.getServiceId(),
+            log.info("Chi tiết Job Post: Category ID={}, Service IDs={}, Ngày={}, Giờ={}, Thời lượng={}h, Địa điểm={}",
+                    jobPost.getCategory().getCategoryId(),
+                    jobPost.getServiceId() != null ? jobPost.getServiceId() : "N/A",
                     jobPost.getWorkDate(),
                     jobPost.getStartTime(),
                     jobPost.getDurationHours(),
                     jobPost.getAddressDetail());
 
+
             // 2. Lọc nền tảng ở DB: service + online + KYC + lịch rảnh
             long durationSecs = (long) jobPost.getDurationHours() * 3600;
             List<Long> eligibleHelperIds = helperProfileRepository.findEligibleHelperIdsWithSchedule(
-                    jobPost.getServiceId(),
+                    jobPost.getCategory().getCategoryId(),
                     jobPost.getWorkDate(),
                     jobPost.getStartTime(),
                     durationSecs);
 
+
             log.info("Kết quả lọc nền tảng (service + online + KYC + schedule): {} helper", eligibleHelperIds.size());
 
             if (eligibleHelperIds.isEmpty()) {
-                log.warn("Không tìm thấy helper ở bước lọc nền tảng cho Service ID: {}, Ngày: {}, Giờ: {}",
-                        jobPost.getServiceId(), jobPost.getWorkDate(), jobPost.getStartTime());
+                log.warn("Không tìm thấy helper ở bước lọc nền tảng cho Category ID: {}, Ngày: {}, Giờ: {}",
+                        jobPost.getCategory().getCategoryId(), jobPost.getWorkDate(), jobPost.getStartTime());
+
                 return;
             }
 
@@ -295,24 +299,26 @@ public class MatchingService {
     private String buildJobInvitationEmailContent(String helperName, JobPost jobPost) {
         return String.format("""
                 Xin chào %s,
-
+ 
                 Bạn có một cơ hội việc mới phù hợp với kỹ năng và lịch rảnh của bạn!
-
+ 
                 Chi tiết việc:
-                • Dịch vụ: [Thông tin dịch vụ]
+                • Dịch vụ: %s
                 • Ngày: %s
+ 
                 • Giờ: %s (%d giờ)
                 • Địa điểm: %s
                 • Giá: %,d VNĐ
-
+ 
                 Vui lòng mở ứng dụng để xem chi tiết và phản hồi lời mời.
-
+ 
                 Hãy nhanh chóng - các helper khác cũng có thể nhận việc này!
-
+ 
                 Trân trọng,
                 HomeConnect Team
                 """,
                 helperName != null ? helperName : "Helper",
+                jobPost.getServiceId() != null ? "Nhiều dịch vụ" : jobPost.getCategory().getName(),
                 jobPost.getWorkDate(),
                 jobPost.getStartTime(),
                 jobPost.getDurationHours(),

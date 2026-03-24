@@ -131,7 +131,9 @@ public class GeocodingService {
         if (result != null) return result;
 
         log.error("Tất cả các thử nghiệm Goong Geocoding đều thất bại cho: {}.", addrFull);
-        throw new RuntimeException("Không thể định vị địa chỉ này: " + addrFull);
+        throw new com.homeconnect.core.exception.ApiException(
+                "Không tìm thấy địa chỉ này trên bản đồ. Vui lòng kiểm tra lại hoặc nhập địa chỉ chính xác hơn.",
+                org.springframework.http.HttpStatus.BAD_REQUEST);
     }
 
     /**
@@ -140,12 +142,25 @@ public class GeocodingService {
      */
     @RateLimiter(name = "goong")
     public GeoResult geocodeByAddressText(String addressDetail) {
-        if (addressDetail == null || addressDetail.isBlank()) {
-            throw new IllegalArgumentException("Địa chỉ không được để trống");
+        String normalizedAddress = addressDetail.trim();
+        
+        // Kiểm tra sơ bộ chuỗi nhập vào: Phải đủ dài (số từ >= 6) HOẶC có ít nhất 2 dấu phẩy
+        // Để đảm bảo có ít nhất [Số nhà/Đường] + [Quận/Phường] + [Tỉnh/Thành phố]
+        String[] words = normalizedAddress.split("\\s+");
+        long commaCount = normalizedAddress.chars().filter(ch -> ch == ',').count();
+        
+        if (words.length < 6 && commaCount < 2) {
+            throw new com.homeconnect.core.exception.ApiException(
+                    "Vui lòng nhập địa chỉ đầy đủ hơn (Ví dụ: Số 60 Lý Thường Kiệt, Hoàn Kiếm, Hà Nội).",
+                    org.springframework.http.HttpStatus.BAD_REQUEST);
         }
 
-        String normalizedAddress = addressDetail.trim();
-        GeoResult result = tryGeocode(normalizedAddress + ", Vietnam");
+        String finalQuery = normalizedAddress;
+        if (!normalizedAddress.toLowerCase().contains("vietnam") && !normalizedAddress.toLowerCase().contains("việt nam")) {
+            finalQuery = normalizedAddress + ", Vietnam";
+        }
+        
+        GeoResult result = tryGeocode(finalQuery);
         if (result != null) {
             if (result.getNormalizedAddress() == null || result.getNormalizedAddress().isBlank()) {
                 result.setNormalizedAddress(normalizedAddress);
@@ -161,7 +176,9 @@ public class GeocodingService {
             return result;
         }
 
-        throw new RuntimeException("Không thể định vị địa chỉ này: " + normalizedAddress);
+        throw new com.homeconnect.core.exception.ApiException(
+                "Địa chỉ chưa đủ cụ thể. Vui lòng nhập đầy đủ Số nhà, Tên đường, Phường/Xã và Quận/Huyện.",
+                org.springframework.http.HttpStatus.BAD_REQUEST);
     }
 
     /**
@@ -194,20 +211,47 @@ public class GeocodingService {
         if (response != null && "OK".equals(response.get("status"))) {
             List<Map<String, Object>> results = (List<Map<String, Object>>) response.get("results");
             if (results != null && !results.isEmpty()) {
-                // Lấy kết quả đầu tiên (Best match)
                 Map<String, Object> firstResult = results.get(0);
-                Map<String, Object> geometry = (Map<String, Object>) firstResult.get("geometry");
-                Map<String, Object> location = (Map<String, Object>) geometry.get("location");
+                log.debug("Goong result: {}", firstResult.get("formatted_address"));
+
+                // Kiểm tra độ tin cậy: Nếu kết quả quá chung chung (chỉ có tên nước) thì coi như không tìm thấy
                 String formattedAddress = firstResult.get("formatted_address") != null
                         ? firstResult.get("formatted_address").toString()
-                        : null;
+                        : "";
                 
+                // Nếu kết quả trả về quá chung chung (ít hơn 4 thành phần phân cách bởi dấu phẩy)
+                // Ví dụ: "Quận 1, TP.HCM, Vietnam" (3 phần) -> Chưa đủ cụ thể
+                // Một địa chỉ tốt thường có: [Tên đường], [Quận], [Tỉnh/TP], Vietnam (Tối thiểu 4 phần)
+                if (formattedAddress.equalsIgnoreCase("Vietnam") || formattedAddress.equalsIgnoreCase("Việt Nam") 
+                    || formattedAddress.split(",").length < 4) {
+                    log.warn("Goong returned a result that is too broad/generic: {}", formattedAddress);
+                    return null;
+                }
+
+                Map<String, Object> geometry = (Map<String, Object>) firstResult.get("geometry");
+                Map<String, Object> location = (Map<String, Object>) geometry.get("location");
+                
+                // Kiểm tra partial_match: Nếu Goong/Google không tìm thấy địa chỉ chính xác
+                // và phải "đoán" hoặc bỏ bớt thành phần địa chỉ để ra kết quả.
+                Object partialMatch = firstResult.get("partial_match");
+                if (partialMatch != null && (Boolean) partialMatch) {
+                    log.warn("Goong returned a partial match for address. Rejecting for strictness.");
+                    return null;
+                }
+
+                // Kiểm tra location_type: Nếu có trả về thì log lại để theo dõi, 
+                // nhưng không chặn cứng vì một số kết quả hợp lệ của Goong có thể để trống trường này.
+                String locationType = geometry.get("location_type") != null ? geometry.get("location_type").toString() : "UNKNOWN";
+                log.debug("Location type: {}", locationType);
+
                 return GeoResult.builder()
                         .latitude(new BigDecimal(location.get("lat").toString()))
                         .longitude(new BigDecimal(location.get("lng").toString()))
                         .normalizedAddress(formattedAddress)
                         .build();
             }
+        } else {
+            log.warn("Goong status: {}", response != null ? response.get("status") : "null");
         }
         return null;
     }

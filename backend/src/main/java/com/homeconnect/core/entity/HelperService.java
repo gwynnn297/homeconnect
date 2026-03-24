@@ -10,13 +10,14 @@ import lombok.*;
 @Entity
 @Table(name = "helper_services",
     uniqueConstraints = {
-        @UniqueConstraint(name = "unique_helper_service", columnNames = {"helper_id", "service_id"})
+        @UniqueConstraint(name = "unique_helper_category", columnNames = {"helper_id", "category_id"})
     },
     indexes = {
         @Index(name = "idx_helper_id", columnList = "helper_id"),
-        @Index(name = "idx_service_id", columnList = "service_id"),
+        @Index(name = "idx_category_id", columnList = "category_id"),
         @Index(name = "idx_is_active", columnList = "is_active")
     }
+
 )
 @Getter
 @Setter
@@ -34,10 +35,11 @@ public class HelperService {
     private User helper;  // Helper (User có role = HELPER)
     
     @ManyToOne
-    @JoinColumn(name = "service_id", nullable = false)
-    private Service service;  // Dịch vụ đăng ký
+    @JoinColumn(name = "category_id", nullable = false)
+    private ServiceCategory category;  // Danh mục dịch vụ đăng ký
     
     @Column(name = "is_active")
     @Builder.Default
-    private Boolean isActive = true;  // Helper còn nhận dịch vụ này không
+    private Boolean isActive = true;  // Helper còn nhận danh mục này không
 }
+

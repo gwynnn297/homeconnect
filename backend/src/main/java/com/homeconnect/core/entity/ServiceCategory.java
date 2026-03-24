@@ -31,6 +31,7 @@ public class ServiceCategory {
     @Column(name = "base_price", precision = 15, scale = 2)
     private java.math.BigDecimal basePrice;
 
+
     @Enumerated(EnumType.STRING)
     @Column(name = "unit", length = 20)
     private ServiceUnit unit;

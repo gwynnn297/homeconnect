@@ -28,24 +28,28 @@ public class HelperRegistrationController {
     private final HelperRegistrationService helperRegistrationService;
     private final ServiceCategoryRepository serviceCategoryRepository;
 
-    @GetMapping("/services")
-    @Operation(summary = "Lấy danh sách dịch vụ", description = "Dùng để chọn dịch vụ đăng ký ở Stage 1 (Phân loại theo danh mục)")
-    public ResponseEntity<List<Map<String, Object>>> getServices() {
-        return ResponseEntity.ok(serviceCategoryRepository.findAll().stream()
-                .filter(cat -> cat.getIsActive() != null && cat.getIsActive())
-                .map(cat -> Map.of(
-                        "categoryId", cat.getCategoryId(),
-                        "categoryName", cat.getName(),
-                        "services", cat.getServices().stream()
-                                .filter(s -> s.getIsActive() != null && s.getIsActive())
-                                .map(s -> Map.of(
-                                        "id", s.getServiceId(),
-                                        "name", s.getName()
-                                ))
-                                .toList()
-                ))
-                .toList());
+    @GetMapping("/categories")
+    @Operation(summary = "Lấy danh mục dịch vụ (Cha)", description = "Dùng để chọn kỹ năng đăng ký (Cha làm được hết con)")
+    public ResponseEntity<List<Map<String, Object>>> getCategories() {
+        List<Map<String, Object>> categories = serviceCategoryRepository.findAll().stream()
+                .filter(cat -> Boolean.TRUE.equals(cat.getIsActive()))
+                .map(cat -> {
+                    Map<String, Object> map = new java.util.HashMap<>();
+                    map.put("id", cat.getCategoryId());
+                    map.put("name", cat.getName());
+                    map.put("basePrice", cat.getBasePrice());
+
+                    map.put("unit", cat.getUnit() != null ? cat.getUnit().name() : "");
+                    return map;
+                })
+                .collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(categories);
     }
+
+
+
+
+
 
 
 

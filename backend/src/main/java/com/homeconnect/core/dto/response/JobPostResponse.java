@@ -21,8 +21,9 @@ import java.time.LocalTime;
 public class JobPostResponse {
 
     private Long postId;
-    private Integer serviceId;
-    private String serviceName;
+    private java.util.List<Integer> serviceIds;
+    private String serviceNames;
+
     private String title;
     private String description;
     private String addressDetail;
@@ -36,4 +37,8 @@ public class JobPostResponse {
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
+    private Integer categoryId;
+    private String categoryName;
 }
+
+

@@ -4,8 +4,9 @@ import com.homeconnect.core.dto.request.profile.CommonProfileUpdateRequest;
 import com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest;
 import com.homeconnect.core.dto.response.profile.HelperProfileResponse;
 import com.homeconnect.core.dto.response.profile.LocationResponse;
-import com.homeconnect.core.dto.response.profile.ServiceSimpleResponse;
+import com.homeconnect.core.dto.response.profile.CategorySimpleResponse;
 import com.homeconnect.core.dto.response.profile.UserProfileResponse;
+
 import com.homeconnect.core.entity.*;
 import com.homeconnect.core.exception.ApiException;
 import com.homeconnect.core.repository.*;
@@ -32,7 +33,7 @@ public class ProfileService {
     private final HelperServiceRepository helperServiceRepository;
     private final AddressRepository addressRepository;
     private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
-
+    private final ServiceCategoryRepository serviceCategoryRepository;
     private final ExternalLocationService externalLocationService;
     private final GeocodingService geocodingService;
 
@@ -53,8 +54,6 @@ public class ProfileService {
     @Transactional
     public UserProfileResponse updateCommonProfile(CommonProfileUpdateRequest request) {
         User user = getCurrentUser();
-
-        // 1. Update Basic User Info
         user.setFullName(request.getFullName());
         if (request.getAvatarUrl() != null) {
             user.setAvatarUrl(request.getAvatarUrl());
@@ -62,7 +61,6 @@ public class ProfileService {
         user.setGender(request.getGender());
         User savedUser = userRepository.save(user);
 
-        // 2. Update Default Address (PB-20)
         Address address = addressRepository.findByUser_IdAndIsDefaultTrue(user.getId())
                 .orElse(Address.builder()
                         .user(user)
@@ -75,16 +73,13 @@ public class ProfileService {
         address.setDistrictName(request.getDistrictName());
         address.setProvinceName(request.getProvinceName());
 
-        // Logic ưu tiên tọa độ từ FE (Chuẩn Production)
         BigDecimal lat = request.getLatitude();
         BigDecimal lng = request.getLongitude();
 
-        if (lat != null && lng != null
-                && (lat.compareTo(BigDecimal.ZERO) != 0 || lng.compareTo(BigDecimal.ZERO) != 0)) {
+        if (lat != null && lng != null && (lat.compareTo(BigDecimal.ZERO) != 0 || lng.compareTo(BigDecimal.ZERO) != 0)) {
             address.setLatitude(lat);
             address.setLongitude(lng);
         } else {
-            // Fallback sang Geocoding cấu trúc (10 cấp độ dự phòng tích hợp sẵn)
             try {
                 GeocodingService.GeoResult geo = geocodingService.geocode(
                         request.getAddressDetail(),
@@ -104,7 +99,6 @@ public class ProfileService {
         }
 
         addressRepository.save(address);
-
         log.info("Updated common profile and geocoded address for user: {}", user.getEmail());
         return mapToUserResponse(savedUser, address);
     }
@@ -114,7 +108,6 @@ public class ProfileService {
         HelperProfile profile = helperProfileRepository.findByUser_Id(user.getId())
                 .orElseThrow(() -> new ApiException("Đây không phải tài khoản Helper hoặc hồ sơ chưa được tạo",
                         HttpStatus.BAD_REQUEST));
-
         return mapToHelperResponse(profile);
     }
 
@@ -124,7 +117,6 @@ public class ProfileService {
         HelperProfile profile = helperProfileRepository.findByUser_Id(user.getId())
                 .orElseThrow(() -> new ApiException("Hồ sơ Helper không tồn tại", HttpStatus.NOT_FOUND));
 
-        // 1. Validate Bio
         if (request.getBio() != null) {
             if (request.getBio().length() < 50) {
                 throw new ApiException("Bio phải có ít nhất 50 ký tự", HttpStatus.BAD_REQUEST);
@@ -136,7 +128,6 @@ public class ProfileService {
             profile.setBio(request.getBio());
         }
 
-        // 2. Update Basic Info
         java.time.LocalDate dob = request.getDateOfBirth() != null ? request.getDateOfBirth() : user.getDateOfBirth();
         Integer exp = request.getExperienceYears() != null ? request.getExperienceYears()
                 : profile.getExperienceYears();
@@ -158,22 +149,18 @@ public class ProfileService {
             profile.setExperienceYears(request.getExperienceYears());
         }
 
-        // 3. Update Hometown
         if (request.getHometownName() != null) {
             profile.setHometownName(request.getHometownName());
         }
 
-        // 4. Update Working Districts
         if (request.getWorkingDistricts() != null) {
             helperWorkingDistrictRepository.deleteByHelper_Id(user.getId());
             helperWorkingDistrictRepository.flush();
 
             for (HelperProfessionalProfileRequest.WorkingDistrictRequest wdReq : request.getWorkingDistricts()) {
-                // Backend Validate districtCode
                 if (!externalLocationService.validateDistrict(wdReq.getCode(), wdReq.getName())) {
                     throw new ApiException(" Quận/Huyện không hợp lệ: " + wdReq.getName(), HttpStatus.BAD_REQUEST);
                 }
-
                 helperWorkingDistrictRepository.save(HelperWorkingDistrict.builder()
                         .helper(user)
                         .districtName(wdReq.getName())
@@ -182,20 +169,18 @@ public class ProfileService {
             }
         }
 
-        // 5. Update Skills
-        if (request.getServiceIds() != null) {
+        if (request.getCategoryIds() != null) {
             helperServiceRepository.deleteByHelper_Id(user.getId());
             helperServiceRepository.flush(); // Cập nhật ngay để tránh Duplicate Entry khi insert lại
-
-            List<HelperService> newSkills = request.getServiceIds().stream()
+            
+            List<HelperService> newSkills = request.getCategoryIds().stream()
                     .distinct()
-                    .map(serviceId -> {
-                        com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
-                                .orElseThrow(() -> new ApiException("Dịch vụ ID " + serviceId + " không tồn tại",
-                                        HttpStatus.BAD_REQUEST));
+                    .map(catId -> {
+                        ServiceCategory category = serviceCategoryRepository.findById(catId)
+                                .orElseThrow(() -> new ApiException("Danh mục ID " + catId + " không tồn tại", HttpStatus.BAD_REQUEST));
                         return HelperService.builder()
                                 .helper(user)
-                                .service(service)
+                                .category(category)
                                 .isActive(true)
                                 .build();
                     })
@@ -211,7 +196,6 @@ public class ProfileService {
     public HelperProfileResponse getPublicHelperProfile(Long id) {
         HelperProfile profile = helperProfileRepository.findByUser_Id(id)
                 .orElseThrow(() -> new ApiException("Không tìm thấy thông tin người giúp việc", HttpStatus.NOT_FOUND));
-
         return mapToHelperResponse(profile);
     }
 
@@ -245,7 +229,7 @@ public class ProfileService {
                 .isOnline(profile.getIsOnline())
                 .ratingAverage(profile.getRatingAverage())
                 .totalReviews(profile.getTotalReviews())
-                .services(getServicesForHelper(profile.getUser().getId()))
+                .categories(getCategoriesForHelper(profile.getUser().getId()))
                 .workingDistricts(getWorkingDistrictsForHelper(profile.getUser().getId()))
                 .build();
     }
@@ -260,11 +244,11 @@ public class ProfileService {
                 .collect(Collectors.toList());
     }
 
-    private List<ServiceSimpleResponse> getServicesForHelper(Long userId) {
+    private List<CategorySimpleResponse> getCategoriesForHelper(Long userId) {
         return helperServiceRepository.findByHelper_Id(userId).stream()
-                .map(hs -> ServiceSimpleResponse.builder()
-                        .id(hs.getService().getServiceId())
-                        .name(hs.getService().getName())
+                .map(hs -> CategorySimpleResponse.builder()
+                        .id(hs.getCategory().getCategoryId())
+                        .name(hs.getCategory().getName())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -275,21 +259,27 @@ public class ProfileService {
                 .collect(Collectors.toList());
     }
 
-    public List<String> getAddressLabels() {
-        return List.of("HOME", "OFFICE", "OTHER");
+    public List<CategorySimpleResponse> getActiveCategories() {
+        return serviceCategoryRepository.findAll().stream()
+                .filter(cat -> Boolean.TRUE.equals(cat.getIsActive()))
+                .map(cat -> CategorySimpleResponse.builder()
+                        .id(cat.getCategoryId())
+                        .name(cat.getName())
+                        .build())
+                .collect(Collectors.toList());
     }
 
-    private com.homeconnect.core.dto.response.profile.ServiceResponse mapToServiceResponse(
-            com.homeconnect.core.entity.Service service) {
+    private com.homeconnect.core.dto.response.profile.ServiceResponse mapToServiceResponse(com.homeconnect.core.entity.Service service) {
         return com.homeconnect.core.dto.response.profile.ServiceResponse.builder()
                 .id(service.getServiceId())
                 .name(service.getName())
                 .basePrice(service.getBasePrice())
-                .unit(service.getUnit() != null ? service.getUnit().name() : null)
                 .build();
     }
 
-    // --- External Location Service Proxies ---
+    public List<String> getAddressLabels() {
+        return List.of("HOME", "OFFICE", "OTHER");
+    }
 
     public java.util.List<java.util.Map<String, Object>> getProvinces() {
         return externalLocationService.getProvinces();
@@ -301,17 +291,5 @@ public class ProfileService {
 
     public java.util.Map<String, Object> getWards(String districtCode) {
         return externalLocationService.getWardsByDistrict(districtCode);
-    }
-
-    /**
-     * Chuẩn hóa địa chỉ đầy đủ (Chuẩn Production-Ready cho Nominatim)
-     */
-    private String buildFullAddress(String detail, String ward, String district, String province) {
-        if (detail == null || province == null) {
-            return null;
-        }
-        return String.join(", ", detail, ward, district, province, "Vietnam")
-                .replaceAll(", null", "")
-                .replaceAll(", ,", ",");
     }
 }

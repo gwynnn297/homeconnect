@@ -42,6 +42,7 @@ public class HelperProfessionalProfileRequest {
     @Max(value = 50, message = "Kinh nghiệm không hợp lệ")
     private Integer experienceYears;
 
-    @Schema(description = "Danh sách ID các dịch vụ cung cấp")
-    private List<Integer> serviceIds;
+    @Schema(description = "Danh sách ID các danh mục cung cấp")
+    private List<Integer> categoryIds;
 }
+

@@ -55,9 +55,10 @@ public class HelperRegistrationStage1Request {
     @Schema(description = "Kinh nghiệm làm việc (số năm)", example = "3")
     private Integer experienceYears;
 
-    @NotEmpty(message = "Phải chọn ít nhất một dịch vụ.")
-    @Schema(description = "Danh sách ID các dịch vụ cung cấp")
-    private List<Integer> serviceIds;
+    @NotEmpty(message = "Phải chọn ít nhất một dịch vụ cha (Danh mục).")
+    @Schema(description = "Danh sách ID các danh mục dịch vụ cung cấp")
+    private List<Integer> categoryIds;
+
 
     @DecimalMin(value = "-90.0", message = "Vĩ độ không hợp lệ (-90 đến 90)")
     @DecimalMax(value = "90.0", message = "Vĩ độ không hợp lệ (-90 đến 90)")

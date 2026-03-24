@@ -13,8 +13,9 @@ public class HelperProfileResponse {
     private java.time.LocalDate dateOfBirth;
     private Integer experienceYears;
     private String hometownName;
-    private List<ServiceSimpleResponse> services;
+    private List<CategorySimpleResponse> categories;
     private List<LocationResponse> workingDistricts;
+
     private String kycStatus;
     private Boolean isOnline;
     private java.math.BigDecimal ratingAverage;

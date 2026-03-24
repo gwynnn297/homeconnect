@@ -112,6 +112,16 @@ public class ProfileController {
                 .build());
     }
 
+    @GetMapping("/categories/active")
+    @Operation(summary = "Lấy danh sách danh mục dịch vụ hoạt động", description = "Dùng cho Helper cập nhật kỹ năng hoặc Customer chọn khi đăng tin")
+    public ResponseEntity<ApiResponse<java.util.List<com.homeconnect.core.dto.response.profile.CategorySimpleResponse>>> getActiveCategories() {
+        return ResponseEntity.ok(ApiResponse.<java.util.List<com.homeconnect.core.dto.response.profile.CategorySimpleResponse>>builder()
+                .message("Lấy danh sách danh mục thành công")
+                .data(profileService.getActiveCategories())
+                .build());
+    }
+
+
     // --- External Location APIs (Proxy via Backend) ---
 
     @GetMapping("/locations/provinces")

@@ -1,7 +1,6 @@
 package com.homeconnect.core.dto.response.admin;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.homeconnect.core.enums.ServiceUnit;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -27,8 +26,7 @@ public class ServiceResponse {
     
     @JsonProperty("base_price")
     private BigDecimal basePrice;
-    
-    private ServiceUnit unit;
+
     
     
     @JsonProperty("is_active")

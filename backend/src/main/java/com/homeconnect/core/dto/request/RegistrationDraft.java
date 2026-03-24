@@ -24,7 +24,7 @@ public class RegistrationDraft {
     private List<com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest.WorkingDistrictRequest> workingDistricts;
     private String bio;
     private Integer experienceYears;
-    private List<Integer> serviceIds;
+    private List<Integer> categoryIds;
     private BigDecimal latitude;
     private BigDecimal longitude;
 
@@ -42,8 +42,9 @@ public class RegistrationDraft {
                wardName != null && currentAddress != null && 
                workingDistricts != null && !workingDistricts.isEmpty() &&
                bio != null && experienceYears != null && 
-               serviceIds != null && !serviceIds.isEmpty();
+               categoryIds != null && !categoryIds.isEmpty();
     }
+
 
     public boolean isStage2Complete() {
         return identityNumber != null && cccdFrontUrl != null && 

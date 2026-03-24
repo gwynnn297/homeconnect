@@ -255,14 +255,15 @@ public class AdminService {
                 // 3. Lấy địa chỉ mặc định của helper (từ bảng addresses)
                 Address helperAddress = addressRepository.findByUser_IdAndIsDefaultTrue(helperId).orElse(null);
 
-                // 4. Lấy danh sách dịch vụ
+                // 4. Lấy danh sách danh mục thợ có (Dùng cho hiển thị Cha)
                 List<HelperDetailResponse.ServiceInfo> services = helperServiceRepository.findByHelper_Id(helperId)
                                 .stream()
                                 .map(hs -> HelperDetailResponse.ServiceInfo.builder()
-                                                .serviceId(hs.getService().getServiceId())
-                                                .name(hs.getService().getName())
+                                                .serviceId(hs.getCategory().getCategoryId())
+                                                .name(hs.getCategory().getName())
                                                 .build())
                                 .collect(Collectors.toList());
+
 
                 // 5. Lấy danh sách khu vực làm việc
                 List<HelperDetailResponse.DistrictInfo> workingDistricts = helperWorkingDistrictRepository
@@ -463,7 +464,6 @@ public class AdminService {
                                 .name(service.getName())
                                 .description(service.getDescription())
                                 .basePrice(service.getBasePrice())
-                                .unit(service.getUnit())
                                 .isActive(service.getIsActive())
                                 .categoryId(service.getCategory() != null ? service.getCategory().getCategoryId()
                                                 : null)
@@ -472,6 +472,7 @@ public class AdminService {
                                 .updatedAt(service.getUpdatedAt())
                                 .build();
         }
+
 
         /**
          * BE-Admin-01: Xóa dịch vụ nhỏ
@@ -523,9 +524,6 @@ public class AdminService {
                         service.setBasePrice(request.getBasePrice());
                 }
 
-                if (request.getUnit() != null) {
-                        service.setUnit(request.getUnit());
-                }
 
                 if (request.getDescription() != null) {
                         service.setDescription(request.getDescription());
@@ -563,10 +561,10 @@ public class AdminService {
                                 .name(request.getName())
                                 .description(request.getDescription())
                                 .basePrice(request.getBasePrice())
-                                .unit(request.getUnit())
                                 .isActive(request.getIsActive() == null || request.getIsActive())
                                 .category(category)
                                 .build();
+
 
                 // 3. Lưu entity
                 service = serviceRepository.save(service);

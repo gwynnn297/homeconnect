@@ -23,7 +23,9 @@ public class ExternalLocationService {
     /**
      * Lấy danh sách Tỉnh/Thành
      */
+    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> getProvinces() {
+
         try {
             String url = BASE_URL + "/p/";
             return restTemplate.getForObject(url, List.class);
@@ -36,7 +38,9 @@ public class ExternalLocationService {
     /**
      * Lấy danh sách Quận/Huyện theo mã Tỉnh
      */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> getDistrictsByProvince(String provinceCode) {
+
         try {
             String url = UriComponentsBuilder.fromUriString(BASE_URL)
                     .path("/p/{provinceCode}")
@@ -55,7 +59,9 @@ public class ExternalLocationService {
     /**
      * Lấy danh sách Phường/Xã theo mã Quận
      */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> getWardsByDistrict(String districtCode) {
+
         try {
             String url = UriComponentsBuilder.fromUriString(BASE_URL)
                     .path("/d/{districtCode}")
@@ -72,7 +78,9 @@ public class ExternalLocationService {
     /**
      * Kiểm tra districtCode có hợp lệ không
      */
+    @SuppressWarnings("unchecked")
     public boolean validateDistrict(String districtCode, String districtName) {
+
         try {
             String url = UriComponentsBuilder.fromUriString(BASE_URL)
                     .path("/d/{districtCode}")

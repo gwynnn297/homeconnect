@@ -1,7 +1,6 @@
 package com.homeconnect.core.dto.request.admin;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.homeconnect.core.enums.ServiceUnit;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -30,12 +29,9 @@ public class CreateServiceRequest {
     @Schema(description = "Giá cơ bản (Giá sàn)", example = "80000")
     private BigDecimal basePrice;
 
-    @NotNull(message = "Đơn vị tính không được để trống")
-    @Schema(description = "Đơn vị tính (PER_HOUR, PER_SERVICE, PER_METERS, PER_ROOM)", example = "PER_HOUR")
-    private ServiceUnit unit;
-
 
     @Schema(description = "Mô tả dịch vụ", example = "Dịch vụ dọn dẹp nhà cửa cơ bản theo giờ")
+
     private String description;
 
     @JsonProperty("is_active")

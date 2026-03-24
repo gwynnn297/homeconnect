@@ -17,9 +17,15 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class EstimatePriceRequest {
 
-    @NotNull(message = "Service ID không được để trống")
-    @Positive(message = "Service ID phải là số dương")
-    private Integer serviceId;
+    private java.util.List<Integer> serviceIds;
+
+
+    @NotNull(message = "Category ID không được để trống")
+    @Positive(message = "Category ID phải là số dương")
+    private Integer categoryId;
+
+
+
 
     @NotNull(message = "Số giờ không được để trống")
     @Positive(message = "Số giờ phải lớn hơn 0")
