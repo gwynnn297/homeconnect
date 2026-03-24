@@ -10,15 +10,15 @@ const normalizeCategoryOptions = (rawData) => {
     if (!Array.isArray(rawData)) return [];
     return rawData
         .map((cat) => {
-            const categoryId = Number(cat?.categoryId);
-            const categoryName = String(cat?.categoryName ?? '').trim();
-            const serviceIds = Array.isArray(cat?.services)
-                ? cat.services
-                    .map((s) => Number(s?.id ?? s?.serviceId ?? s?.service_id))
-                    .filter((id) => Number.isInteger(id) && id > 0)
-                : [];
+            const categoryId = Number(cat?.categoryId ?? cat?.id);
+            const categoryName = String(cat?.categoryName ?? cat?.name ?? '').trim();
             if (!Number.isInteger(categoryId) || categoryId <= 0 || !categoryName) return null;
-            return { categoryId, categoryName, serviceIds };
+            return {
+                categoryId,
+                categoryName,
+                basePrice: cat?.basePrice ?? null,
+                unit: cat?.unit ?? '',
+            };
         })
         .filter(Boolean);
 };
@@ -46,8 +46,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         wardCode: '',
         currentAddress: '',
         workingDistrictCodes: [],
-        serviceIds: [],
-        selectedCategoryIds: [],
+        categoryIds: [],
         latitude: 16.0544,  // Default Da Nang
         longitude: 108.2022,
         // Stage 2
@@ -104,8 +103,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             wardCode: '',
             currentAddress: '',
             workingDistrictCodes: [],
-            serviceIds: [],
-            selectedCategoryIds: [],
+            categoryIds: [],
             latitude: 16.0544,
             longitude: 108.2022,
             identityNumber: '',
@@ -139,7 +137,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             try {
                 const [provincesRes, servicesRes] = await Promise.all([
                     HelperRegistrationService.getProvinces(),
-                    HelperRegistrationService.getServices()
+                    HelperRegistrationService.getCategories()
                 ]);
                 const provincesData = provincesRes?.data || provincesRes;
                 const servicesData = servicesRes?.data || servicesRes;
@@ -292,7 +290,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         }
 
         if (type === 'checkbox') {
-            const val = name === 'serviceIds' ? parseInt(value) : value;
+            const val = name === 'categoryIds' ? parseInt(value, 10) : value;
             setFormData(prev => ({
                 ...prev,
                 [name]: checked
@@ -306,35 +304,24 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         if (error) setError('');
     };
 
-    const mapCategoryIdsToServiceIds = (categoryIds) => {
-        const selectedSet = new Set((categoryIds || []).map(Number));
-        const nextServiceIds = [];
-        services.forEach((cat) => {
-            if (!selectedSet.has(Number(cat.categoryId))) return;
-            (cat.serviceIds || []).forEach((id) => nextServiceIds.push(Number(id)));
-        });
-        return Array.from(new Set(nextServiceIds)).filter((id) => Number.isInteger(id) && id > 0);
-    };
-
     const toggleCategory = (categoryId) => {
         setFormData(prev => {
             const normalizedId = Number(categoryId);
-            const currentlySelected = prev.selectedCategoryIds.includes(normalizedId);
+            const currentlySelected = prev.categoryIds.includes(normalizedId);
             const nextCategoryIds = currentlySelected
-                ? prev.selectedCategoryIds.filter((id) => id !== normalizedId)
-                : [...prev.selectedCategoryIds, normalizedId];
+                ? prev.categoryIds.filter((id) => id !== normalizedId)
+                : [...prev.categoryIds, normalizedId];
 
             return {
                 ...prev,
-                selectedCategoryIds: nextCategoryIds,
-                serviceIds: mapCategoryIdsToServiceIds(nextCategoryIds),
+                categoryIds: nextCategoryIds,
             };
         });
         if (error) setError('');
     };
 
     const isCategorySelected = (categoryId) =>
-        formData.selectedCategoryIds.includes(Number(categoryId));
+        formData.categoryIds.includes(Number(categoryId));
 
     const handleSelectAddressSuggestion = async (suggestion) => {
         const streetOnly = suggestion.structured_formatting?.main_text || suggestion.description;
@@ -491,8 +478,8 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             setError('Vui lòng nhập số năm kinh nghiệm hợp lệ');
             return false;
         }
-        if (formData.serviceIds.length === 0) {
-            setError('Vui lòng chọn ít nhất một dịch vụ');
+        if (formData.categoryIds.length === 0) {
+            setError('Vui lòng chọn ít nhất một danh mục dịch vụ');
             return false;
         }
         return true;
@@ -555,7 +542,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                 workingDistricts: workingDistricts,
                 bio: formData.bio.trim(),
                 experienceYears: parseInt(formData.experienceYears),
-                serviceIds: formData.serviceIds,
+                categoryIds: formData.categoryIds,
                 latitude: formData.latitude,
                 longitude: formData.longitude,
             };

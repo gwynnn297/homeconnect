@@ -11,7 +11,7 @@ const UNIT_OPTIONS = [
     { value: 'PER_ROOM', label: 'Theo phòng' },
 ];
 
-const EMPTY_CAT_FORM = { name: '', description: '', basePrice: '', unit: 'PER_SERVICE' };
+const EMPTY_CAT_FORM = { name: '', description: '', basePrice: '', unit: 'PER_SERVICE', isActive: true };
 const EMPTY_SVC_FORM = { name: '', description: '', basePrice: '', unit: 'PER_HOUR', categoryId: '', isActive: true };
 
 const formatMoney = (value) => {
@@ -113,6 +113,7 @@ const ServiceManagerPage = () => {
             description: cat.description || '',
             basePrice: cat.basePrice?.toString() || '',
             unit: cat.unit || 'PER_SERVICE',
+            isActive: Boolean(cat.isActive),
         });
     };
 
@@ -124,6 +125,7 @@ const ServiceManagerPage = () => {
             description: catForm.description.trim() || null,
             basePrice: catForm.basePrice !== '' ? Number(catForm.basePrice) : null,
             unit: catForm.unit || null,
+            isActive: catForm.isActive,
         };
         setCatSubmitting(true);
         try {
@@ -262,7 +264,7 @@ const ServiceManagerPage = () => {
                         className={`smp-tab ${activeTab === 'categories' ? 'active' : ''}`}
                         onClick={() => setActiveTab('categories')}
                     >
-                        Danh mục cha
+                        Danh mục
                         <span className="smp-tab-badge">{categories.length}</span>
                     </button>
                     <button
@@ -311,6 +313,7 @@ const ServiceManagerPage = () => {
                                                 <th>Tên danh mục</th>
                                                 <th>Đơn vị</th>
                                                 <th>Giá cơ bản</th>
+                                                <th>Trạng thái</th>
                                                 <th className="action-col">Thao tác</th>
                                             </tr>
                                         </thead>
@@ -335,6 +338,11 @@ const ServiceManagerPage = () => {
                                                         {cat.basePrice
                                                             ? `${formatMoney(cat.basePrice)} VNĐ`
                                                             : '—'}
+                                                    </td>
+                                                    <td>
+                                                        <span className={`status-badge ${cat.isActive ? 'active' : 'inactive'}`}>
+                                                            {cat.isActive ? 'Hoạt động' : 'Đã tắt'}
+                                                        </span>
                                                     </td>
                                                     <td className="action-col">
                                                         <div className="row-actions">
@@ -438,6 +446,17 @@ const ServiceManagerPage = () => {
                                         placeholder="Mô tả ngắn về danh mục dịch vụ"
                                         disabled={catSubmitting}
                                     />
+                                </div>
+
+                                <div className="form-group checkbox-row">
+                                    <input
+                                        id="catIsActive"
+                                        type="checkbox"
+                                        checked={catForm.isActive}
+                                        onChange={(e) => handleCatChange('isActive', e.target.checked)}
+                                        disabled={catSubmitting}
+                                    />
+                                    <label htmlFor="catIsActive">Kích hoạt dịch vụ</label>
                                 </div>
 
                                 <button

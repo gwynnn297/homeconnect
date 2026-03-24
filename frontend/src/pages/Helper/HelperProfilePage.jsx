@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import HelperLayout from '../../layouts/HelperLayout';
 import ProfileService from '../../services/ProfileService';
-import HelperRegistrationService from '../../services/HelperRegistrationService';
 import NotificationModal from '../../components/NotificationModal';
 import { reverseGeocodeStreet, autocompleteAddressGoong, getPlaceDetailGoong, geocodeAddressGoong } from '../../utils/mapLocationUtils';
 import MapGoongComponent from '../../components/MapGoongComponent';
@@ -775,29 +774,11 @@ const ProfessionalProfileTab = () => {
         hometownName: '',          // sent as hometownName to backend
         workProvinceCode: '',      // UI-only: filter for working districts
         workingDistricts: [],      // array of { code, name } objects
-        serviceIds: [],
-        selectedCategoryIds: [],   // UI-only: cho phép tick cả category chưa có dịch vụ con
+        categoryIds: [],
     });
 
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState(null);
-
-    const getSelectedCategoryIdsFromServiceIds = (serviceIds, categories) => {
-        const selectedServiceSet = new Set((serviceIds || []).map(String));
-        return categories
-            .filter((cat) => (cat.serviceIds || []).some((id) => selectedServiceSet.has(String(id))))
-            .map((cat) => String(cat.value));
-    };
-
-    const mapCategoryIdsToServiceIds = (categoryIds, categories) => {
-        const selectedCategorySet = new Set((categoryIds || []).map(String));
-        const nextServiceIds = [];
-        categories.forEach((cat) => {
-            if (!selectedCategorySet.has(String(cat.value))) return;
-            (cat.serviceIds || []).forEach((id) => nextServiceIds.push(String(id)));
-        });
-        return Array.from(new Set(nextServiceIds));
-    };
 
     const toOptionsArr = (res) => {
         const arr = Array.isArray(res) ? res : (res?.data || []);
@@ -820,8 +801,7 @@ const ProfessionalProfileTab = () => {
                     hometownName: data.hometownName || '',
                     // workingDistricts from backend: [{ code, name, type }]
                     workingDistricts: data.workingDistricts?.map((d) => ({ code: String(d.code), name: d.name })) || [],
-                    serviceIds: data.services?.map((s) => String(s.id)) || [],
-                    selectedCategoryIds: [],
+                    categoryIds: data.categories?.map((c) => String(c.id ?? c.categoryId)).filter(Boolean) || [],
                 }));
             })
             .catch((err) => console.error('[ProfessionalTab] fetch failed:', err))
@@ -843,23 +823,22 @@ const ProfessionalProfileTab = () => {
             .finally(() => setLoadingProv(false));
     }, []);
 
-    // Load services once
+    // Load active categories once
     useEffect(() => {
         setLoadingSvc(true);
-        HelperRegistrationService.getServices()
+        ProfileService.getActiveCategories()
             .then((res) => {
-                const arr = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+                const payload = res?.data ?? res;
+                const arr = Array.isArray(payload)
+                    ? payload
+                    : Array.isArray(payload?.data)
+                        ? payload.data
+                        : [];
                 const categories = arr
-                    .map((cat) => {
-                        const children = Array.isArray(cat?.services) ? cat.services : [];
-                        return {
-                            value: String(cat?.categoryId ?? cat?.id ?? ''),
-                            label: cat?.categoryName || cat?.name || 'Danh mục dịch vụ',
-                            serviceIds: children
-                                .filter((s) => s?.id != null)
-                                .map((s) => String(s.id)),
-                        };
-                    })
+                    .map((cat) => ({
+                        value: String(cat?.id ?? cat?.categoryId ?? ''),
+                        label: cat?.name || cat?.categoryName || 'Danh mục dịch vụ',
+                    }))
                     .filter((cat) => cat.value && cat.label);
 
                 setAllServices(categories);
@@ -867,18 +846,6 @@ const ProfessionalProfileTab = () => {
             .catch(() => { })
             .finally(() => setLoadingSvc(false));
     }, []);
-
-    // Đồng bộ tick category từ serviceIds đã đăng ký (chạy khi đã có danh mục)
-    useEffect(() => {
-        if (!allServices.length) return;
-        setForm((f) => {
-            if (Array.isArray(f.selectedCategoryIds) && f.selectedCategoryIds.length > 0) {
-                return f;
-            }
-            const inferred = getSelectedCategoryIdsFromServiceIds(f.serviceIds, allServices);
-            return { ...f, selectedCategoryIds: inferred };
-        });
-    }, [allServices]);
 
     // When workingDistricts loaded from profile, detect workProvinceCode
     // by finding first saved district's code in each province's district list
@@ -952,7 +919,7 @@ const ProfessionalProfileTab = () => {
                 hometownName: hometownName || null,
                 // Backend expects: List<WorkingDistrictRequest> with { name, code }
                 workingDistricts: form.workingDistricts,
-                serviceIds: form.serviceIds.map((id) => parseInt(id, 10)),
+                categoryIds: form.categoryIds.map((id) => parseInt(id, 10)),
             };
             await ProfileService.updateHelperProfessionalProfile(payload);
             setToast({ message: 'Cập nhật hồ sơ nghề nghiệp thành công!', type: 'success' });
@@ -976,7 +943,7 @@ const ProfessionalProfileTab = () => {
         );
     }
 
-    const selectedCategoryIds = form.selectedCategoryIds || [];
+    const selectedCategoryIds = form.categoryIds || [];
 
     return (
         <div className="hpp-tab-content">
@@ -1182,8 +1149,7 @@ const ProfessionalProfileTab = () => {
                     onChange={(categoryIds) =>
                         setForm((f) => ({
                             ...f,
-                            selectedCategoryIds: categoryIds,
-                            serviceIds: mapCategoryIdsToServiceIds(categoryIds, allServices),
+                            categoryIds,
                         }))
                     }
                     loading={loadingSvc}

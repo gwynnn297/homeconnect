@@ -85,6 +85,16 @@ const getWards = (districtCode) => {
     return apiClient.get(`/api/v1/locations/districts/${districtCode}/wards`);
 };
 
+/**
+ * Lấy danh sách danh mục dịch vụ đang hoạt động
+ * Backend: GET /api/v1/categories/active
+ * Response: ApiResponse<List<CategorySimpleResponse>>
+ * @returns {Promise<Object>} Danh sách danh mục active
+ */
+const getActiveCategories = () => {
+    return apiClient.get('/api/v1/categories/active');
+};
+
 const ProfileService = {
     getMyProfile,
     updateProfile,
@@ -94,7 +104,8 @@ const ProfileService = {
     getAddressLabels,
     getProvinces,
     getDistricts,
-    getWards
+    getWards,
+    getActiveCategories
 };
 
 export default ProfileService;

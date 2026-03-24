@@ -30,11 +30,23 @@ const HelperRegistrationService = {
     },
 
     /**
-     * Lấy danh sách dịch vụ
-     * @returns {Promise<Array>} Danh sách các dịch vụ có sẵn
+     * Lấy danh mục dịch vụ (cha)
+     * Backend: GET /api/helpers/categories
+     * Response item shape: { id, name, basePrice, unit }
+     * @returns {Promise<Array>} Danh sách danh mục dịch vụ đang active
+     */
+    getCategories: async () => {
+        return await apiClient.get(`${BASE_URL}/categories`);
+    },
+
+    /**
+     * Backward compatibility:
+     * Một số màn hình cũ vẫn gọi getServices để lấy danh mục đăng ký.
+     * Hiện tại map sang endpoint categories của backend.
+     * @returns {Promise<Array>} Danh sách danh mục dịch vụ
      */
     getServices: async () => {
-        return await apiClient.get(`${BASE_URL}/services`);
+        return await apiClient.get(`${BASE_URL}/categories`);
     },
 
     /**
