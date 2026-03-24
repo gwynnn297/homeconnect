@@ -40,7 +40,8 @@ public class CreateJobPostRequest {
     @Size(max = 500, message = "Địa chỉ chi tiết không được vượt quá 500 ký tự")
     private String addressDetail;
 
-    // Optional: FE có thể gửi, nhưng backend sẽ tự geocode lại từ địa chỉ để đảm bảo nhất quán
+    // Optional: FE có thể gửi, nhưng backend sẽ tự geocode lại từ địa chỉ để đảm
+    // bảo nhất quán
     @DecimalMin(value = "-90.0", message = "Latitude phải từ -90 đến 90")
     @DecimalMax(value = "90.0", message = "Latitude phải từ -90 đến 90")
     private BigDecimal latitude;

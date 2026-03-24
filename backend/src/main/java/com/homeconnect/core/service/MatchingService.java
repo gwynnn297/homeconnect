@@ -63,7 +63,7 @@ public class MatchingService {
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy job post với ID: " + postId));
 
             log.info("Chi tiết Job Post: Service ID={}, Ngày={}, Giờ={}, Thời lượng={}h, Địa điểm={}",
-                    jobPost.getServiceId(), 
+                    jobPost.getServiceId(),
                     jobPost.getWorkDate(),
                     jobPost.getStartTime(),
                     jobPost.getDurationHours(),
@@ -75,8 +75,7 @@ public class MatchingService {
                     jobPost.getServiceId(),
                     jobPost.getWorkDate(),
                     jobPost.getStartTime(),
-                    durationSecs
-            );
+                    durationSecs);
 
             log.info("Kết quả lọc nền tảng (service + online + KYC + schedule): {} helper", eligibleHelperIds.size());
 
@@ -87,10 +86,12 @@ public class MatchingService {
             }
 
             // 3. Filter theo working districts ở service layer
-            List<Long> districtMatchedHelperIds = filterHelpersByWorkingDistrict(eligibleHelperIds, jobPost.getAddressDetail());
+            List<Long> districtMatchedHelperIds = filterHelpersByWorkingDistrict(eligibleHelperIds,
+                    jobPost.getAddressDetail());
             log.info("Kết quả lọc working district: {} helper", districtMatchedHelperIds.size());
             if (districtMatchedHelperIds.isEmpty()) {
-                log.warn("Không tìm thấy helper theo working district cho Job Post ID: {}, địa chỉ job='{}', candidates={} ",
+                log.warn(
+                        "Không tìm thấy helper theo working district cho Job Post ID: {}, địa chỉ job='{}', candidates={} ",
                         postId, jobPost.getAddressDetail(), eligibleHelperIds);
                 return;
             }
@@ -99,7 +100,8 @@ public class MatchingService {
             List<Long> rankedHelperIds = filterAndSortByRating(districtMatchedHelperIds);
             log.info("Kết quả lọc rating/reviews: {} helper", rankedHelperIds.size());
             if (rankedHelperIds.isEmpty()) {
-                log.warn("Không tìm thấy helper đạt ngưỡng rating/review cho Job Post ID: {}, minRating={}, minReviews={}, candidates={} ",
+                log.warn(
+                        "Không tìm thấy helper đạt ngưỡng rating/review cho Job Post ID: {}, minRating={}, minReviews={}, candidates={} ",
                         postId, MIN_RATING, MIN_REVIEWS, districtMatchedHelperIds);
                 return;
             }
@@ -114,7 +116,8 @@ public class MatchingService {
             }
 
             if (finalHelperIds.isEmpty()) {
-                log.warn("Không tìm thấy helper sau khi filter khoảng cách cho Job Post ID: {}, jobLat={}, jobLng={}, candidates={}",
+                log.warn(
+                        "Không tìm thấy helper sau khi filter khoảng cách cho Job Post ID: {}, jobLat={}, jobLng={}, candidates={}",
                         postId, jobPost.getLatitude(), jobPost.getLongitude(), rankedHelperIds);
                 return;
             }
@@ -163,8 +166,7 @@ public class MatchingService {
         Map<Long, List<String>> districtMapByHelper = workingDistricts.stream()
                 .collect(Collectors.groupingBy(
                         wd -> wd.getHelper().getId(),
-                        Collectors.mapping(HelperWorkingDistrict::getDistrictName, Collectors.toList())
-                ));
+                        Collectors.mapping(HelperWorkingDistrict::getDistrictName, Collectors.toList())));
 
         return helperIds.stream()
                 .filter(helperId -> districtMapByHelper.getOrDefault(helperId, List.of()).stream()
@@ -189,17 +191,17 @@ public class MatchingService {
                         return false;
                     }
 
-                    boolean passRating = profile.getRatingAverage() == null || profile.getRatingAverage().compareTo(MIN_RATING) >= 0;
+                    boolean passRating = profile.getRatingAverage() == null
+                            || profile.getRatingAverage().compareTo(MIN_RATING) >= 0;
                     boolean passReviews = profile.getTotalReviews() == null || profile.getTotalReviews() >= MIN_REVIEWS;
                     return passRating && passReviews;
                 })
                 .sorted(Comparator.comparing(
-                                (Long helperId) -> {
-                                    HelperProfile profile = profileByHelperId.get(helperId);
-                                    return profile != null ? profile.getRatingAverage() : null;
-                                },
-                                Comparator.nullsLast(Comparator.reverseOrder())
-                        )
+                        (Long helperId) -> {
+                            HelperProfile profile = profileByHelperId.get(helperId);
+                            return profile != null ? profile.getRatingAverage() : null;
+                        },
+                        Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(helperId -> {
                             HelperProfile profile = profileByHelperId.get(helperId);
                             return profile != null && profile.getTotalReviews() != null ? profile.getTotalReviews() : 0;
@@ -232,35 +234,34 @@ public class MatchingService {
                             .stream()
                             .findFirst()
                             .orElse(null);
-                    
+
                     if (address == null || address.getLatitude() == null || address.getLongitude() == null) {
                         return false;
                     }
-                    
+
                     double distance = calculateDistance(
-                            address.getLatitude(), 
-                            address.getLongitude(), 
-                            jobPost.getLatitude(), 
-                            jobPost.getLongitude()
-                    );
+                            address.getLatitude(),
+                            address.getLongitude(),
+                            jobPost.getLatitude(),
+                            jobPost.getLongitude());
                     return distance <= MAX_DISTANCE_KM;
                 })
                 .toList();
     }
 
     // Tính khoảng cách 2 tọa độ dùng công thức Haversine (kết quả tính bằng km)
-    private double calculateDistance(BigDecimal lat1, BigDecimal lng1, 
-                                    BigDecimal lat2, BigDecimal lng2) {
+    private double calculateDistance(BigDecimal lat1, BigDecimal lng1,
+            BigDecimal lat2, BigDecimal lng2) {
         final int EARTH_RADIUS = 6371; // km
-        
+
         double dLat = Math.toRadians(lat2.doubleValue() - lat1.doubleValue());
         double dLng = Math.toRadians(lng2.doubleValue() - lng1.doubleValue());
-        
+
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                   Math.cos(Math.toRadians(lat1.doubleValue())) * 
-                   Math.cos(Math.toRadians(lat2.doubleValue())) *
-                   Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        
+                Math.cos(Math.toRadians(lat1.doubleValue())) *
+                        Math.cos(Math.toRadians(lat2.doubleValue())) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return EARTH_RADIUS * c;
     }
@@ -273,13 +274,13 @@ public class MatchingService {
                 log.warn("Không tìm thấy helper với ID: {}", helperId);
                 return;
             }
-            
+
             String subject = "Có việc mới phù hợp - " + jobPost.getTitle();
             String content = buildJobInvitationEmailContent(helper.getFullName(), jobPost);
-            
+
             emailService.sendSimpleMessage(helper.getEmail(), subject, content);
             log.info("Đã gửi email mời việc tới Helper ID: {} cho Job Post ID: {}", helperId, postId);
-            
+
         } catch (Exception e) {
             log.warn("Không gửi được email mời việc tới Helper {}: {}", helperId, e.getMessage());
             // Không throw exception - email không phải chuyện critical
@@ -290,30 +291,29 @@ public class MatchingService {
     private String buildJobInvitationEmailContent(String helperName, JobPost jobPost) {
         return String.format("""
                 Xin chào %s,
-                
+
                 Bạn có một cơ hội việc mới phù hợp với kỹ năng và lịch rảnh của bạn!
-                
+
                 Chi tiết việc:
                 • Dịch vụ: [Thông tin dịch vụ]
                 • Ngày: %s
                 • Giờ: %s (%d giờ)
                 • Địa điểm: %s
                 • Giá: %,d VNĐ
-                
+
                 Vui lòng mở ứng dụng để xem chi tiết và phản hồi lời mời.
-                
+
                 Hãy nhanh chóng - các helper khác cũng có thể nhận việc này!
-                
+
                 Trân trọng,
                 HomeConnect Team
-                """, 
+                """,
                 helperName != null ? helperName : "Helper",
                 jobPost.getWorkDate(),
                 jobPost.getStartTime(),
                 jobPost.getDurationHours(),
                 jobPost.getAddressDetail(),
-                jobPost.getOfferPrice().longValue()
-        );
+                jobPost.getOfferPrice().longValue());
     }
 
     // Lấy số lượng application cho job post

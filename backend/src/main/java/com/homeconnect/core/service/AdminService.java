@@ -66,7 +66,7 @@ public class AdminService {
                 if (!"HELPER".equals(helper.getRole().name())) {
                         throw new BadRequestException(
                                         "User ID " + helperId + " không phải là Helper. Role: "
-+ helper.getRole().name());
+                                                        + helper.getRole().name());
                 }
 
                 // 3. Tìm HelperProfile
@@ -88,7 +88,7 @@ public class AdminService {
                 helperProfile.setKycStatus(newStatus);
                 if (KycStatus.VERIFIED.equals(newStatus)) {
                         helper.setStatus(UserStatus.ACTIVE);
-                } else {        
+                } else {
                         helper.setStatus(UserStatus.REJECTED);
                 }
 
@@ -122,7 +122,7 @@ public class AdminService {
                                 .kycStatus(newStatus)
                                 .rejectionReason(request.getRejectionReason())
                                 .reviewedAt(LocalDateTime.now())
-.reviewedBy(adminEmail)
+                                .reviewedBy(adminEmail)
                                 .message(newStatus == KycStatus.VERIFIED ? "Đã phê duyệt KYC cho Helper thành công"
                                                 : "Đã từ chối KYC cho Helper")
                                 .build();
@@ -169,20 +169,22 @@ public class AdminService {
                                                         """,
                                         helperName);
                 } else {
-                        return String.format("""
-                                        Chào %s,
+                        return String.format(
+                                        """
+                                                                                                Chào %s,
 
-                                        Rất tiếc, hồ sơ xác thực danh tính của bạn đã không được phê duyệt.
+                                                                                                Rất tiếc, hồ sơ xác thực danh tính của bạn đã không được phê duyệt.
 
-                                        Lý do: %s
+                                                                                                Lý do: %s
 
-                                        Bạn có thể cập nhật lại hồ sơ và nộp lại để được xem xét.
+                                                                                                Bạn có thể cập nhật lại hồ sơ và nộp lại để được xem xét.
 
-                                        Nếu có thắc mắc, vui lòng liên hệ bộ phận hỗ trợ của chúng tôi.
+                                                                                                Nếu có thắc mắc, vui lòng liên hệ bộ phận hỗ trợ của chúng tôi.
 
-                                        Trân trọng,
-Đội ngũ HomeConnect
-                                        """, helperName, rejectionReason != null ? rejectionReason : "Không rõ");
+                                                                                                Trân trọng,
+                                                        Đội ngũ HomeConnect
+                                                                                                """,
+                                        helperName, rejectionReason != null ? rejectionReason : "Không rõ");
                 }
         }
 
@@ -240,7 +242,7 @@ public class AdminService {
                                                 "Không tìm thấy Helper với ID: " + helperId));
 
                 if (helper.getRole() != UserRole.HELPER) {
-throw new BadRequestException("User ID " + helperId + " không phải là Helper");
+                        throw new BadRequestException("User ID " + helperId + " không phải là Helper");
                 }
 
                 // 2. Tìm HelperProfile
@@ -288,7 +290,7 @@ throw new BadRequestException("User ID " + helperId + " không phải là Helper
                                 .profileId(helperProfile.getProfileId())
                                 .bio(helperProfile.getBio())
                                 .experienceYears(helperProfile.getExperienceYears())
-.dateOfBirth(helper.getDateOfBirth()) // Đã chuyển từ helperProfile sang User
+                                .dateOfBirth(helper.getDateOfBirth()) // Đã chuyển từ helperProfile sang User
                                 .addressDetail(helperAddress != null ? helperAddress.getAddressDetail() : null)
 
                                 // Location
@@ -335,7 +337,7 @@ throw new BadRequestException("User ID " + helperId + " không phải là Helper
                 long totalAdmins = userRepository.countByRole(UserRole.ADMIN);
                 long activeUsers = userRepository.countByStatus(UserStatus.ACTIVE);
                 long blockedUsers = userRepository.countByStatus(UserStatus.BLOCKED);
-AdminStatisticsResponse.UserStats userStats = AdminStatisticsResponse.UserStats.builder()
+                AdminStatisticsResponse.UserStats userStats = AdminStatisticsResponse.UserStats.builder()
                                 .totalUsers(totalUsers)
                                 .totalCustomers(totalCustomers)
                                 .totalHelpers(totalHelpers)
@@ -388,7 +390,7 @@ AdminStatisticsResponse.UserStats userStats = AdminStatisticsResponse.UserStats.
                                 recipients = userRepository.findByRole(targetRole);
                         } catch (IllegalArgumentException e) {
                                 throw new BadRequestException("Role không hợp lệ: " + request.getTargetRole());
-}
+                        }
                 } else {
                         recipients = userRepository.findAll();
                 }
@@ -447,7 +449,7 @@ AdminStatisticsResponse.UserStats userStats = AdminStatisticsResponse.UserStats.
 
                                 .experienceYears(helperProfile.getExperienceYears())
                                 .bio(helperProfile.getBio())
-.totalServices((int) totalServices)
+                                .totalServices((int) totalServices)
                                 .totalWorkingDistricts((int) totalWorkingDistricts)
 
                                 .createdAt(helper.getCreatedAt())
@@ -463,7 +465,8 @@ AdminStatisticsResponse.UserStats userStats = AdminStatisticsResponse.UserStats.
                                 .basePrice(service.getBasePrice())
                                 .unit(service.getUnit())
                                 .isActive(service.getIsActive())
-                                .categoryId(service.getCategory() != null ? service.getCategory().getCategoryId() : null)
+                                .categoryId(service.getCategory() != null ? service.getCategory().getCategoryId()
+                                                : null)
                                 .categoryName(service.getCategory() != null ? service.getCategory().getName() : null)
                                 .createdAt(service.getCreatedAt())
                                 .updatedAt(service.getUpdatedAt())
@@ -508,7 +511,7 @@ AdminStatisticsResponse.UserStats userStats = AdminStatisticsResponse.UserStats.
                 com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
                                 .orElseThrow(() -> new BadRequestException(
                                                 "Dịch vụ ID " + serviceId + " không tồn tại"));
-if (request.getName() != null && !request.getName().equals(service.getName())) {
+                if (request.getName() != null && !request.getName().equals(service.getName())) {
                         if (serviceRepository.existsByName(request.getName())) {
                                 throw new BadRequestException("Tên dịch vụ '" + request.getName() + "' đã tồn tại");
                         }
@@ -552,8 +555,8 @@ if (request.getName() != null && !request.getName().equals(service.getName())) {
                 ServiceCategory category = null;
                 if (request.getCategoryId() != null) {
                         category = serviceCategoryRepository.findById(request.getCategoryId())
-                                .orElseThrow(() -> new BadRequestException(
-                                        "Danh mục ID " + request.getCategoryId() + " không tồn tại"));
+                                        .orElseThrow(() -> new BadRequestException(
+                                                        "Danh mục ID " + request.getCategoryId() + " không tồn tại"));
                 }
 
                 com.homeconnect.core.entity.Service service = com.homeconnect.core.entity.Service.builder()
@@ -574,7 +577,6 @@ if (request.getName() != null && !request.getName().equals(service.getName())) {
                 return mapToServiceResponse(service);
         }
 
-
         // --- BE-Admin-01: Danh muc Cha (ServiceCategory) ---
 
         @Transactional
@@ -583,41 +585,43 @@ if (request.getName() != null && !request.getName().equals(service.getName())) {
                         throw new BadRequestException("Ten danh muc da ton tai");
                 }
                 return serviceCategoryRepository.save(ServiceCategory.builder()
-                        .name(request.getName())
-                        .description(request.getDescription())
-                        .basePrice(request.getBasePrice())
-                        .unit(request.getUnit() != null ? com.homeconnect.core.enums.ServiceUnit.valueOf(request.getUnit()) : null)
-                        .isActive(true)
-                        .build());
+                                .name(request.getName())
+                                .description(request.getDescription())
+                                .basePrice(request.getBasePrice())
+                                .unit(request.getUnit() != null
+                                                ? com.homeconnect.core.enums.ServiceUnit.valueOf(request.getUnit())
+                                                : null)
+                                .isActive(true)
+                                .build());
         }
 
         @Transactional(readOnly = true)
         public List<CategoryResponse> getRootCategories() {
                 return serviceCategoryRepository.findAll().stream()
-                        .map(cat -> CategoryResponse.builder()
-                                .categoryId(cat.getCategoryId())
-                                .name(cat.getName())
-                                .description(cat.getDescription())
-                                .basePrice(cat.getBasePrice())
-                                .unit(cat.getUnit() != null ? cat.getUnit().name() : null)
-                                .isActive(cat.getIsActive())
-                                .build())
-                        .collect(Collectors.toList());
+                                .map(cat -> CategoryResponse.builder()
+                                                .categoryId(cat.getCategoryId())
+                                                .name(cat.getName())
+                                                .description(cat.getDescription())
+                                                .basePrice(cat.getBasePrice())
+                                                .unit(cat.getUnit() != null ? cat.getUnit().name() : null)
+                                                .isActive(cat.getIsActive())
+                                                .build())
+                                .collect(Collectors.toList());
         }
 
         @Transactional(readOnly = true)
         public List<ServiceResponse> getChildrenServicesByCategory(Integer categoryId) {
                 ServiceCategory category = serviceCategoryRepository.findById(categoryId)
-                        .orElseThrow(() -> new BadRequestException("Danh muc khong ton tai"));
+                                .orElseThrow(() -> new BadRequestException("Danh muc khong ton tai"));
                 return category.getServices().stream()
-                        .map(this::mapToServiceResponse)
-                        .collect(Collectors.toList());
+                                .map(this::mapToServiceResponse)
+                                .collect(Collectors.toList());
         }
 
         @Transactional
         public CategoryResponse updateCategory(Integer categoryId, UpdateCategoryRequest request) {
                 ServiceCategory category = serviceCategoryRepository.findById(categoryId)
-                        .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại"));
+                                .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại"));
 
                 if (request.getName() != null && !request.getName().equals(category.getName())) {
                         if (serviceCategoryRepository.existsByName(request.getName())) {
@@ -626,27 +630,31 @@ if (request.getName() != null && !request.getName().equals(service.getName())) {
                         category.setName(request.getName());
                 }
 
-                if (request.getDescription() != null) category.setDescription(request.getDescription());
-                if (request.getBasePrice() != null) category.setBasePrice(request.getBasePrice());
-                if (request.getUnit() != null) category.setUnit(com.homeconnect.core.enums.ServiceUnit.valueOf(request.getUnit()));
-                if (request.getIsActive() != null) category.setIsActive(request.getIsActive());
+                if (request.getDescription() != null)
+                        category.setDescription(request.getDescription());
+                if (request.getBasePrice() != null)
+                        category.setBasePrice(request.getBasePrice());
+                if (request.getUnit() != null)
+                        category.setUnit(com.homeconnect.core.enums.ServiceUnit.valueOf(request.getUnit()));
+                if (request.getIsActive() != null)
+                        category.setIsActive(request.getIsActive());
 
                 category = serviceCategoryRepository.save(category);
                 return CategoryResponse.builder()
-                        .categoryId(category.getCategoryId())
-                        .name(category.getName())
-                        .description(category.getDescription())
-                        .basePrice(category.getBasePrice())
-                        .unit(category.getUnit() != null ? category.getUnit().name() : null)
-                        .isActive(category.getIsActive())
-                        .build();
+                                .categoryId(category.getCategoryId())
+                                .name(category.getName())
+                                .description(category.getDescription())
+                                .basePrice(category.getBasePrice())
+                                .unit(category.getUnit() != null ? category.getUnit().name() : null)
+                                .isActive(category.getIsActive())
+                                .build();
         }
 
         @Transactional
         public void deleteCategory(Integer categoryId) {
                 ServiceCategory category = serviceCategoryRepository.findById(categoryId)
-                        .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại"));
-                
+                                .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại"));
+
                 serviceCategoryRepository.delete(category);
         }
 }

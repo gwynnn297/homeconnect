@@ -53,7 +53,7 @@ public class ProfileService {
     @Transactional
     public UserProfileResponse updateCommonProfile(CommonProfileUpdateRequest request) {
         User user = getCurrentUser();
-        
+
         // 1. Update Basic User Info
         user.setFullName(request.getFullName());
         if (request.getAvatarUrl() != null) {
@@ -69,7 +69,7 @@ public class ProfileService {
                         .isDefault(true)
                         .type("HOME")
                         .build());
-        
+
         address.setAddressDetail(request.getAddressDetail());
         address.setWardName(request.getWardName());
         address.setDistrictName(request.getDistrictName());
@@ -79,7 +79,8 @@ public class ProfileService {
         BigDecimal lat = request.getLatitude();
         BigDecimal lng = request.getLongitude();
 
-        if (lat != null && lng != null && (lat.compareTo(BigDecimal.ZERO) != 0 || lng.compareTo(BigDecimal.ZERO) != 0)) {
+        if (lat != null && lng != null
+                && (lat.compareTo(BigDecimal.ZERO) != 0 || lng.compareTo(BigDecimal.ZERO) != 0)) {
             address.setLatitude(lat);
             address.setLongitude(lng);
         } else {
@@ -89,8 +90,7 @@ public class ProfileService {
                         request.getAddressDetail(),
                         request.getWardName(),
                         request.getDistrictName(),
-                        request.getProvinceName()
-                );
+                        request.getProvinceName());
                 address.setLatitude(geo.getLatitude());
                 address.setLongitude(geo.getLongitude());
             } catch (Exception e) {
@@ -102,9 +102,9 @@ public class ProfileService {
         if (request.getAddressLabel() != null) {
             address.setType(request.getAddressLabel());
         }
-        
+
         addressRepository.save(address);
-        
+
         log.info("Updated common profile and geocoded address for user: {}", user.getEmail());
         return mapToUserResponse(savedUser, address);
     }
@@ -112,8 +112,9 @@ public class ProfileService {
     public HelperProfileResponse getHelperProfessionalProfile() {
         User user = getCurrentUser();
         HelperProfile profile = helperProfileRepository.findByUser_Id(user.getId())
-                .orElseThrow(() -> new ApiException("Đây không phải tài khoản Helper hoặc hồ sơ chưa được tạo", HttpStatus.BAD_REQUEST));
-        
+                .orElseThrow(() -> new ApiException("Đây không phải tài khoản Helper hoặc hồ sơ chưa được tạo",
+                        HttpStatus.BAD_REQUEST));
+
         return mapToHelperResponse(profile);
     }
 
@@ -129,14 +130,16 @@ public class ProfileService {
                 throw new ApiException("Bio phải có ít nhất 50 ký tự", HttpStatus.BAD_REQUEST);
             }
             if (PHONE_PATTERN.matcher(request.getBio()).matches()) {
-                throw new ApiException("Bio không được chứa số điện thoại để đảm bảo an toàn hệ thống", HttpStatus.BAD_REQUEST);
+                throw new ApiException("Bio không được chứa số điện thoại để đảm bảo an toàn hệ thống",
+                        HttpStatus.BAD_REQUEST);
             }
             profile.setBio(request.getBio());
         }
 
         // 2. Update Basic Info
         java.time.LocalDate dob = request.getDateOfBirth() != null ? request.getDateOfBirth() : user.getDateOfBirth();
-        Integer exp = request.getExperienceYears() != null ? request.getExperienceYears() : profile.getExperienceYears();
+        Integer exp = request.getExperienceYears() != null ? request.getExperienceYears()
+                : profile.getExperienceYears();
 
         if (dob != null) {
             int age = java.time.Period.between(dob, java.time.LocalDate.now()).getYears();
@@ -144,7 +147,8 @@ public class ProfileService {
                 throw new ApiException("Người giúp việc phải từ 18 tuổi trở lên", HttpStatus.BAD_REQUEST);
             }
             if (exp != null && exp > (age - 15)) {
-                throw new ApiException("Số năm kinh nghiệm (" + exp + ") không hợp lệ so với tuổi (" + age + ")", HttpStatus.BAD_REQUEST);
+                throw new ApiException("Số năm kinh nghiệm (" + exp + ") không hợp lệ so với tuổi (" + age + ")",
+                        HttpStatus.BAD_REQUEST);
             }
             user.setDateOfBirth(dob);
             userRepository.save(user);
@@ -153,7 +157,7 @@ public class ProfileService {
         if (request.getExperienceYears() != null) {
             profile.setExperienceYears(request.getExperienceYears());
         }
-        
+
         // 3. Update Hometown
         if (request.getHometownName() != null) {
             profile.setHometownName(request.getHometownName());
@@ -163,13 +167,13 @@ public class ProfileService {
         if (request.getWorkingDistricts() != null) {
             helperWorkingDistrictRepository.deleteByHelper_Id(user.getId());
             helperWorkingDistrictRepository.flush();
-            
+
             for (HelperProfessionalProfileRequest.WorkingDistrictRequest wdReq : request.getWorkingDistricts()) {
                 // Backend Validate districtCode
                 if (!externalLocationService.validateDistrict(wdReq.getCode(), wdReq.getName())) {
                     throw new ApiException(" Quận/Huyện không hợp lệ: " + wdReq.getName(), HttpStatus.BAD_REQUEST);
                 }
-                
+
                 helperWorkingDistrictRepository.save(HelperWorkingDistrict.builder()
                         .helper(user)
                         .districtName(wdReq.getName())
@@ -182,12 +186,13 @@ public class ProfileService {
         if (request.getServiceIds() != null) {
             helperServiceRepository.deleteByHelper_Id(user.getId());
             helperServiceRepository.flush(); // Cập nhật ngay để tránh Duplicate Entry khi insert lại
-            
+
             List<HelperService> newSkills = request.getServiceIds().stream()
                     .distinct()
                     .map(serviceId -> {
                         com.homeconnect.core.entity.Service service = serviceRepository.findById(serviceId)
-                                .orElseThrow(() -> new ApiException("Dịch vụ ID " + serviceId + " không tồn tại", HttpStatus.BAD_REQUEST));
+                                .orElseThrow(() -> new ApiException("Dịch vụ ID " + serviceId + " không tồn tại",
+                                        HttpStatus.BAD_REQUEST));
                         return HelperService.builder()
                                 .helper(user)
                                 .service(service)
@@ -206,7 +211,7 @@ public class ProfileService {
     public HelperProfileResponse getPublicHelperProfile(Long id) {
         HelperProfile profile = helperProfileRepository.findByUser_Id(id)
                 .orElseThrow(() -> new ApiException("Không tìm thấy thông tin người giúp việc", HttpStatus.NOT_FOUND));
-        
+
         return mapToHelperResponse(profile);
     }
 
@@ -274,7 +279,8 @@ public class ProfileService {
         return List.of("HOME", "OFFICE", "OTHER");
     }
 
-    private com.homeconnect.core.dto.response.profile.ServiceResponse mapToServiceResponse(com.homeconnect.core.entity.Service service) {
+    private com.homeconnect.core.dto.response.profile.ServiceResponse mapToServiceResponse(
+            com.homeconnect.core.entity.Service service) {
         return com.homeconnect.core.dto.response.profile.ServiceResponse.builder()
                 .id(service.getServiceId())
                 .name(service.getName())

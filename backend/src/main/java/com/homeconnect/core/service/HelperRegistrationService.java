@@ -97,7 +97,8 @@ public class HelperRegistrationService {
 
         RegistrationDraft draft = registrationCacheService.getDraft(email);
         if (draft == null || !draft.isStage1Complete()) {
-            throw new RegistrationIncompleteException("Vui lòng hoàn thành Giai đoạn 1 trước khi thực hiện Giai đoạn 2");
+            throw new RegistrationIncompleteException(
+                    "Vui lòng hoàn thành Giai đoạn 1 trước khi thực hiện Giai đoạn 2");
         }
 
         // Kiểm tra format CCCD (12 chữ số)
@@ -122,7 +123,6 @@ public class HelperRegistrationService {
         log.info("Stage 2 draft updated in cache for: {}", email);
     }
 
-
     /**
      * Bước cuối: Gửi hồ sơ để duyệt
      */
@@ -132,7 +132,8 @@ public class HelperRegistrationService {
 
         RegistrationDraft draft = registrationCacheService.getDraft(email);
         if (draft == null || !draft.isStage1Complete() || !draft.isStage2Complete()) {
-            throw new RegistrationIncompleteException("Hồ sơ chưa hoàn thiện. Vui lòng hoàn thành cả 2 giai đoạn trước khi gửi.");
+            throw new RegistrationIncompleteException(
+                    "Hồ sơ chưa hoàn thiện. Vui lòng hoàn thành cả 2 giai đoạn trước khi gửi.");
         }
 
         User user = userRepository.findByEmail(email)
@@ -155,7 +156,8 @@ public class HelperRegistrationService {
         // 2. Lưu Working Districts
         helperWorkingDistrictRepository.deleteByHelper_Id(user.getId());
         helperWorkingDistrictRepository.flush();
-        for (com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest.WorkingDistrictRequest wdReq : draft.getWorkingDistricts()) {
+        for (com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest.WorkingDistrictRequest wdReq : draft
+                .getWorkingDistricts()) {
             helperWorkingDistrictRepository.save(HelperWorkingDistrict.builder()
                     .helper(user)
                     .districtName(wdReq.getName())
@@ -188,7 +190,7 @@ public class HelperRegistrationService {
                         .isDefault(true)
                         .type("HOME")
                         .build());
-        
+
         address.setAddressDetail(draft.getCurrentAddress());
         address.setProvinceName(draft.getProvinceName());
         address.setDistrictName(draft.getDistrictName());
@@ -198,7 +200,8 @@ public class HelperRegistrationService {
         BigDecimal lat = draft.getLatitude();
         BigDecimal lng = draft.getLongitude();
 
-        if (lat != null && lng != null && (lat.compareTo(BigDecimal.ZERO) != 0 || lng.compareTo(BigDecimal.ZERO) != 0)) {
+        if (lat != null && lng != null
+                && (lat.compareTo(BigDecimal.ZERO) != 0 || lng.compareTo(BigDecimal.ZERO) != 0)) {
             address.setLatitude(lat);
             address.setLongitude(lng);
         } else {
@@ -208,16 +211,16 @@ public class HelperRegistrationService {
                         draft.getCurrentAddress(),
                         draft.getWardName(),
                         draft.getDistrictName(),
-                        draft.getProvinceName()
-                );
+                        draft.getProvinceName());
                 address.setLatitude(geo.getLatitude());
                 address.setLongitude(geo.getLongitude());
             } catch (Exception e) {
                 log.error("Geocoding failed during submission for helper {}: {}", email, e.getMessage());
-                throw new ApiException("Không thể định vị địa chỉ của bạn. Vui lòng kiểm tra lại thông tin địa chỉ.", HttpStatus.BAD_REQUEST);
+                throw new ApiException("Không thể định vị địa chỉ của bạn. Vui lòng kiểm tra lại thông tin địa chỉ.",
+                        HttpStatus.BAD_REQUEST);
             }
         }
-        
+
         addressRepository.save(address);
         helperProfileRepository.save(profile);
         userRepository.save(user);
