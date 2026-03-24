@@ -39,6 +39,7 @@ public class MatchingService {
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
     private final EmailService emailService;
+    private final NotificationService notificationService;
 
     @Value("${matching.min-rating:3.0}")
     private BigDecimal MIN_RATING;
@@ -141,6 +142,9 @@ public class MatchingService {
 
                 jobApplicationRepository.save(invitation);
                 inviteCount++;
+
+                // Gửi notification realtime + lưu lịch sử thông báo
+                notificationService.createMatchingNotification(helperId, postId, jobPost);
 
                 // Gửi email thông báo
                 sendJobInvitationEmail(helperId, postId, jobPost);
