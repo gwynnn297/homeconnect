@@ -1,9 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import CustomerLayout from '../../layouts/CustomerLayout';
-import HelperRegistrationService from '../../services/HelperRegistrationService';
 import './CustomerDashboardPage.css';
-
-const CATEGORY_COLORS = ['#e8f5e9', '#fff3e0', '#e3f2fd', '#fce4ec', '#f3e5f5', '#fff8e1'];
 
 const normalizeServiceLabel = (label = '') =>
     String(label)
@@ -97,60 +95,32 @@ const FEATURED_HELPERS = [
    Component
 ────────────────────────────────────────── */
 const CustomerDashboardPage = () => {
+    const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
-    const [serviceCategories, setServiceCategories] = useState([]);
-    const [categoryPage, setCategoryPage] = useState(0);
-    const [isShowingAllCategories, setIsShowingAllCategories] = useState(false);
-    const PAGE_SIZE = 6;
-    const totalPages = Math.max(1, Math.ceil(serviceCategories.length / PAGE_SIZE));
-    const startIndex = categoryPage * PAGE_SIZE;
-    const visibleCategories = serviceCategories.slice(startIndex, startIndex + PAGE_SIZE);
-    const displayedCategories = isShowingAllCategories ? serviceCategories : visibleCategories;
-    const canSlidePrev = categoryPage > 0;
-    const canSlideNext = categoryPage < totalPages - 1;
 
-    useEffect(() => {
-        let isMounted = true;
+    const DASHBOARD_SERVICES = [
+        { id: 1, label: 'Dọn dẹp', color: '#e8f5e9', icon: getServiceIcon('don dep') },
+        { id: 2, label: 'Nấu ăn', color: '#fff3e0', icon: getServiceIcon('nau an') },
+        { id: 4, label: 'Vệ sinh văn phòng', color: '#e3f2fd', icon: getServiceIcon('ve sinh') },
+        { id: 5, label: 'Trông trẻ', color: '#fce4ec', icon: getServiceIcon('trong tre') },
+        { id: 3, label: 'Đi chợ', color: '#f3e5f5', icon: getServiceIcon('di cho') },
+        { id: 6, label: 'Làm vườn', color: '#fff8e1', icon: getServiceIcon('lam vuon') },
+        { id: 7, label: 'Sơn sửa', color: '#e8f5e9', icon: getServiceIcon('son sua') },
+        { id: 'more', label: 'Xem thêm', color: '#f5f5f5', icon: (
+            <svg viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+            </svg>
+        ) }
+    ];
 
-        const fetchServices = async () => {
-            try {
-                const res = await HelperRegistrationService.getServices();
-                const rawItems = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
-                const normalized = rawItems
-                    .map((item, index) => {
-                        const label =
-                            item?.categoryName ??
-                            item?.name ??
-                            item?.serviceName ??
-                            '';
-
-                        return {
-                            id: item?.categoryId ?? item?.id ?? item?.serviceId ?? `category-${index}`,
-                            label,
-                            color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
-                            icon: getServiceIcon(label),
-                        };
-                    })
-                    .filter((item) => item.label && item.label.trim().length > 0);
-
-                if (isMounted) {
-                    setServiceCategories(normalized);
-                    setCategoryPage(0);
-                }
-            } catch (err) {
-                console.error('[CustomerDashboardPage] fetchServices failed:', err);
-                if (isMounted) {
-                    setServiceCategories([]);
-                    setCategoryPage(0);
-                }
-            }
-        };
-
-        fetchServices();
-        return () => {
-            isMounted = false;
-        };
-    }, []);
+    const handleServiceClick = (serviceId) => {
+        if (serviceId !== 'more') {
+            navigate(`/customer/post-job?serviceId=${serviceId}`);
+        }
+    };
 
     return (
         <CustomerLayout>
@@ -183,52 +153,23 @@ const CustomerDashboardPage = () => {
                 {/* ── Service Categories ── */}
                 <section className="cdb-section">
                     <div className="cdb-section-header">
-                        <h2 className="cdb-section-title">Danh mục dịch vụ</h2>
-                        <a
-                            className="cdb-section-link"
-                            href="#"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                setIsShowingAllCategories((prev) => !prev);
-                            }}
-                        >
-                            {isShowingAllCategories ? 'Thu gọn' : 'Xem tất cả'} &rsaquo;
-                        </a>
+                        <h2 className="cdb-section-title">Dịch vụ của tôi</h2>
                     </div>
                     <div className="cdb-categories-carousel">
-                        {!isShowingAllCategories && (
-                            <button
-                                className="cdb-category-nav"
-                                aria-label="Xem nhóm dịch vụ trước"
-                                onClick={() => setCategoryPage((prev) => Math.max(0, prev - 1))}
-                                disabled={!canSlidePrev}
-                            >
-                                &lsaquo;
-                            </button>
-                        )}
                         <div className="cdb-categories-grid">
-                            {displayedCategories.map(cat => (
-                                <button key={cat.id} className="cdb-category-card">
+                            {DASHBOARD_SERVICES.map(cat => (
+                                <button 
+                                    key={cat.id} 
+                                    className="cdb-category-card"
+                                    onClick={() => handleServiceClick(cat.id)}
+                                >
                                     <div className="cdb-category-icon" style={{ backgroundColor: cat.color }}>
                                         {cat.icon}
                                     </div>
                                     <span className="cdb-category-label">{cat.label}</span>
                                 </button>
                             ))}
-                            {serviceCategories.length === 0 && (
-                                <p className="cdb-empty-note">Chưa có danh mục dịch vụ.</p>
-                            )}
                         </div>
-                        {!isShowingAllCategories && (
-                            <button
-                                className="cdb-category-nav"
-                                aria-label="Xem nhóm dịch vụ tiếp theo"
-                                onClick={() => setCategoryPage((prev) => Math.min(totalPages - 1, prev + 1))}
-                                disabled={!canSlideNext}
-                            >
-                                &rsaquo;
-                            </button>
-                        )}
                     </div>
                 </section>
 
