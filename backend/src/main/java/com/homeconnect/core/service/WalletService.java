@@ -344,4 +344,38 @@ public class WalletService {
                 .build();
         transactionRepository.save(transaction);
     }
+
+    /**
+     * Hoàn tiền từ holdBalance về availableBalance (Khi hủy đơn/job post)
+     */
+    @Transactional
+    public void refundHold(Long userId, BigDecimal amount, Long referenceId, String reason) {
+        log.info("🔓 Hoàn tiền (Refund) User ID: {}, Amount: {}, Reference ID: {}, Reason: {}", 
+                userId, amount, referenceId, reason);
+
+        Wallet wallet = walletRepository.findByUserIdWithLock(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng"));
+
+        if (wallet.getHoldBalance().compareTo(amount) < 0) {
+            log.warn("⚠️ HoldBalance ({}) thấp hơn số tiền cần hoàn ({}). Sẽ hoàn tối đa số tiền đang giữ.", 
+                    wallet.getHoldBalance(), amount);
+            amount = wallet.getHoldBalance();
+        }
+
+        wallet.setHoldBalance(wallet.getHoldBalance().subtract(amount));
+        wallet.setAvailableBalance(wallet.getAvailableBalance().add(amount));
+        walletRepository.save(wallet);
+
+        WalletTransaction transaction = WalletTransaction.builder()
+                .wallet(wallet)
+                .amount(amount)
+                .type(TransactionType.REFUND)
+                .referenceType(ReferenceType.JOB_POST)
+                .referenceId(referenceId.intValue())
+                .description("Hoàn tiền #" + referenceId + ": " + reason)
+                .build();
+        transactionRepository.save(transaction);
+        
+        log.info("✅ Đã hoàn {} VNĐ về ví khả dụng.", amount);
+    }
 }

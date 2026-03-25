@@ -190,7 +190,9 @@ public class GeocodingService {
     }
 
     private GeoResult executeRequest(String url, String originalAddress) {
-        org.springframework.http.ResponseEntity<Map> responseEntity = restTemplate.getForEntity(url, Map.class);
+        org.springframework.http.ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
+                url, org.springframework.http.HttpMethod.GET, null, 
+                new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
         Map<String, Object> response = responseEntity.getBody();
 
         if (response != null && "OK".equals(response.get("status"))) {

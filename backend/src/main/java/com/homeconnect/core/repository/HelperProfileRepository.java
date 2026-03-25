@@ -66,6 +66,17 @@ public interface HelperProfileRepository extends JpaRepository<HelperProfile, In
               AND hs_sched.status = 'AVAILABLE'
               AND hs_sched.start_time <= :startTime
               AND ADDTIME(:startTime, SEC_TO_TIME(:durationSecs)) <= hs_sched.end_time
+              -- Lớp bảo vệ bổ sung: Không được bận Job nào khác (Booking) trùng vào khung giờ này
+              AND NOT EXISTS (
+                  SELECT 1 FROM bookings b
+                  WHERE b.helper_id = hp.user_id
+                    AND DATE(b.scheduled_start_time) = :workDate
+                    AND b.status IN ('CONFIRMED', 'IN_PROGRESS')
+                    AND (
+                        (TIME(b.scheduled_start_time) < ADDTIME(:startTime, SEC_TO_TIME(:durationSecs)) 
+                         AND TIME(b.scheduled_end_time) > :startTime)
+                    )
+              )
             """, nativeQuery = true)
     List<Long> findEligibleHelperIdsWithSchedule(
             @Param("categoryId") Integer categoryId,

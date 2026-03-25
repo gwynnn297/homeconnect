@@ -3,7 +3,9 @@ package com.homeconnect.core.service;
 import com.homeconnect.core.dto.request.CreateJobPostRequest;
 import com.homeconnect.core.dto.request.EstimatePriceRequest;
 import com.homeconnect.core.dto.response.EstimatePriceResponse;
+import com.homeconnect.core.dto.request.UpdateJobPostRequest;
 import com.homeconnect.core.dto.response.JobPostResponse;
+import com.homeconnect.core.entity.Address;
 import com.homeconnect.core.entity.JobPost;
 import com.homeconnect.core.event.JobPostCreatedEvent;
 import com.homeconnect.core.repository.JobPostRepository;
@@ -57,7 +59,6 @@ public class JobService {
     private final ServiceCategoryRepository serviceCategoryRepository;
     private final WalletService walletService;
     private final AddressRepository addressRepository;
-    private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public EstimatePriceResponse estimatePrice(EstimatePriceRequest request) {
@@ -311,6 +312,7 @@ public class JobService {
                 .replaceAll("\\s+", " ")
                 .trim();
     }
+
     /**
      * [BE-Post-08] Helper hủy đơn sau khi đã nhận (Áp dụng mức phạt linh hoạt PB-24)
      */
@@ -365,6 +367,158 @@ public class JobService {
         });
 
         log.info("✅ Đã xử lý hủy đơn thành công cho Job #{}", postId);
+    }
+
+    /**
+     * [BE-Post-03] Lấy danh sách bài đăng của khách hàng
+     */
+    public List<JobPostResponse> getCustomerJobs(Long customerId) {
+        log.info("Lấy danh sách job post của customer {}", customerId);
+        return jobPostRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
+                .map(this::mapToJobPostResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * [BE-Post-04] Lấy chi tiết bài đăng
+     */
+    public JobPostResponse getJobDetail(Long jobId, Long customerId) {
+        JobPost jobPost = jobPostRepository.findById(jobId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy bài đăng", HttpStatus.NOT_FOUND));
+
+        if (!jobPost.getCustomerId().equals(customerId)) {
+            throw new ApiException("Bạn không có quyền xem bài đăng này", HttpStatus.FORBIDDEN);
+        }
+
+        return mapToJobPostResponse(jobPost);
+    }
+
+    /**
+     * [BE-Post-05] Cập nhật bài đăng (Chỉ cho phép khi status = PUBLISHED)
+     */
+    @Transactional
+    public JobPostResponse updateJobPost(Long jobId, UpdateJobPostRequest request, Long customerId) {
+        JobPost jobPost = jobPostRepository.findById(jobId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy bài đăng", HttpStatus.NOT_FOUND));
+
+        if (!jobPost.getCustomerId().equals(customerId)) {
+            throw new ApiException("Bạn không có quyền chỉnh sửa bài đăng này", HttpStatus.FORBIDDEN);
+        }
+
+        if (!"PUBLISHED".equals(jobPost.getStatus())) {
+            throw new ApiException("Chỉ có thể chỉnh sửa bài đăng khi đang ở trạng thái Đang tìm thợ", HttpStatus.BAD_REQUEST);
+        }
+
+        // Lưu giá cũ để so sánh
+        BigDecimal oldPrice = jobPost.getOfferPrice();
+
+        // Cập nhật các trường
+        if (request.getTitle() != null) jobPost.setTitle(request.getTitle());
+        if (request.getDescription() != null) jobPost.setDescription(request.getDescription());
+        if (request.getWorkDate() != null) jobPost.setWorkDate(request.getWorkDate());
+        if (request.getStartTime() != null) jobPost.setStartTime(request.getStartTime());
+        if (request.getDurationHours() != null) jobPost.setDurationHours(request.getDurationHours());
+        if (request.getWorkSize() != null) jobPost.setWorkSize(request.getWorkSize());
+        if (request.getIsPremium() != null) jobPost.setIsPremium(request.getIsPremium());
+        if (request.getHasPets() != null) jobPost.setHasPets(request.getHasPets());
+        if (request.getBringTools() != null) jobPost.setBringTools(request.getBringTools());
+
+        if (request.getAddressId() != null) {
+            Address address = addressRepository.findById(request.getAddressId())
+                    .orElseThrow(() -> new ApiException("Địa chỉ không tồn tại", HttpStatus.NOT_FOUND));
+            if (!address.getUser().getId().equals(customerId)) {
+                throw new ApiException("Địa chỉ không thuộc về bạn", HttpStatus.FORBIDDEN);
+            }
+            jobPost.setAddress(address);
+        }
+
+        // --- Ràng buộc thời gian mới: Không quá khứ và phải trước ít nhất 2 tiếng ---
+        LocalDateTime requestedWorkDateTime = jobPost.getWorkDate().atTime(jobPost.getStartTime());
+        LocalDateTime minAllowedDateTime = LocalDateTime.now().plusHours(MIN_LEAD_TIME_HOURS);
+        if (requestedWorkDateTime.isBefore(minAllowedDateTime)) {
+            throw new ApiException("Thời gian làm việc mới phải đặt trước tối thiểu " + MIN_LEAD_TIME_HOURS + " tiếng kể từ bây giờ", HttpStatus.BAD_REQUEST);
+        }
+
+        // Kiểm tra xem các trường ảnh hưởng đến Matching có thay đổi không
+        boolean isMatchingCriticalChanged = request.getWorkDate() != null || 
+                                          request.getStartTime() != null || 
+                                          request.getDurationHours() != null || 
+                                          request.getAddressId() != null || 
+                                          request.getServiceIds() != null;
+
+        if (request.getServiceIds() != null) {
+            String serviceIdStr = request.getServiceIds().stream()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(","));
+            jobPost.setServiceId(serviceIdStr);
+        }
+
+        BigDecimal newPrice = calculatePrice(jobPost);
+        jobPost.setOfferPrice(newPrice);
+
+        // Xử lý chênh lệch tiền trong ví
+        if (newPrice.compareTo(oldPrice) != 0) {
+            log.info("Giá thay đổi từ {} sang {}. Đang điều chỉnh tiền giữ trong ví.", oldPrice, newPrice);
+            walletService.refundHold(customerId, oldPrice, jobId, "Cập nhật bài đăng (Hoàn tiền cũ)");
+            walletService.holdMoney(customerId, newPrice, jobId);
+        }
+
+        JobPost saved = jobPostRepository.save(jobPost);
+        
+        // --- QUAN TRỌNG: Chỉ kích hoạt lại Matching nếu các tiêu chí tìm thợ thay đổi ---
+        if (isMatchingCriticalChanged) {
+            log.info("Phát sự kiện cập nhật để tìm thợ mới cho Job #{} (Do thay đổi tiêu chí Matching)", jobId);
+            eventPublisher.publishEvent(new JobPostCreatedEvent(jobId));
+        } else {
+            log.info("Cập nhật bài đăng Job #{} thành công (Không thay đổi tiêu chí Matching, giữ nguyên thợ cũ)", jobId);
+        }
+
+        return mapToJobPostResponse(saved);
+    }
+
+    /**
+     * [BE-Post-06] Hủy bài đăng (Chỉ cho phép khi status = PUBLISHED)
+     */
+    @Transactional
+    public void cancelJobPost(Long jobId, Long customerId) {
+        JobPost jobPost = jobPostRepository.findById(jobId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy bài đăng", HttpStatus.NOT_FOUND));
+
+        if (!jobPost.getCustomerId().equals(customerId)) {
+            throw new ApiException("Bạn không có quyền hủy bài đăng này", HttpStatus.FORBIDDEN);
+        }
+
+        if (!"PUBLISHED".equals(jobPost.getStatus())) {
+            throw new ApiException("Chỉ có thể hủy bài đăng khi đang ở trạng thái Đang tìm thợ", HttpStatus.BAD_REQUEST);
+        }
+
+        // Hoàn tiền cho khách hàng
+        walletService.refundHold(customerId, jobPost.getOfferPrice(), jobId, "Khách hàng hủy bài đăng");
+
+        // Cập nhật trạng thái
+        jobPost.setStatus("CANCELLED");
+        jobPostRepository.save(jobPost);
+        
+        log.info(" Customer {} đã hủy Job Post #{} thành công.", customerId, jobId);
+    }
+
+    private BigDecimal calculatePrice(JobPost jobPost) {
+        ServiceCategory category = jobPost.getCategory();
+        BigDecimal price = category.getBasePrice().multiply(BigDecimal.valueOf(jobPost.getDurationHours()));
+
+        if (Boolean.TRUE.equals(jobPost.getIsPremium())) {
+            price = price.add(BigDecimal.valueOf(50000));
+        }
+
+        List<Integer> sIds = parseServiceIds(jobPost.getServiceId());
+        BigDecimal totalPrice = price;
+        for (Integer sId : sIds) {
+            com.homeconnect.core.entity.Service service = serviceRepository.findById(sId).orElse(null);
+            if (service != null && service.getBasePrice() != null) {
+                totalPrice = totalPrice.add(service.getBasePrice());
+            }
+        }
+        return totalPrice;
     }
 
     private List<Integer> parseServiceIds(String serviceIdStr) {

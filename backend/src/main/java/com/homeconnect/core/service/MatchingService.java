@@ -22,9 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.util.Comparator;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 // BE-Match-01: Matching Engine Service
@@ -60,6 +60,10 @@ public class MatchingService {
     @Transactional
     public void findAndInviteHelpers(Long postId) {
         log.info("Bắt đầu matching cho Job Post ID: {}", postId);
+
+        // --- Bước 0: Xóa các lời mời cũ chưa được phản hồi (Re-matching) ---
+        jobApplicationRepository.deleteByPostIdAndStatusAndType(postId, "PENDING", "INVITED");
+        log.info("Đã làm mới (xóa) các lời mời PENDING cũ cho Job #{}", postId);
 
         try {
             // 1. Lấy thông tin job post
@@ -131,16 +135,28 @@ public class MatchingService {
                 return;
             }
 
-            // 6. Gửi lời mời
+            // 6. Gửi lời mời và thông báo cập nhật
             int inviteCount = 0;
             for (Long helperId : finalHelperIds) {
-                // Kiểm tra xem đã mời chưa
-                if (jobApplicationRepository.existsByPostIdAndHelperId(postId, helperId)) {
-                    log.debug("Helper {} đã có application, bỏ qua", helperId);
-                    continue;
+                // 6.1. Kiểm tra xem đã có application chưa
+                Optional<JobApplication> existingApp = jobApplicationRepository.findByPostIdAndHelperId(postId, helperId);
+                
+                if (existingApp.isPresent()) {
+                    JobApplication app = existingApp.get();
+                    // Nếu thợ đã chủ động ứng tuyển (APPLIED), gửi thông báo "Cập nhật"
+                    if ("APPLIED".equals(app.getType())) {
+                        notificationService.createNotification(
+                            helperId, 
+                            "Cập nhật: " + jobPost.getTitle(), 
+                            String.format("Công việc bạn đã ứng tuyển vừa có thay đổi về thông tin (giờ/địa điểm). Vui lòng kiểm tra lại!"),
+                            "JOB_UPDATED"
+                        );
+                        log.info("Đã gửi thông báo cập nhật cho Helper {} (đã APPLIED)", helperId);
+                    }
+                    continue; // Không tạo lời mời mới cho người đã có record
                 }
 
-                // Tạo lời mời
+                // 6.2. Tạo lời mời cho thợ mới hoặc thợ vừa bị xóa lời mời cũ (Re-invite)
                 JobApplication invitation = JobApplication.builder()
                         .postId(postId)
                         .helperId(helperId)
@@ -150,7 +166,7 @@ public class MatchingService {
 
                 jobApplicationRepository.save(invitation);
                 
-                // Gửi notification realtime + lưu lịch sử thông báo
+                // Gửi notification mời việc mới
                 notificationService.createMatchingNotification(helperId, postId, jobPost);
 
                 inviteCount++;
