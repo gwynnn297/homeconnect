@@ -19,20 +19,20 @@ const HomePage = () => {
     return (
         <div className="home-container">
             {/* Header */}
-            <header className="header">
-                <div className="logo" onClick={handleHome}>
-                    <img className="logo-img" src={logoHomieConnect} alt="HomieConnectLogo" />         
+            <header className="hp-header">
+                <div className="hp-logo" onClick={handleHome}>
+                    <img className="hp-logo-img" src={logoHomieConnect} alt="HomieConnectLogo" />
                 </div>
-                <nav className="nav">
+                <nav className="hp-nav">
                     <a href="#services">Dịch vụ</a>
                     <a href="#how-it-works">Cách hoạt động</a>
                     <a href="#contact">Liên hệ</a>
                 </nav>
-                <div className="header-buttons">
-                    <button className="btn-login" onClick={handleLogin}>
+                <div className="hp-header-buttons">
+                    <button className="hp-btn-login" onClick={handleLogin}>
                         Đăng nhập
                     </button>
-                    <button className="btn-register" onClick={handleRegister}>
+                    <button className="hp-btn-register" onClick={handleRegister}>
                         Đăng kí
                     </button>
                 </div>

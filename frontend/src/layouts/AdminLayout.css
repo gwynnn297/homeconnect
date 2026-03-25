@@ -7,11 +7,21 @@
 .admin-layout-body {
     display: flex;
     flex: 1;
-    background-color: #f8fafc;
+    background-color: var(--bg-main);
 }
 
 .content {
     flex: 1;
     padding: 2rem;
     overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+    .admin-layout-body {
+        flex-direction: column;
+    }
+
+    .content {
+        padding: 1rem;
+    }
 }

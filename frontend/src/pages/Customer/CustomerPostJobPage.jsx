@@ -1,33 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import apiClient from '../../services/apiClient';
+import ProfileService from '../../services/ProfileService';
 import './CustomerPostJobPage.css';
 
 const DEFAULT_LATITUDE = 10.762622;
 const DEFAULT_LONGITUDE = 106.660172;
 
+const THEME_PRIMARY = '#2F5D50';
 const SERVICE_INFOS = {
-    1: { name: 'Dọn dẹp nhà cửa', icon: '🏡', color: '#4CAF50' },
-    2: { name: 'Nấu ăn', icon: '🍳', color: '#FF9800' },
-    3: { name: 'Đi chợ', icon: '🛒', color: '#9C27B0' },
-    4: { name: 'Vệ sinh văn phòng', icon: '🏢', color: '#2196F3' },
-    5: { name: 'Trông trẻ', icon: '👶', color: '#E91E63' },
-    6: { name: 'Làm vườn', icon: '🌱', color: '#8BC34A' },
-    7: { name: 'Sơn sửa', icon: '🔧', color: '#607D8B' },
+    1: { name: 'Dọn dẹp nhà cửa', icon: '🏡', color: THEME_PRIMARY },
+    2: { name: 'Nấu ăn', icon: '🍳', color: THEME_PRIMARY },
+    3: { name: 'Đi chợ', icon: '🛒', color: THEME_PRIMARY },
+    4: { name: 'Vệ sinh văn phòng', icon: '🏢', color: THEME_PRIMARY },
+    5: { name: 'Trông trẻ', icon: '👶', color: THEME_PRIMARY },
+    6: { name: 'Làm vườn', icon: '🌱', color: THEME_PRIMARY },
+    7: { name: 'Sơn sửa', icon: '🔧', color: THEME_PRIMARY },
 };
 
 const CustomerPostJobPage = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const serviceId = parseInt(searchParams.get('serviceId')) || 1;
+    const categoryId = parseInt(searchParams.get('serviceId'), 10) || 1;
+    const [categoryName, setCategoryName] = useState('');
 
     const [step, setStep] = useState(1);
 
     const [jobData, setJobData] = useState({
-        serviceId: serviceId,
+        categoryId,
+        serviceIds: [],
+        addressId: null,
         addressDetail: '',
-        latitude: DEFAULT_LATITUDE,
-        longitude: DEFAULT_LONGITUDE,
         workDate: '',
         startTime: '',
         durationHours: 2,
@@ -39,8 +42,12 @@ const CustomerPostJobPage = () => {
     const [loadingEstimate, setLoadingEstimate] = useState(false);
     const [loadingSubmit, setLoadingSubmit] = useState(false);
 
-    const handleSelectAddress = (address) => {
-        setJobData(prev => ({ ...prev, addressDetail: address }));
+    const handleSelectAddress = (addressPayload) => {
+        setJobData(prev => ({
+            ...prev,
+            addressId: addressPayload?.addressId ?? prev.addressId,
+            addressDetail: addressPayload?.fullAddress || '',
+        }));
         setStep(2);
     };
 
@@ -56,10 +63,9 @@ const CustomerPostJobPage = () => {
         try {
             setLoadingSubmit(true);
             const payload = {
-                serviceId: jobData.serviceId,
-                addressDetail: jobData.addressDetail,
-                latitude: jobData.latitude,
-                longitude: jobData.longitude,
+                categoryId: jobData.categoryId,
+                serviceIds: jobData.serviceIds,
+                addressId: jobData.addressId,
                 workDate: jobData.workDate,
                 startTime: jobData.startTime,
                 durationHours: jobData.durationHours,
@@ -77,7 +83,25 @@ const CustomerPostJobPage = () => {
         }
     };
 
-    const serviceInfo = SERVICE_INFOS[serviceId] || { name: 'Dịch vụ', icon: '✨', color: '#2f4858' };
+    useEffect(() => {
+        const loadCategoryName = async () => {
+            try {
+                const res = await ProfileService.getActiveCategories();
+                const list = res?.data ?? res;
+                const matched = Array.isArray(list) ? list.find((item) => Number(item?.id) === categoryId) : null;
+                setCategoryName(matched?.name || '');
+            } catch {
+                setCategoryName('');
+            }
+        };
+        loadCategoryName();
+    }, [categoryId]);
+
+    const serviceInfo = SERVICE_INFOS[categoryId] || {
+        name: categoryName || 'Dịch vụ',
+        icon: '✨',
+        color: '#2f4858'
+    };
 
     return (
         <div className="post-job-container">
@@ -115,18 +139,175 @@ const CustomerPostJobPage = () => {
 /* STEP 1: Address Step                                                       */
 /* -------------------------------------------------------------------------- */
 const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
-    const [showNew, setShowNew] = useState(false);
+    const [savedAddresses, setSavedAddresses] = useState([]);
+    const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+    const [savedError, setSavedError] = useState('');
 
-    if (showNew) {
-        return <NewAddressForm onClose={() => setShowNew(false)} onSubmit={onSelectAddress} />;
-    }
+    const [query, setQuery] = useState('');
+    const [suggestions, setSuggestions] = useState([]);
+    const [isLoadingSuggest, setIsLoadingSuggest] = useState(false);
+    const [suggestError, setSuggestError] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [addressType, setAddressType] = useState('HOME');
 
-    const savedAddresses = [
-        { id: 1, name: 'Nhà riêng', address: '123 Nguyễn Văn Linh, Phường Tân Thuận Tây, Quận 7, TP. Hồ Chí Minh' },
-        { id: 2, name: 'Văn phòng', address: '456 Lê Văn Việt, Phường Hiệp Phú, TP. Thủ Đức, TP. Hồ Chí Minh' },
-        { id: 3, name: 'Nhà bố mẹ', address: '789 Trần Hưng Đạo, Phường Cầu Ông Lãnh, Quận 1, TP. Hồ Chí Minh' },
-        { id: 4, name: 'Nhà bạn', address: '321 Phan Xích Long, Phường 2, Quận Phú Nhuận, TP. Hồ Chí Minh' }
-    ];
+    const debounceRef = useRef(null);
+    const latestQueryRef = useRef('');
+
+    const normalizedQuery = useMemo(() => String(query || '').trim(), [query]);
+
+    const buildFullAddress = (addr) => {
+        if (!addr) return '';
+        const parts = [
+            addr.addressDetail,
+            addr.wardName,
+            addr.districtName,
+            addr.provinceName
+        ].filter(Boolean);
+        return parts.join(', ');
+    };
+
+    const parseDescriptionToSaveRequest = (description = '') => {
+        // Kỳ vọng format: "<detail>, <ward>, <district>, <province>" (ít nhất 4 phần)
+        const parts = String(description)
+            .split(',')
+            .map((p) => p.trim())
+            .filter(Boolean);
+
+        if (parts.length < 4) {
+            return null;
+        }
+
+        const provinceName = parts[parts.length - 1];
+        const districtName = parts[parts.length - 2];
+        const wardName = parts[parts.length - 3];
+        const addressDetail = parts.slice(0, parts.length - 3).join(', ');
+
+        if (!addressDetail || !wardName || !districtName || !provinceName) {
+            return null;
+        }
+
+        return { addressDetail, wardName, districtName, provinceName };
+    };
+
+    const loadSavedAddresses = async () => {
+        try {
+            setIsLoadingSaved(true);
+            setSavedError('');
+            const res = await apiClient.get('/api/v1/addresses');
+            const list = res?.data ?? res;
+            setSavedAddresses(Array.isArray(list) ? list : []);
+        } catch (err) {
+            setSavedAddresses([]);
+            setSavedError(err?.message || 'Không thể tải danh sách địa chỉ đã lưu.');
+        } finally {
+            setIsLoadingSaved(false);
+        }
+    };
+
+    useEffect(() => {
+        loadSavedAddresses();
+    }, []);
+
+    const fetchSuggestions = async (input) => {
+        if (!input || input.trim().length < 3) {
+            setSuggestions([]);
+            setSuggestError('');
+            return;
+        }
+        try {
+            setIsLoadingSuggest(true);
+            setSuggestError('');
+            const res = await apiClient.get('/api/v1/addresses/autocomplete', {
+                params: { input }
+            });
+            const list = res?.data ?? res;
+            setSuggestions(Array.isArray(list) ? list : []);
+        } catch (err) {
+            setSuggestions([]);
+            setSuggestError(err?.message || 'Không thể lấy gợi ý địa chỉ.');
+        } finally {
+            setIsLoadingSuggest(false);
+        }
+    };
+
+    useEffect(() => {
+        latestQueryRef.current = normalizedQuery;
+        if (debounceRef.current) {
+            clearTimeout(debounceRef.current);
+        }
+        debounceRef.current = setTimeout(() => {
+            fetchSuggestions(latestQueryRef.current);
+        }, 350);
+
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
+    }, [normalizedQuery]);
+
+    const handlePickSaved = (addr) => {
+        const fullAddress = buildFullAddress(addr);
+        onSelectAddress({
+            addressId: addr?.addressId ?? null,
+            fullAddress,
+            latitude: addr?.latitude ? Number(addr.latitude) : DEFAULT_LATITUDE,
+            longitude: addr?.longitude ? Number(addr.longitude) : DEFAULT_LONGITUDE
+        });
+    };
+
+    const handlePickSuggestion = async (s) => {
+        const placeId = s?.place_id || s?.placeId;
+        const description = s?.description || '';
+        const parsed = parseDescriptionToSaveRequest(description);
+
+        if (!placeId || !parsed) {
+            setSuggestError('Địa chỉ gợi ý chưa đủ thông tin (cần tối thiểu: số nhà/đường, phường, quận, tỉnh). Vui lòng nhập chi tiết hơn.');
+            return;
+        }
+
+        try {
+            setIsSaving(true);
+            setSuggestError('');
+            const payload = {
+                ...parsed,
+                placeId,
+                type: addressType,
+                isDefault: false
+            };
+            const res = await apiClient.post('/api/v1/addresses', payload);
+            const saved = res?.data ?? res;
+            // Đưa địa chỉ mới lên đầu danh sách (frontend-first)
+            setSavedAddresses((prev) => {
+                const next = [saved, ...(Array.isArray(prev) ? prev : []).filter((a) => a?.addressId !== saved?.addressId)];
+                return next;
+            });
+
+            const fullAddress = buildFullAddress(saved) || description;
+            onSelectAddress({
+                addressId: saved?.addressId ?? null,
+                fullAddress,
+                latitude: saved?.latitude ? Number(saved.latitude) : DEFAULT_LATITUDE,
+                longitude: saved?.longitude ? Number(saved.longitude) : DEFAULT_LONGITUDE
+            });
+        } catch (err) {
+            setSuggestError(err?.message || 'Không thể lưu địa chỉ. Vui lòng thử lại.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const sortedSavedAddresses = useMemo(() => {
+        const arr = Array.isArray(savedAddresses) ? [...savedAddresses] : [];
+        // Ưu tiên địa chỉ mặc định, sau đó ưu tiên HOME, cuối cùng giữ theo addressId giảm dần
+        return arr.sort((a, b) => {
+            const aDef = Boolean(a?.isDefault);
+            const bDef = Boolean(b?.isDefault);
+            if (aDef !== bDef) return aDef ? -1 : 1;
+            const aHome = String(a?.type || '').toUpperCase() === 'HOME';
+            const bHome = String(b?.type || '').toUpperCase() === 'HOME';
+            if (aHome !== bHome) return aHome ? -1 : 1;
+            return Number(b?.addressId ?? 0) - Number(a?.addressId ?? 0);
+        });
+    }, [savedAddresses]);
 
     return (
         <div className="pj-card">
@@ -140,15 +321,73 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
             </div>
 
             <div className="pj-body">
-                <button className="asc-new-address-btn" style={{ borderColor: serviceInfo.color, color: serviceInfo.color }} onClick={() => setShowNew(true)}>
-                    <span className="asc-new-address-icon">+</span>
-                    Tạo địa chỉ mới
-                </button>
+                <div className="asc-search">
+                    <label className="asc-search-label">Nhập địa chỉ thi công</label>
+                    <div className="asc-search-input-wrap">
+                        <input
+                            type="text"
+                            className="asc-search-input"
+                            placeholder="Ví dụ: 60 Lý Thường Kiệt, Trần Hưng Đạo, Hoàn Kiếm, Hà Nội"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            autoComplete="off"
+                        />
+                        {isLoadingSuggest && <span className="asc-search-spinner">Đang tìm...</span>}
+                    </div>
+
+                    <div className="asc-type-row">
+                        <label className="asc-type-label" htmlFor="addressTypeSelect">Loại địa chỉ</label>
+                        <select
+                            id="addressTypeSelect"
+                            className="asc-type-select"
+                            value={addressType}
+                            onChange={(e) => setAddressType(e.target.value)}
+                            disabled={isSaving}
+                        >
+                            <option value="HOME">Nhà</option>
+                            <option value="OFFICE">Văn phòng</option>
+                            <option value="OTHER">Khác</option>
+                        </select>
+                    </div>
+
+                    {suggestError && <div className="asc-error">{suggestError}</div>}
+
+                    {suggestions.length > 0 && (
+                        <div className="asc-suggest-box">
+                            {suggestions.map((sug) => (
+                                <button
+                                    type="button"
+                                    key={sug.place_id || sug.placeId || sug.description}
+                                    className="asc-suggest-item"
+                                    onClick={() => handlePickSuggestion(sug)}
+                                    disabled={isSaving}
+                                >
+                                    <span className="asc-suggest-title">{sug.description}</span>
+                                    <span className="asc-suggest-sub">{isSaving ? 'Đang lưu...' : 'Chọn'}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {isLoadingSuggest && normalizedQuery.length >= 3 && suggestions.length === 0 && !suggestError && (
+                        <div className="asc-hint">Đang tải gợi ý...</div>
+                    )}
+                    {!isLoadingSuggest && normalizedQuery.length >= 3 && suggestions.length === 0 && !suggestError && (
+                        <div className="asc-hint">Không có gợi ý phù hợp. Hãy nhập chi tiết hơn (đủ phường, quận, tỉnh).</div>
+                    )}
+                </div>
 
                 <h2 className="asc-saved-title">Danh sách địa chỉ đã lưu</h2>
                 <div className="asc-saved-list">
-                    {savedAddresses.map(addr => (
-                        <div className="asc-address-item" key={addr.id} onClick={() => onSelectAddress(addr.address)}>
+                    {isLoadingSaved && <div className="asc-hint">Đang tải địa chỉ đã lưu...</div>}
+                    {!isLoadingSaved && savedError && <div className="asc-error">{savedError}</div>}
+
+                    {!isLoadingSaved && !savedError && savedAddresses.length === 0 && (
+                        <div className="asc-hint">Bạn chưa lưu địa chỉ nào. Hãy nhập ở ô phía trên và chọn từ gợi ý.</div>
+                    )}
+
+                    {!isLoadingSaved && !savedError && sortedSavedAddresses.map(addr => (
+                        <div className="asc-address-item" key={addr.addressId} onClick={() => handlePickSaved(addr)}>
                             <div className="asc-address-icon-wrap" style={{ backgroundColor: `${serviceInfo.color}15`, color: serviceInfo.color }}>
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
@@ -156,8 +395,14 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                                 </svg>
                             </div>
                             <div className="asc-address-info">
-                                <p className="asc-address-name">{addr.name}</p>
-                                <p className="asc-address-detail">{addr.address}</p>
+                                <p className="asc-address-name">
+                                    {String(addr.type || '').toUpperCase() === 'HOME'
+                                        ? 'Nhà'
+                                        : String(addr.type || '').toUpperCase() === 'OFFICE'
+                                            ? 'Văn phòng'
+                                            : 'Khác'}
+                                </p>
+                                <p className="asc-address-detail">{buildFullAddress(addr)}</p>
                             </div>
                             <svg className="asc-address-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="9 18 15 12 9 6" />
@@ -165,106 +410,6 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                         </div>
                     ))}
                 </div>
-            </div>
-        </div>
-    );
-};
-
-const NewAddressForm = ({ onClose, onSubmit }) => {
-    const [provinces, setProvinces] = useState([]);
-    const [districts, setDistricts] = useState([]);
-    const [wards, setWards] = useState([]);
-
-    const [selectedProv, setSelectedProv] = useState('');
-    const [selectedDist, setSelectedDist] = useState('');
-    const [selectedWard, setSelectedWard] = useState('');
-    const [street, setStreet] = useState('');
-
-    const [loadingProv, setLoadingProv] = useState(false);
-    const [loadingDist, setLoadingDist] = useState(false);
-    const [loadingWard, setLoadingWard] = useState(false);
-
-    useEffect(() => {
-        setLoadingProv(true);
-        apiClient.get('/api/v1/locations/provinces')
-            .then(res => setProvinces(res.data || []))
-            .catch(err => console.error("Failed to fetch provinces", err))
-            .finally(() => setLoadingProv(false));
-    }, []);
-
-    const handleProvChange = (e) => {
-        const provCode = e.target.value;
-        setSelectedProv(provCode);
-        setSelectedDist(''); setSelectedWard(''); setDistricts([]); setWards([]);
-        
-        if (provCode) {
-            setLoadingDist(true);
-            apiClient.get(`/api/v1/locations/provinces/${provCode}/districts`)
-                .then(res => res.data && res.data.districts && setDistricts(res.data.districts))
-                .catch(err => console.error(err))
-                .finally(() => setLoadingDist(false));
-        }
-    };
-
-    const handleDistChange = (e) => {
-        const distCode = e.target.value;
-        setSelectedDist(distCode);
-        setSelectedWard(''); setWards([]);
-
-        if (distCode) {
-            setLoadingWard(true);
-            apiClient.get(`/api/v1/locations/districts/${distCode}/wards`)
-                .then(res => res.data && res.data.wards && setWards(res.data.wards))
-                .catch(err => console.error(err))
-                .finally(() => setLoadingWard(false));
-        }
-    };
-
-    const handleSubmit = () => {
-        const provName = provinces.find(p => p.code == selectedProv)?.name || '';
-        const distName = districts.find(d => d.code == selectedDist)?.name || '';
-        const wardName = wards.find(w => w.code == selectedWard)?.name || '';
-        const fullAddress = `${street ? street + ', ' : ''}${wardName}, ${distName}, ${provName}`;
-        onSubmit(fullAddress);
-    };
-
-    const canSubmit = selectedProv && selectedDist && selectedWard && street.trim();
-
-    return (
-        <div className="pj-card slide-up">
-            <div className="pj-header">
-                <button className="pj-back-btn" onClick={onClose}>&larr;</button>
-                <div className="pj-header-title">Thêm địa chỉ mới</div>
-            </div>
-            <div className="pj-body">
-                <div className="form-group">
-                    <label className="form-label">Tỉnh / Thành phố</label>
-                    <select className="form-control" value={selectedProv} onChange={handleProvChange} disabled={loadingProv}>
-                        <option value="">Chọn Tỉnh / Thành phố</option>
-                        {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
-                    </select>
-                </div>
-                <div className="form-group">
-                    <label className="form-label">Quận / Huyện</label>
-                    <select className="form-control" value={selectedDist} onChange={handleDistChange} disabled={!selectedProv || loadingDist}>
-                        <option value="">Chọn Quận / Huyện</option>
-                        {districts.map(d => <option key={d.code} value={d.code}>{d.name}</option>)}
-                    </select>
-                </div>
-                <div className="form-group">
-                    <label className="form-label">Phường / Xã</label>
-                    <select className="form-control" value={selectedWard} onChange={e => setSelectedWard(e.target.value)} disabled={!selectedDist || loadingWard}>
-                        <option value="">Chọn Phường / Xã</option>
-                        {wards.map(w => <option key={w.code} value={w.code}>{w.name}</option>)}
-                    </select>
-                </div>
-                <div className="form-group">
-                    <label className="form-label">Số nhà, Tên đường</label>
-                    <input type="text" className="form-control" placeholder="Ví dụ: 12A Ngõ 3..." value={street} onChange={e => setStreet(e.target.value)} />
-                </div>
-                <button className={`pj-btn-primary ${!canSubmit ? 'disabled' : ''}`} disabled={!canSubmit} onClick={handleSubmit}>
-                    Xác nhận địa chỉ
-                </button>
             </div>
         </div>
     );
@@ -279,6 +424,10 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
     const [durationHours, setDurationHours] = useState(initialData.durationHours || 2);
     const [title, setTitle] = useState(initialData.title || `Cần tìm người ${serviceInfo.name.toLowerCase()}`);
     const [description, setDescription] = useState(initialData.description || '');
+    const [selectedSubServiceIds, setSelectedSubServiceIds] = useState(Array.isArray(initialData.serviceIds) ? initialData.serviceIds : []);
+    const [subServices, setSubServices] = useState([]);
+    const [loadingSubServices, setLoadingSubServices] = useState(false);
+    const [subServiceError, setSubServiceError] = useState('');
 
     const [preEstimate, setPreEstimate] = useState(null);
     const [loadingPrice, setLoadingPrice] = useState(false);
@@ -288,18 +437,39 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
             setLoadingPrice(true);
             try {
                 const res = await apiClient.post('/api/v1/jobs/estimate', {
-                    serviceId: initialData.serviceId,
+                    categoryId: initialData.categoryId,
+                    serviceIds: selectedSubServiceIds,
                     durationHours: durationHours
                 });
-                setPreEstimate(res.data);
+                setPreEstimate(res?.data ?? res);
             } catch (err) {
                 console.error("Lỗi tính giá", err);
+                setPreEstimate(null);
             } finally {
                 setLoadingPrice(false);
             }
         };
         fetchPrice();
-    }, [durationHours, initialData.serviceId]);
+    }, [durationHours, initialData.categoryId, selectedSubServiceIds]);
+
+    useEffect(() => {
+        const loadSubServices = async () => {
+            if (!initialData.categoryId) return;
+            try {
+                setLoadingSubServices(true);
+                setSubServiceError('');
+                const res = await apiClient.get(`/api/v1/admin/categories/${initialData.categoryId}/services`);
+                const list = res?.data ?? res;
+                setSubServices(Array.isArray(list) ? list : []);
+            } catch {
+                setSubServices([]);
+                setSubServiceError('Chưa lấy được dịch vụ con từ hệ thống. Bạn vẫn có thể tiếp tục đăng tin với dịch vụ chính.');
+            } finally {
+                setLoadingSubServices(false);
+            }
+        };
+        loadSubServices();
+    }, [initialData.categoryId]);
 
     const formatCurrency = (val) => {
         if (val === undefined || val === null) return '0 ₫';
@@ -308,6 +478,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
 
     const handleSubmit = () => {
         onSubmit({
+            serviceIds: selectedSubServiceIds,
             workDate,
             startTime,
             durationHours,
@@ -316,7 +487,14 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
         }, preEstimate);
     };
 
-    const isFormValid = workDate && startTime && durationHours > 0;
+    const toggleSubService = (serviceId) => {
+        setSelectedSubServiceIds((prev) => {
+            if (prev.includes(serviceId)) return prev.filter((id) => id !== serviceId);
+            return [...prev, serviceId];
+        });
+    };
+
+    const isFormValid = initialData.addressId && workDate && startTime && durationHours > 0;
 
     return (
         <div className="pj-card slide-left">
@@ -331,19 +509,46 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                     Dịch vụ: <strong>{serviceInfo.name}</strong>
                 </div>
 
-                <div className="form-row">
-                    <div className="form-group half">
-                        <label className="form-label">Ngày làm việc (*)</label>
-                        <input type="date" className="form-control" value={workDate} onChange={e => setWorkDate(e.target.value)} min={new Date().toISOString().split('T')[0]} />
+                <div className="pjf-row">
+                    <div className="pjf-group pjf-half">
+                        <label className="pjf-label">Ngày làm việc (*)</label>
+                        <input type="date" className="pjf-control" value={workDate} onChange={e => setWorkDate(e.target.value)} min={new Date().toISOString().split('T')[0]} />
                     </div>
-                    <div className="form-group half">
-                        <label className="form-label">Giờ bắt đầu (*)</label>
-                        <input type="time" className="form-control" value={startTime} onChange={e => setStartTime(e.target.value)} />
+                    <div className="pjf-group pjf-half">
+                        <label className="pjf-label">Giờ bắt đầu (*)</label>
+                        <input type="time" className="pjf-control" value={startTime} onChange={e => setStartTime(e.target.value)} />
                     </div>
                 </div>
 
-                <div className="form-group">
-                    <label className="form-label">Thời lượng (giờ) (*)</label>
+                <div className="pjf-group">
+                    <label className="pjf-label">Dịch vụ con (tuỳ chọn)</label>
+                    {loadingSubServices && <div className="pjs-hint">Đang tải danh sách dịch vụ con...</div>}
+                    {!loadingSubServices && subServiceError && <div className="pjs-error">{subServiceError}</div>}
+                    {!loadingSubServices && !subServiceError && subServices.length > 0 && (
+                        <div className="pjs-grid">
+                            {subServices.map((item) => {
+                                const sid = Number(item?.serviceId);
+                                const checked = selectedSubServiceIds.includes(sid);
+                                return (
+                                    <button
+                                        type="button"
+                                        key={sid}
+                                        className={`pjs-chip ${checked ? 'is-active' : ''}`}
+                                        onClick={() => toggleSubService(sid)}
+                                    >
+                                        <span className="pjs-chip-name">{item?.name || 'Dịch vụ phụ'}</span>
+                                        <span className="pjs-chip-price">
+                                            {Number(item?.basePrice || 0).toLocaleString('vi-VN')} đ
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                <div className="pjf-group">
+                    <label className="pjf-label">Thời lượng (giờ) (*)</label>
                     <div className="duration-selector">
                         {[1, 2, 3, 4, 6, 8].map(h => (
                             <button 
@@ -365,14 +570,14 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                     ) : null}
                 </div>
 
-                <div className="form-group">
-                    <label className="form-label">Tiêu đề công việc</label>
-                    <input type="text" className="form-control" value={title} onChange={e => setTitle(e.target.value)} placeholder="Ví dụ: Dọn dẹp chung cư 2 phòng ngủ..." />
+                <div className="pjf-group">
+                    <label className="pjf-label">Tiêu đề công việc</label>
+                    <input type="text" className="pjf-control" value={title} onChange={e => setTitle(e.target.value)} placeholder="Ví dụ: Dọn dẹp chung cư 2 phòng ngủ..." />
                 </div>
 
-                <div className="form-group">
-                    <label className="form-label">Ghi chú thêm (Không bắt buộc)</label>
-                    <textarea className="form-control" rows="3" value={description} onChange={e => setDescription(e.target.value)} placeholder="Nhập yêu cầu đặc biệt của bạn cho người làm..."></textarea>
+                <div className="pjf-group">
+                    <label className="pjf-label">Ghi chú thêm (Không bắt buộc)</label>
+                    <textarea className="pjf-control" rows="3" value={description} onChange={e => setDescription(e.target.value)} placeholder="Nhập yêu cầu đặc biệt của bạn cho người làm..."></textarea>
                 </div>
 
                 <button 
@@ -383,6 +588,9 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                 >
                     Tiếp tục
                 </button>
+                {!initialData.addressId && (
+                    <div className="pjs-hint">Bạn cần chọn địa chỉ ở bước trước trước khi tiếp tục.</div>
+                )}
             </div>
         </div>
     );
@@ -416,6 +624,7 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                             <h3 className="pj-summary-title">Thông tin giao việc</h3>
                             <ul className="pj-summary-list">
                                 <li><span>Dịch vụ:</span> <strong>{serviceInfo.name}</strong></li>
+                                <li><span>Dịch vụ con:</span> <strong>{Array.isArray(jobData.serviceIds) ? jobData.serviceIds.length : 0} mục</strong></li>
                                 <li><span>Thời gian:</span> <strong>{jobData.startTime} - Ngày {jobData.workDate}</strong></li>
                                 <li><span>Số giờ:</span> <strong>{jobData.durationHours} giờ</strong></li>
                                 <li><span>Địa chỉ:</span> <span>{jobData.addressDetail}</span></li>
