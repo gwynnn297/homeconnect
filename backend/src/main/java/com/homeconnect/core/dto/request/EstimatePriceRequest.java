@@ -2,6 +2,7 @@ package com.homeconnect.core.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -30,4 +31,10 @@ public class EstimatePriceRequest {
     @NotNull(message = "Số giờ không được để trống")
     @Positive(message = "Số giờ phải lớn hơn 0")
     private Integer durationHours;
+
+    @Schema(description = "Dịch vụ Premium (+50k)", example = "false")
+    private Boolean isPremium;
+
+    @Schema(description = "Số lượng/Diện tích (m2, số bé, số máy...)", example = "60.5")
+    private Double workSize;
 }

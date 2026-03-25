@@ -76,12 +76,16 @@ public class NotificationService {
      */
     @Transactional
     public NotificationResponse createMatchingNotification(Long helperId, Long postId, JobPost jobPost) {
+        String location = jobPost.getAddress() != null ? 
+                jobPost.getAddress().getWardName() + ", " + jobPost.getAddress().getDistrictName() : "N/A";
+
         Notification notification = Notification.builder()
                 .userId(helperId)
                 .title("Bạn có việc mới phù hợp")
-                .content(String.format("Job #%d: %s - %s lúc %s (%d giờ)",
+                .content(String.format("Job #%d: %s - %s - %s lúc %s (%d giờ)",
                         postId,
                         jobPost.getTitle(),
+                        location,
                         jobPost.getWorkDate(),
                         jobPost.getStartTime(),
                         jobPost.getDurationHours()))
@@ -92,6 +96,25 @@ public class NotificationService {
         Notification saved = notificationRepository.save(notification);
         NotificationResponse response = toResponse(saved);
         pushRealtime(helperId, response);
+        return response;
+    }
+
+    /**
+     * Tạo thông báo chung và đẩy realtime.
+     */
+    @Transactional
+    public NotificationResponse createNotification(Long userId, String title, String content, String type) {
+        Notification notification = Notification.builder()
+                .userId(userId)
+                .title(title)
+                .content(content)
+                .type(type)
+                .isRead(false)
+                .build();
+
+        Notification saved = notificationRepository.save(notification);
+        NotificationResponse response = toResponse(saved);
+        pushRealtime(userId, response);
         return response;
     }
 

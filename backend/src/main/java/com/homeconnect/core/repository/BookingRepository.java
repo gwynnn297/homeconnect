@@ -18,10 +18,11 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "WHERE b.helper.id = :helperId " +
            "AND b.status IN :statuses " +
            "AND (b.scheduledStartTime < :endTime AND b.scheduledEndTime > :startTime)")
-
     long countOverlappingBookings(@Param("helperId") Long helperId,
                                   @Param("statuses") java.util.Collection<com.homeconnect.core.enums.BookingStatus> statuses,
                                   @Param("startTime") java.time.LocalDateTime startTime,
                                   @Param("endTime") java.time.LocalDateTime endTime);
+
+    List<com.homeconnect.core.entity.Booking> findByStatusAndCreatedAtBefore(com.homeconnect.core.enums.BookingStatus status, java.time.LocalDateTime dateTime);
 }
 

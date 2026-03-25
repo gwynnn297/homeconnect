@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface JobApplicationRepository extends JpaRepository<JobApplication, Long> {
@@ -19,4 +20,12 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
     List<Long> findHelperIdsByPostId(@Param("postId") Long postId);
 
     boolean existsByPostIdAndHelperId(Long postId, Long helperId);
+
+    boolean existsByPostIdAndHelperIdAndStatusIn(Long postId, Long helperId, java.util.Collection<String> statuses);
+
+    boolean existsByPostIdAndHelperIdAndTypeAndStatusIn(Long postId, Long helperId, String type, java.util.Collection<String> statuses);
+
+    java.util.Optional<JobApplication> findByPostIdAndHelperId(Long postId, Long helperId);
+
+    Optional<JobApplication> findByPostIdAndStatus(Long postId, String status);
 }

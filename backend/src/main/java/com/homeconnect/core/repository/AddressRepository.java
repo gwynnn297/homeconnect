@@ -13,11 +13,18 @@ import java.util.Optional;
 public interface AddressRepository extends JpaRepository<Address, Integer> {
     List<Address> findByUser_Id(Long userId);
 
+    long countByUser_Id(Long userId);
+
     Optional<Address> findByUser_IdAndIsDefaultTrue(Long userId);
 
     List<Address> findByUser_IdAndIsDefaultTrueOrderByAddressIdAsc(Long userId);
 
-    // Batch fetch default addresses cho nhiều users
     @Query("SELECT a FROM Address a WHERE a.user.id IN :userIds AND a.isDefault = true")
     List<Address> findDefaultAddressesByUserIds(@Param("userIds") List<Long> userIds);
+
+    boolean existsByUser_IdAndAddressDetailIgnoreCaseAndWardNameAndDistrictNameAndProvinceName(
+            Long userId, String addressDetail, String wardName, String districtName, String provinceName);
+
+    boolean existsByUser_IdAndAddressDetailIgnoreCaseAndWardNameAndDistrictNameAndProvinceNameAndAddressIdNot(
+            Long userId, String addressDetail, String wardName, String districtName, String provinceName, Integer addressId);
 }

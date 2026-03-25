@@ -63,5 +63,7 @@ public interface HelperScheduleRepository extends JpaRepository<HelperSchedule, 
                                  @Param("workDate") java.time.LocalDate workDate,
                                  @Param("startTime") java.time.LocalTime startTime,
                                  @Param("endTime") java.time.LocalTime endTime);
+
+    List<HelperSchedule> findByBooking(com.homeconnect.core.entity.Booking booking);
 }
 

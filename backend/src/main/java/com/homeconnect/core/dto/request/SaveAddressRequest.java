@@ -1,0 +1,35 @@
+package com.homeconnect.core.dto.request;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+@Data
+public class SaveAddressRequest {
+
+    @NotBlank(message = "Số nhà, tên đường không được để trống")
+    @jakarta.validation.constraints.Size(max = 255, message = "Địa chỉ chi tiết quá dài")
+    @Schema(description = "Số nhà, tên đường", example = "123 Nguyễn Huệ")
+    private String addressDetail;
+
+    @NotBlank(message = "Phường/Xã không được để trống")
+    @Schema(description = "Phường/Xã", example = "Phường Bến Nghé")
+    private String wardName;
+
+    @NotBlank(message = "Quận/Huyện không được để trống")
+    @Schema(description = "Quận/Huyện", example = "Quận 1")
+    private String districtName;
+
+    @NotBlank(message = "Tỉnh/Thành phố không được để trống")
+    @Schema(description = "Tỉnh/Thành phố", example = "TP.HCM")
+    private String provinceName;
+
+    @Schema(description = "ID địa điểm từ Goong (Tùy chọn, ưu tiên sử dụng nếu có)", example = "ojE-Sc0mNigpxk3c0i1Fo9oyUSUGNR6Zscq8oa5Q")
+    private String placeId;
+
+    @Schema(description = "Loại địa chỉ: HOME, OFFICE, OTHER", example = "HOME")
+    private String type;
+
+    @Schema(description = "Đặt làm địa chỉ mặc định", example = "false")
+    private Boolean isDefault;
+}

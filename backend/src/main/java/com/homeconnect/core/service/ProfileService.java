@@ -90,7 +90,7 @@ public class ProfileService {
                 address.setLongitude(geo.getLongitude());
             } catch (Exception e) {
                 log.error("Geocoding failed for profile update of user {}: {}", user.getEmail(), e.getMessage());
-                throw new ApiException("Không thể định vị địa chỉ này. Vui lòng kiểm tra lại.", HttpStatus.BAD_REQUEST);
+                throw new ApiException("Không thể tìm thấy vị trí chính xác của địa chỉ này. Vui lòng nhập chi tiết hơn (Số nhà, Tên đường, Phường, Quận).", HttpStatus.BAD_REQUEST);
             }
         }
 

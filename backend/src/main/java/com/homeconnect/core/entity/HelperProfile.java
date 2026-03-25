@@ -66,13 +66,16 @@ public class HelperProfile {
     private KycStatus kycStatus = KycStatus.PENDING;  // Trạng thái KYC
 
     @Column(name = "is_online")
-    private Boolean isOnline; // Công tắc nhận việc (V7)
+    @Builder.Default
+    private Boolean isOnline = false; // Công tắc nhận việc (V7)
 
     @Column(name = "rating_average")
-    private java.math.BigDecimal ratingAverage; // Đánh giá trung bình (V7)
+    @Builder.Default
+    private java.math.BigDecimal ratingAverage = java.math.BigDecimal.ZERO; // Đánh giá trung bình (V7)
 
     @Column(name = "total_reviews")
-    private Integer totalReviews; // Tổng số lượt đánh giá (V7)
+    @Builder.Default
+    private Integer totalReviews = 0; // Tổng số lượt đánh giá (V7)
     
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;  // Lý do từ chối KYC (nếu bị từ chối)

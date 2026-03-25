@@ -603,6 +603,7 @@ public class AdminService {
                                                 .basePrice(cat.getBasePrice())
                                                 .unit(cat.getUnit() != null ? cat.getUnit().name() : null)
                                                 .isActive(cat.getIsActive())
+                                                .uiConfig(cat.getUiConfig())
                                                 .build())
                                 .collect(Collectors.toList());
         }
@@ -645,6 +646,7 @@ public class AdminService {
                                 .basePrice(category.getBasePrice())
                                 .unit(category.getUnit() != null ? category.getUnit().name() : null)
                                 .isActive(category.getIsActive())
+                                .uiConfig(category.getUiConfig())
                                 .build();
         }
 

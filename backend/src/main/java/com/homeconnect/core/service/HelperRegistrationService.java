@@ -30,11 +30,8 @@ public class HelperRegistrationService {
     private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
     private final UserRepository userRepository;
     private final HelperProfileRepository helperProfileRepository;
-    private final ServiceRepository serviceRepository;
     private final ServiceCategoryRepository serviceCategoryRepository;
     private final AddressRepository addressRepository;
-
-    private final ExternalLocationService externalLocationService;
 
     private final GeocodingService geocodingService;
 
@@ -210,7 +207,6 @@ public class HelperRegistrationService {
             address.setLatitude(lat);
             address.setLongitude(lng);
         } else {
-            // Fallback sang Geocoding cấu trúc (10 cấp độ dự phòng tích hợp sẵn)
             try {
                 GeocodingService.GeoResult geo = geocodingService.geocode(
                         draft.getCurrentAddress(),
@@ -221,8 +217,7 @@ public class HelperRegistrationService {
                 address.setLongitude(geo.getLongitude());
             } catch (Exception e) {
                 log.error("Geocoding failed during submission for helper {}: {}", email, e.getMessage());
-                throw new ApiException("Không thể định vị địa chỉ của bạn. Vui lòng kiểm tra lại thông tin địa chỉ.",
-                        HttpStatus.BAD_REQUEST);
+                throw new ApiException("Không thể định vị chính xác địa chỉ hiện tại. Vui lòng kiểm tra lại Số nhà, Tên đường và Phường/Quận.", HttpStatus.BAD_REQUEST);
             }
         }
 
@@ -236,13 +231,5 @@ public class HelperRegistrationService {
         log.info("Registration successfully persisted for helper: {}", email);
     }
 
-    private String buildFullAddress(String detail, String ward, String district, String province) {
-        if (detail == null || province == null) {
-            return null;
-        }
-        return String.join(", ", detail, ward, district, province, "Vietnam")
-                .replaceAll(", null", "")
-                .replaceAll(", ,", ",");
-    }
 
 }

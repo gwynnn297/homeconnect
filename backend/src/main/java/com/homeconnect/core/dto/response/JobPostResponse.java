@@ -9,26 +9,22 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
-/**
- * Response DTO cho job post - BE-Post-02
- * Thông tin job post sau khi tạo thành công
- */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class JobPostResponse {
-
     private Long postId;
-    private java.util.List<Integer> serviceIds;
+    private List<Integer> serviceIds;
     private String serviceNames;
-
     private String title;
     private String description;
-    private String addressDetail;
-    private BigDecimal latitude;
-    private BigDecimal longitude;
+    private Integer addressId;
+    private String wardName;
+    private String districtName;
+    private String provinceName;
     private LocalDate workDate;
     private LocalTime startTime;
     private Integer durationHours;
@@ -36,9 +32,12 @@ public class JobPostResponse {
     private String currency;
     private String status;
     private LocalDateTime createdAt;
-    private LocalDateTime expiresAt;
+
+    private Double workSize;
+    private Boolean isPremium;
+    private Boolean hasPets;
+    private Boolean bringTools;
+
     private Integer categoryId;
     private String categoryName;
 }
-
-

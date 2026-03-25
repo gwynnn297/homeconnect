@@ -293,4 +293,55 @@ public class WalletService {
             return transactionId.hashCode();
         }
     }
+    /**
+     * [BE-Wallet-07] Trừ tiền phạt từ ví Helper (khi hủy đơn sát giờ)
+     */
+    @Transactional
+    public void deductPenalty(Long userId, BigDecimal amount, Long jobId, String reason) {
+        log.info("💸 Trừ tiền phạt User ID: {}, Amount: {}, Job ID: {}, Reason: {}", userId, amount, jobId, reason);
+        Wallet wallet = walletRepository.findByUserIdWithLock(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng"));
+
+        // Có thể trừ vào available_balance, nếu âm thì thành nợ (debt_balance)
+        wallet.setAvailableBalance(wallet.getAvailableBalance().subtract(amount));
+        if (wallet.getAvailableBalance().compareTo(BigDecimal.ZERO) < 0) {
+            BigDecimal debt = wallet.getAvailableBalance().abs();
+            wallet.setDebtBalance(wallet.getDebtBalance().add(debt));
+            wallet.setAvailableBalance(BigDecimal.ZERO);
+        }
+        walletRepository.save(wallet);
+
+        WalletTransaction transaction = WalletTransaction.builder()
+                .wallet(wallet)
+                .amount(amount)
+                .type(TransactionType.WITHDRAW) // Hoặc tạo thêm loại PENALTY
+                .referenceType(ReferenceType.BOOKING)
+                .referenceId(jobId.intValue())
+                .description("Phạt hủy đơn #" + jobId + ": " + reason)
+                .build();
+        transactionRepository.save(transaction);
+    }
+
+    /**
+     * [BE-Wallet-08] Cộng tiền bồi thường cho Khách hàng
+     */
+    @Transactional
+    public void compensateCustomer(Long userId, BigDecimal amount, Long jobId) {
+        log.info("🎁 Cộng tiền bồi thường User ID: {}, Amount: {}, Job ID: {}", userId, amount, jobId);
+        Wallet wallet = walletRepository.findByUserIdWithLock(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng"));
+
+        wallet.setAvailableBalance(wallet.getAvailableBalance().add(amount));
+        walletRepository.save(wallet);
+
+        WalletTransaction transaction = WalletTransaction.builder()
+                .wallet(wallet)
+                .amount(amount)
+                .type(TransactionType.DEPOSIT)
+                .referenceType(ReferenceType.BOOKING)
+                .referenceId(jobId.intValue())
+                .description("Bồi thường từ việc Helper hủy đơn #" + jobId)
+                .build();
+        transactionRepository.save(transaction);
+    }
 }

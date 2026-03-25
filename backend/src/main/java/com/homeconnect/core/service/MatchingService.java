@@ -11,6 +11,7 @@ import com.homeconnect.core.repository.HelperProfileRepository;
 import com.homeconnect.core.repository.HelperWorkingDistrictRepository;
 import com.homeconnect.core.repository.UserRepository;
 import com.homeconnect.core.repository.AddressRepository;
+import com.homeconnect.core.repository.ServiceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.util.Comparator;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +40,7 @@ public class MatchingService {
     private final JobApplicationRepository jobApplicationRepository;
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
+    private final ServiceRepository serviceRepository;
     private final EmailService emailService;
     private final NotificationService notificationService;
 
@@ -69,7 +72,7 @@ public class MatchingService {
                     jobPost.getWorkDate(),
                     jobPost.getStartTime(),
                     jobPost.getDurationHours(),
-                    jobPost.getAddressDetail());
+                    jobPost.getAddress() != null ? jobPost.getAddress().getAddressDetail() : "N/A");
 
 
             // 2. Lọc nền tảng ở DB: service + online + KYC + lịch rảnh
@@ -92,12 +95,12 @@ public class MatchingService {
 
             // 3. Filter theo working districts ở service layer
             List<Long> districtMatchedHelperIds = filterHelpersByWorkingDistrict(eligibleHelperIds,
-                    jobPost.getAddressDetail());
+                    jobPost.getAddress() != null ? jobPost.getAddress().getAddressDetail() : null);
             log.info("Kết quả lọc working district: {} helper", districtMatchedHelperIds.size());
             if (districtMatchedHelperIds.isEmpty()) {
                 log.warn(
                         "Không tìm thấy helper theo working district cho Job Post ID: {}, địa chỉ job='{}', candidates={} ",
-                        postId, jobPost.getAddressDetail(), eligibleHelperIds);
+                        postId, jobPost.getAddress() != null ? jobPost.getAddress().getAddressDetail() : "N/A", eligibleHelperIds);
                 return;
             }
 
@@ -115,7 +118,7 @@ public class MatchingService {
 
             // 5. Filter theo khoảng cách GPS nếu có tọa độ
             List<Long> finalHelperIds = rankedHelperIds;
-            if (jobPost.getLatitude() != null && jobPost.getLongitude() != null) {
+            if (jobPost.getAddress() != null && jobPost.getAddress().getLatitude() != null && jobPost.getAddress().getLongitude() != null) {
                 finalHelperIds = filterHelpersByDistance(rankedHelperIds, jobPost);
                 log.info("Sau khi filter khoảng cách: {} helper trong {}km", finalHelperIds.size(), MAX_DISTANCE_KM);
             }
@@ -123,7 +126,8 @@ public class MatchingService {
             if (finalHelperIds.isEmpty()) {
                 log.warn(
                         "Không tìm thấy helper sau khi filter khoảng cách cho Job Post ID: {}, jobLat={}, jobLng={}, candidates={}",
-                        postId, jobPost.getLatitude(), jobPost.getLongitude(), rankedHelperIds);
+                        postId, jobPost.getAddress() != null ? jobPost.getAddress().getLatitude() : "N/A", 
+                        jobPost.getAddress() != null ? jobPost.getAddress().getLongitude() : "N/A", rankedHelperIds);
                 return;
             }
 
@@ -145,10 +149,11 @@ public class MatchingService {
                         .build();
 
                 jobApplicationRepository.save(invitation);
-                inviteCount++;
-
+                
                 // Gửi notification realtime + lưu lịch sử thông báo
                 notificationService.createMatchingNotification(helperId, postId, jobPost);
+
+                inviteCount++;
 
                 // Gửi email thông báo
                 sendJobInvitationEmail(helperId, postId, jobPost);
@@ -250,8 +255,8 @@ public class MatchingService {
                     double distance = calculateDistance(
                             address.getLatitude(),
                             address.getLongitude(),
-                            jobPost.getLatitude(),
-                            jobPost.getLongitude());
+                            jobPost.getAddress().getLatitude(),
+                            jobPost.getAddress().getLongitude());
                     return distance <= MAX_DISTANCE_KM;
                 })
                 .toList();
@@ -297,6 +302,20 @@ public class MatchingService {
 
     // Build nội dung email mời việc
     private String buildJobInvitationEmailContent(String helperName, JobPost jobPost) {
+        // Resolve service names
+        String categoryName = jobPost.getCategory() != null ? jobPost.getCategory().getName() : "N/A";
+        StringBuilder serviceDetails = new StringBuilder(categoryName);
+        
+        List<Integer> childServiceIds = parseServiceIds(jobPost.getServiceId());
+        if (!childServiceIds.isEmpty()) {
+            serviceDetails.append(" (Bao gồm: ");
+            List<String> childNames = new java.util.ArrayList<>();
+            for (Integer id : childServiceIds) {
+                serviceRepository.findById(id).ifPresent(s -> childNames.add(s.getName()));
+            }
+            serviceDetails.append(String.join(", ", childNames)).append(")");
+        }
+
         return String.format("""
                 Xin chào %s,
  
@@ -318,12 +337,29 @@ public class MatchingService {
                 HomeConnect Team
                 """,
                 helperName != null ? helperName : "Helper",
-                jobPost.getServiceId() != null ? "Nhiều dịch vụ" : jobPost.getCategory().getName(),
+                serviceDetails.toString(),
                 jobPost.getWorkDate(),
                 jobPost.getStartTime(),
                 jobPost.getDurationHours(),
-                jobPost.getAddressDetail(),
+                jobPost.getAddress() != null ? 
+                    String.format("%s, %s, %s", 
+                        jobPost.getAddress().getWardName(), 
+                        jobPost.getAddress().getDistrictName(), 
+                        jobPost.getAddress().getProvinceName()) : "N/A",
                 jobPost.getOfferPrice().longValue());
+    }
+
+    private List<Integer> parseServiceIds(String serviceIdStr) {
+        List<Integer> sIds = new java.util.ArrayList<>();
+        if (serviceIdStr != null && !serviceIdStr.isEmpty()) {
+            String[] split = serviceIdStr.split(",");
+            for (String idStr : split) {
+                try {
+                    sIds.add(Integer.parseInt(idStr.trim()));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        return sIds;
     }
 
     // Lấy số lượng application cho job post

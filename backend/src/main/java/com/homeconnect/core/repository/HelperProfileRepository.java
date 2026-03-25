@@ -65,7 +65,7 @@ public interface HelperProfileRepository extends JpaRepository<HelperProfile, In
               AND hs_sched.work_date = :workDate
               AND hs_sched.status = 'AVAILABLE'
               AND hs_sched.start_time <= :startTime
-              AND ADDTIME(hs_sched.start_time, SEC_TO_TIME(:durationSecs)) <= hs_sched.end_time
+              AND ADDTIME(:startTime, SEC_TO_TIME(:durationSecs)) <= hs_sched.end_time
             """, nativeQuery = true)
     List<Long> findEligibleHelperIdsWithSchedule(
             @Param("categoryId") Integer categoryId,

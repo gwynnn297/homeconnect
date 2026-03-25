@@ -35,23 +35,15 @@ public class JobPost {
     @Column(name = "customer_id", nullable = false)
     private Long customerId;
 
-
-
-
     @Column(name = "title")
     private String title;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "address_detail", columnDefinition = "TEXT")
-    private String addressDetail;
-
-    @Column(name = "latitude", precision = 10, scale = 8)
-    private BigDecimal latitude;
-
-    @Column(name = "longitude", precision = 11, scale = 8)
-    private BigDecimal longitude;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "address_id")
+    private Address address;
 
     @Column(name = "work_date", nullable = false)
     private LocalDate workDate;
@@ -72,16 +64,24 @@ public class JobPost {
     @Column(name = "service_id", length = 255)
     private String serviceId;
 
+    @Column(name = "work_size")
+    private Double workSize;
 
+    @Builder.Default
+    @Column(name = "is_premium")
+    private Boolean isPremium = false;
+
+    @Builder.Default
+    @Column(name = "has_pets")
+    private Boolean hasPets = false;
+
+    @Builder.Default
+    @Column(name = "bring_tools")
+    private Boolean bringTools = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private ServiceCategory category;
-
-
-
-
-
 
     @CreationTimestamp
     @Column(name = "created_at")

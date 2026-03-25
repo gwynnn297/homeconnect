@@ -1,6 +1,7 @@
 package com.homeconnect.core.entity;
 
 import com.homeconnect.core.enums.BookingStatus;
+import com.homeconnect.core.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -39,6 +40,13 @@ public class Booking {
     @JoinColumn(name = "address_id")
     private Address address;
 
+    @Column(name = "job_post_id")
+    private Long jobPostId;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_post_id", referencedColumnName = "post_id", insertable = false, updatable = false)
+    private JobPost jobPost;
+
     @Column(name = "scheduled_start_time", nullable = false)
     private LocalDateTime scheduledStartTime;
 
@@ -46,12 +54,17 @@ public class Booking {
     private LocalDateTime scheduledEndTime;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 20)
+    @Column(name = "status", length = 30)
     @Builder.Default
     private BookingStatus status = BookingStatus.PENDING;
 
-    @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
+    @Column(name = "total_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalPrice;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", length = 30)
+    @Builder.Default
+    private PaymentStatus paymentStatus = PaymentStatus.HOLDING;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

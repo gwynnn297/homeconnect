@@ -21,6 +21,7 @@ public class RegistrationDraft {
     private String districtName;
     private String wardName;
     private String currentAddress;
+    private String placeId;
     private List<com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest.WorkingDistrictRequest> workingDistricts;
     private String bio;
     private Integer experienceYears;

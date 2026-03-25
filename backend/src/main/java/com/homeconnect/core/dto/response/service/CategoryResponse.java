@@ -17,5 +17,6 @@ public class CategoryResponse {
     private java.math.BigDecimal basePrice;
     private String unit;
     private Boolean isActive;
+    private String uiConfig;
     private List<ServiceResponse> services;
 }

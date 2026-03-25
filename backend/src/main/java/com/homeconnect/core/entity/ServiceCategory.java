@@ -40,6 +40,9 @@ public class ServiceCategory {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @Column(name = "ui_config", columnDefinition = "TEXT")
+    private String uiConfig;
+
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Service> services = new ArrayList<>();
