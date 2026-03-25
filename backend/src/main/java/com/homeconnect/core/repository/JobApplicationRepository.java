@@ -30,6 +30,10 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
     Optional<JobApplication> findByPostIdAndStatus(Long postId, String status);
 
     @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE JobApplication ja SET ja.status = :newStatus WHERE ja.postId = :postId AND ja.status IN :oldStatuses")
+    void updateStatusByPostIdAndStatusIn(@Param("postId") Long postId, @Param("newStatus") String newStatus, @Param("oldStatuses") java.util.Collection<String> oldStatuses);
+
+    @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query("DELETE FROM JobApplication ja WHERE ja.postId = :postId AND ja.status = :status AND ja.type = :type")
     void deleteByPostIdAndStatusAndType(@Param("postId") Long postId, @Param("status") String status, @Param("type") String type);
 }

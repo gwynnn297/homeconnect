@@ -60,6 +60,7 @@ public class JobService {
     private final WalletService walletService;
     private final AddressRepository addressRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final NotificationService notificationService;
 
     public EstimatePriceResponse estimatePrice(EstimatePriceRequest request) {
         log.info("Estimating price for category {}, duration {} hours",
@@ -447,6 +448,16 @@ public class JobService {
                                           request.getServiceIds() != null;
 
         if (request.getServiceIds() != null) {
+            // Kiểm tra tính hợp lệ của các dịch vụ con mới
+            for (Integer sId : request.getServiceIds()) {
+                com.homeconnect.core.entity.Service service = serviceRepository.findById(sId)
+                        .orElseThrow(() -> new ApiException("Dịch vụ con " + sId + " không tồn tại", HttpStatus.BAD_REQUEST));
+                
+                if (service.getCategory() == null || !service.getCategory().getCategoryId().equals(jobPost.getCategory().getCategoryId())) {
+                    throw new ApiException("Dịch vụ con " + service.getName() + " không thuộc về danh mục " + jobPost.getCategory().getName(), HttpStatus.BAD_REQUEST);
+                }
+            }
+
             String serviceIdStr = request.getServiceIds().stream()
                     .map(String::valueOf)
                     .collect(Collectors.joining(","));
@@ -492,14 +503,30 @@ public class JobService {
             throw new ApiException("Chỉ có thể hủy bài đăng khi đang ở trạng thái Đang tìm thợ", HttpStatus.BAD_REQUEST);
         }
 
-        // Hoàn tiền cho khách hàng
+        // 1. Gửi thông báo đến các thợ đã ứng tuyển/mời (PENDING)
+        List<JobApplication> apps = jobApplicationRepository.findByPostId(jobId);
+        for (JobApplication app : apps) {
+            if ("PENDING".equals(app.getStatus())) {
+                notificationService.createNotification(
+                    app.getHelperId(),
+                    "Công việc bị hủy",
+                    String.format("Công việc #%d (%s) đã bị khách hàng hủy.", jobId, jobPost.getTitle()),
+                    "JOB_CANCELLED"
+                );
+            }
+        }
+
+        // 2. Hoàn tiền cho khách hàng
         walletService.refundHold(customerId, jobPost.getOfferPrice(), jobId, "Khách hàng hủy bài đăng");
 
-        // Cập nhật trạng thái
+        // 2. Hủy các lời mời/ứng tuyển đang chờ (PENDING)
+        jobApplicationRepository.updateStatusByPostIdAndStatusIn(jobId, "CANCELLED", java.util.Arrays.asList("PENDING"));
+
+        // Cập nhật trạng thái bài đăng
         jobPost.setStatus("CANCELLED");
         jobPostRepository.save(jobPost);
         
-        log.info(" Customer {} đã hủy Job Post #{} thành công.", customerId, jobId);
+        log.info("Khách hàng {} đã hủy Job Post #{} thành công. Tiền đã hoàn, các lời mời đã hủy và gửi thông báo cho thợ.", customerId, jobId);
     }
 
     private BigDecimal calculatePrice(JobPost jobPost) {
