@@ -1,5 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+
 :root {
-  /* primary theme colors */
   --bg-main: #FBF7F3;
   --sidebar-bg: #F6EFE8;
   --card: #FFFFFF;
@@ -8,13 +10,16 @@
   --muted: #6B7280;
   --primary: #2F5D50;
   --primary-soft: #E6F0EC;
-
-  --success: #147036;
+  --success: #16A34A;
   --warning: #F4C77A;
   --danger: #E74C3C;
-  --danger-soft: #FDE8E8;
-  --warning-soft: #FEF7E6;
-  --success-soft: #E8F8EE;
+  --danger-soft: #FEE2E2;
+  --warning-soft: #FEF3C7;
+  --success-soft: #DCFCE7;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 3px rgba(15,44,36,.06), 0 4px 14px rgba(15,44,36,.04);
+  --shadow-lg: 0 4px 20px rgba(15,44,36,.08);
 }
 
 /* global resets */
@@ -29,7 +34,7 @@ body {
   min-height: 100vh;
   background-color: var(--bg-main);
   color: var(--text-main);
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 }
@@ -55,7 +60,7 @@ a:hover {
 }
 
 button {
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
   font-size: 1em;

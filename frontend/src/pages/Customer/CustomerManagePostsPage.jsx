@@ -1,81 +1,101 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import CustomerLayout from '../../layouts/CustomerLayout';
+import apiClient from '../../services/apiClient';
 import './CustomerManagePostsPage.css';
 
-// Dữ liệu giả lập khớp với cấu trúc database của bạn
-const MOCK_DB_POSTS = [
-    {
-        post_id: 1,
-        customer_id: 10,
-        service_id: 1,
-        title: "Cần người dọn nhà buổi sáng",
-        description: "Dọn nhà 2 phòng ngủ, lau sàn, rửa chén và dọn sơ phòng khách.",
-        address_detail: "Richemont Vietnam, 11 Đ. Lê Lợi, Bến Nghé, Quận 1, TP. HCM",
-        created_at: "2026-03-24T08:30:00Z",
-        status: "PENDING",
-        estimated_price: 150000
-    },
-    {
-        post_id: 5,
-        customer_id: 10,
-        service_id: 1,
-        title: "Cần người dọn nhà buổi sáng",
-        description: "Dọn nhà 2 phòng ngủ, lau sàn, rửa chén và dọn khu vực bếp.",
-        address_detail: "Đông Trà 2, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng",
-        created_at: "2026-03-23T14:15:00Z",
-        status: "MATCHED",
-        estimated_price: 200000
-    },
-    {
-        post_id: 8,
-        customer_id: 10,
-        service_id: 1,
-        title: "Cần người dọn dẹp nhà cửa",
-        description: "Lau dọn phòng ngủ, phòng khách, ban công.",
-        address_detail: "196 Nguyễn Phước Nguyên, Thanh Khê Đông, Đà Nẵng",
-        created_at: "2026-03-22T09:00:00Z",
-        status: "COMPLETED",
-        estimated_price: 180000
-    }
-];
-
 const SERVICE_INFOS = {
-    1: { name: 'Dọn dẹp nhà cửa', icon: '🏡', color: '#4CAF50' },
-    2: { name: 'Nấu ăn', icon: '🍳', color: '#FF9800' },
-    3: { name: 'Đi chợ', icon: '🛒', color: '#9C27B0' },
-    //... (các dịch vụ khác tương tự)
+    1: { name: 'Dọn dẹp nhà cửa', icon: '🏡', color: '#2F5D50' },
+    2: { name: 'Nấu ăn', icon: '🍳', color: '#2F5D50' },
+    3: { name: 'Đi chợ', icon: '🛒', color: '#2F5D50' },
 };
 
+const JOB_LIST_ENDPOINTS = ['/api/v1/jobs/my', '/api/v1/jobs/customer', '/api/v1/jobs'];
+
 const CustomerManagePostsPage = () => {
+    const navigate = useNavigate();
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
     useEffect(() => {
-        // Giả lập gọi API (delay 800ms) để lấy dữ liệu từ Backend
-        const fetchPosts = () => {
-            setTimeout(() => {
-                setPosts(MOCK_DB_POSTS);
+        const fetchPosts = async () => {
+            setLoading(true);
+            setError('');
+
+            let fetched = null;
+            let lastErr = null;
+
+            for (const endpoint of JOB_LIST_ENDPOINTS) {
+                try {
+                    const res = await apiClient.get(endpoint);
+                    const list = res?.data ?? res;
+                    if (Array.isArray(list)) {
+                        fetched = list;
+                        break;
+                    }
+                } catch (err) {
+                    lastErr = err;
+                }
+            }
+
+            if (!Array.isArray(fetched)) {
+                setPosts([]);
+                setError(lastErr?.message || 'Không thể tải danh sách bài đăng từ hệ thống.');
                 setLoading(false);
-            }, 800);
+                return;
+            }
+
+            setPosts(fetched);
+            setLoading(false);
         };
+
         fetchPosts();
     }, []);
 
+    const normalizedPosts = useMemo(
+        () =>
+            (Array.isArray(posts) ? posts : []).map((post) => {
+                const postId = post?.postId ?? post?.post_id ?? '';
+                const categoryId = Number(post?.categoryId ?? post?.service_id ?? 0);
+                const addressText = [post?.addressDetail, post?.wardName, post?.districtName, post?.provinceName]
+                    .filter(Boolean)
+                    .join(', ');
+
+                return {
+                    postId,
+                    categoryId,
+                    title: post?.title || `Bài đăng #${postId}`,
+                    description: post?.description || 'Không có mô tả.',
+                    addressText: addressText || post?.address_detail || 'Chưa có địa chỉ',
+                    createdAt: post?.createdAt ?? post?.created_at,
+                    status: post?.status || 'PENDING',
+                    estimatedPrice: Number(post?.offerPrice ?? post?.estimated_price ?? 0),
+                };
+            }),
+        [posts]
+    );
+
     const formatCurrency = (val) => {
-        if (!val) return '0 ₫';
+        if (Number.isNaN(Number(val))) return '0 ₫';
         return val.toLocaleString('vi-VN') + ' ₫';
     };
 
     const getStatusConfig = (status) => {
         switch (status) {
             case 'PENDING':
-                return { label: 'Đang tìm người', color: '#FF9800', bg: '#FFF3E0' };
+            case 'PUBLISHED':
+                return { label: 'Đang tìm người', color: '#B56A00', bg: '#FEF3C7' };
             case 'MATCHED':
+            case 'ASSIGNED':
+            case 'CONFIRMED':
                 return { label: 'Đã nhận việc', color: '#2196F3', bg: '#E3F2FD' };
             case 'COMPLETED':
-                return { label: 'Đã hoàn thành', color: '#4CAF50', bg: '#E8F5E9' };
+                return { label: 'Đã hoàn thành', color: '#16A34A', bg: '#DCFCE7' };
+            case 'CANCELLED':
+                return { label: 'Đã hủy', color: '#E74C3C', bg: '#FEE2E2' };
             default:
-                return { label: status, color: '#757575', bg: '#F5F5F5' };
+                return { label: status, color: '#6B7280', bg: '#F3F4F6' };
         }
     };
 
@@ -93,20 +113,29 @@ const CustomerManagePostsPage = () => {
                             <div className="cmp-spinner"></div>
                             <p>Đang tải dữ liệu bài đăng...</p>
                         </div>
-                    ) : posts.length === 0 ? (
+                    ) : error ? (
+                        <div className="cmp-empty-state">
+                            <div className="cmp-empty-icon">⚠️</div>
+                            <h3>Không tải được bài đăng</h3>
+                            <p>{error}</p>
+                        </div>
+                    ) : normalizedPosts.length === 0 ? (
                         <div className="cmp-empty-state">
                             <div className="cmp-empty-icon">📝</div>
                             <h3>Bạn chưa có bài đăng nào</h3>
                             <p>Hãy đặt dịch vụ để trải nghiệm tiện ích tuyệt vời của chúng tôi nhé!</p>
+                            <button className="cmp-btn-outline cmp-btn-action" onClick={() => navigate('/customer-dashboard')}>
+                                Đăng bài mới
+                            </button>
                         </div>
                     ) : (
                         <div className="cmp-post-grid">
-                            {posts.map(post => {
-                                const service = SERVICE_INFOS[post.service_id] || { name: 'Dịch vụ', icon: '✨', color: '#666' };
+                            {normalizedPosts.map(post => {
+                                const service = SERVICE_INFOS[post.categoryId] || { name: 'Dịch vụ', icon: '✨', color: '#2F5D50' };
                                 const statusConf = getStatusConfig(post.status);
 
                                 return (
-                                    <div key={post.post_id} className="cmp-post-card">
+                                    <div key={post.postId} className="cmp-post-card">
                                         <div className="cmp-post-card-header" style={{ borderBottomColor: `${service.color}30` }}>
                                             <div className="cmp-service-badge" style={{ color: service.color, backgroundColor: `${service.color}15` }}>
                                                 <span className="cmp-icon">{service.icon}</span>
@@ -126,7 +155,7 @@ const CustomerManagePostsPage = () => {
                                                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                                                     <circle cx="12" cy="10" r="3" />
                                                 </svg>
-                                                <span>{post.address_detail}</span>
+                                                <span>{post.addressText}</span>
                                             </div>
 
                                             <div className="cmp-post-info-row">
@@ -134,15 +163,20 @@ const CustomerManagePostsPage = () => {
                                                     <circle cx="12" cy="12" r="10" />
                                                     <polyline points="12 6 12 12 16 14" />
                                                 </svg>
-                                                <span>Ngày đăng: {new Date(post.created_at).toLocaleDateString('vi-VN')}</span>
+                                                <span>
+                                                    Ngày đăng:{' '}
+                                                    {post.createdAt
+                                                        ? new Date(post.createdAt).toLocaleDateString('vi-VN')
+                                                        : '---'}
+                                                </span>
                                             </div>
                                             <div className="cmp-post-price">
-                                                Giá dự kiến: <strong>{formatCurrency(post.estimated_price)}</strong>
+                                                Giá dự kiến: <strong>{formatCurrency(post.estimatedPrice)}</strong>
                                             </div>
                                         </div>
 
                                         <div className="cmp-post-card-footer">
-                                            <button className="cmp-btn-outline" style={{ borderColor: service.color, color: service.color }}>
+                                            <button className="cmp-btn-outline" style={{ borderColor: service.color, color: service.color }} type="button">
                                                 Xem chi tiết
                                             </button>
                                         </div>

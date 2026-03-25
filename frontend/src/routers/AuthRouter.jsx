@@ -15,6 +15,11 @@ import AdminDashboardPage from '../pages/Admin/AdminDashboardPage'
 import AdminHelpersPage from '../pages/Admin/AdminHelpersPage'
 import AdminHelperDetailPage from '../pages/Admin/AdminHelperDetailPage'
 import AdminNotificationsPage from '../pages/Admin/AdminNotificationsPage'
+import AdminUsersPage from '../pages/Admin/AdminUsersPage'
+import AdminBookingsPage from '../pages/Admin/AdminBookingsPage'
+import AdminWalletTransactionsPage from '../pages/Admin/AdminWalletTransactionsPage'
+import AdminComplaintsPage from '../pages/Admin/AdminComplaintsPage'
+import AdminReportsPage from '../pages/Admin/AdminReportsPage'
 import ServiceManagerPage from '../pages/Admin/ServiceManagerPage'
 import HelperSchedulePage from '../pages/Helper/HelperSchedulePage'
 import ForgotPasswordPage from '../pages/ForgotPassword/ForgotPasswordPage'
@@ -46,6 +51,11 @@ const AuthRouter = () => {
         <Route path="/admin/helpers/:helperId" element={<AdminHelperDetailPage />} />
         <Route path="/admin/services" element={<ServiceManagerPage />} />
         <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
+        <Route path="/admin/users" element={<AdminUsersPage />} />
+        <Route path="/admin/bookings" element={<AdminBookingsPage />} />
+        <Route path="/admin/wallet-transactions" element={<AdminWalletTransactionsPage />} />
+        <Route path="/admin/complaints" element={<AdminComplaintsPage />} />
+        <Route path="/admin/reports" element={<AdminReportsPage />} />
         <Route path="/customer/post-job" element={<CustomerPostJobPage />} />
         <Route path="/customer/manage-posts" element={<CustomerManagePostsPage />} />
       </Routes>

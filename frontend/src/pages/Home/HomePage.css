@@ -18,8 +18,8 @@ body {
     flex-direction: column;
 }
 
-/* Header Styles */
-.header {
+/* Header Styles (scoped for Home page) */
+.hp-header {
     background-color: #ffffff;
     display: flex;
     justify-content: space-between;
@@ -29,17 +29,17 @@ body {
     position: sticky;
     top: 0;
     z-index: 1000;
+    gap: 16px;
 }
 
-.logo {
+.hp-logo {
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
-.logo-img {
+.hp-logo-img {
     height: 50px;
-    /* Adjust height as needed */
     width: auto;
     cursor: pointer;
 }
@@ -50,64 +50,69 @@ body {
     color: #346252;
 }
 
-.nav a {
+.hp-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.hp-nav a {
     text-decoration: none;
     color: #333;
-    margin: 0 15px;
+    margin: 0;
+    padding: 4px 8px;
     font-weight: 500;
     transition: color 0.3s;
 }
 
-.nav a:hover {
+.hp-nav a:hover {
     color: #007bff;
 }
 
-.header{
-    
+.hp-header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
-.header-buttons .btn-login,
-.header-buttons .btn-register {
-    padding: 0.5rem 1rem;
+.hp-btn-login,
+.hp-btn-register {
+    width: 118px;
+    height: 42px;
+    padding: 0 14px;
     border-radius: 999px;
     cursor: pointer;
-    font-weight: 600;
-    margin-left: 10px;
-    transition: all 0.3s;
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+    white-space: nowrap;
 }
 
-.btn-login {
-    width: 110px;
-    height: 40px;
-    background: rgb(241, 240, 240);
-    border: 2px solid #838dde;
-    color: rgb(10, 7, 7);
-    padding: 10px 20px;
-    border-radius: 999px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background 0.3s;
+.hp-btn-login {
+    background: #f3f4f6;
+    border: 1.5px solid #d1d5db;
+    color: #111827;
 }
 
-.btn-login:hover {
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+.hp-btn-login:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
 }
 
-.btn-register {
-    width: 110px;
-    height: 40px;
+.hp-btn-register {
     background: #346252;
-    border: 2px solid #838dde;
+    border: 1.5px solid #346252;
     color: white;
-    padding: 10px 20px;
-    border-radius: 999px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background 0.3s;
 }
 
-.btn-register:hover {
-    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+.hp-btn-register:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
 }
 
 /* Hero Section Styles */
@@ -527,24 +532,24 @@ body {
 @media (max-width: 768px) {
 
     /* Header */
-    .header {
+    .hp-header {
         flex-direction: column;
         padding: 1rem;
         gap: 1rem;
     }
 
-    .nav {
+    .hp-nav {
         flex-wrap: wrap;
         justify-content: center;
         gap: 15px;
         margin: 10px 0;
     }
 
-    .nav a {
+    .hp-nav a {
         margin: 5px;
     }
 
-    .header-buttons {
+    .hp-header-buttons {
         margin-left: 0;
         width: 100%;
         display: flex;
