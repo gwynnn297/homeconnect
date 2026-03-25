@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import ProfileService from '../../services/ProfileService';
 import HelperRegistrationService from '../../services/HelperRegistrationService';
+import CloudinaryService from '../../services/CloudinaryService';
 import NotificationModal from '../../components/NotificationModal';
 import { reverseGeocodeStreet, autocompleteAddressGoong, getPlaceDetailGoong, geocodeAddressGoong } from '../../utils/mapLocationUtils';
 import MapGoongComponent from '../../components/MapGoongComponent';
@@ -78,6 +79,7 @@ const CustomerProfilePage = () => {
     const [loadingDist, setLoadingDist] = useState(false);
     const [loadingWard, setLoadingWard] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [toast, setToast] = useState(null);
     const [hasManualAddressEdit, setHasManualAddressEdit] = useState(false);
 
@@ -348,10 +350,13 @@ const CustomerProfilePage = () => {
         }
     };
 
-    // Resize + compress ảnh bằng Canvas trước khi lưu base64
-    const handleAvatarChange = (e) => {
+    const handleAvatarChange = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        // Reset input để có thể chọn lại cùng file
+        e.target.value = '';
+
         if (!file.type.startsWith('image/')) {
             setToast({ message: 'Vui lòng chọn file ảnh (jpg, png, webp...)', type: 'error' });
             return;
@@ -361,33 +366,15 @@ const CustomerProfilePage = () => {
             return;
         }
 
-        const img = new Image();
-        const objectUrl = URL.createObjectURL(file);
-        img.onload = () => {
-            const MAX = 300;
-            let { width, height } = img;
-            if (width > height) {
-                if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
-            } else {
-                if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
-            }
-
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-
-            const compressed = canvas.toDataURL('image/jpeg', 0.75);
-            setForm((f) => ({ ...f, avatarUrl: compressed }));
-            URL.revokeObjectURL(objectUrl);
-        };
-        img.onerror = () => {
-            setToast({ message: 'Không thể đọc file ảnh', type: 'error' });
-            URL.revokeObjectURL(objectUrl);
-        };
-        img.src = objectUrl;
-
-        e.target.value = '';
+        try {
+            setUploadingAvatar(true);
+            const url = await CloudinaryService.uploadImage(file, 'avatars');
+            setForm((f) => ({ ...f, avatarUrl: url }));
+        } catch (err) {
+            setToast({ message: err?.message || 'Tải ảnh lên thất bại, vui lòng thử lại', type: 'error' });
+        } finally {
+            setUploadingAvatar(false);
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -469,19 +456,29 @@ const CustomerProfilePage = () => {
                                 />
                                 <div
                                     className="cpp-avatar-circle cpp-avatar-circle--clickable"
-                                    onClick={() => document.getElementById('avatar-file-input').click()}
-                                    title="Nhấn để đổi ảnh đại diện"
+                                    onClick={() => !uploadingAvatar && document.getElementById('avatar-file-input').click()}
+                                    title={uploadingAvatar ? 'Đang tải ảnh...' : 'Nhấn để đổi ảnh đại diện'}
+                                    style={{ cursor: uploadingAvatar ? 'wait' : 'pointer' }}
                                 >
                                     {form.avatarUrl
-                                        ? <img src={form.avatarUrl} alt="Avatar" className="cpp-avatar-img" />
+                                        ? <img src={form.avatarUrl} alt="Avatar" className="cpp-avatar-img" style={{ opacity: uploadingAvatar ? 0.5 : 1 }} />
                                         : <span className="cpp-avatar-initials">{getInitials(form.fullName)}</span>
                                     }
                                     <div className="cpp-avatar-overlay">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                                            <circle cx="12" cy="13" r="4" />
-                                        </svg>
-                                        <span>Đổi ảnh</span>
+                                        {uploadingAvatar ? (
+                                            <>
+                                                <span className="cpp-spinner" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff', width: 22, height: 22 }} />
+                                                <span>Đang tải...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                                    <circle cx="12" cy="13" r="4" />
+                                                </svg>
+                                                <span>Đổi ảnh</span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="cpp-avatar-info">
@@ -696,7 +693,7 @@ const CustomerProfilePage = () => {
                                     </div>
                                 )}
                                 <div className="cpp-form-actions">
-                                    <button id="basic-save-btn" type="submit" className="cpp-btn cpp-btn--primary" disabled={saving}>
+                                    <button id="basic-save-btn" type="submit" className="cpp-btn cpp-btn--primary" disabled={saving || uploadingAvatar}>
                                         {saving ? (
                                             <><span className="cpp-spinner" />Đang lưu...</>
                                         ) : (

@@ -10,6 +10,7 @@ import CustomerProfilePage from '../pages/Customer/CustomerProfilePage'
 import CustomerWalletPage from '../pages/Customer/CustomerWalletPage'
 import HelperDashboardPage from '../pages/Helper/HelperDashboardPage'
 import HelperProfilePage from '../pages/Helper/HelperProfilePage'
+import HelperNewJobPage from '../pages/Helper/HelperNewJobPage'
 import AdminDashboardPage from '../pages/Admin/AdminDashboardPage'
 import AdminHelpersPage from '../pages/Admin/AdminHelpersPage'
 import AdminHelperDetailPage from '../pages/Admin/AdminHelperDetailPage'
@@ -37,6 +38,7 @@ const AuthRouter = () => {
         <Route path="/helper/dashboard" element={<HelperDashboardPage />} />
         <Route path="/helper/profile" element={<HelperProfilePage />} />
         <Route path="/helper/schedule" element={<HelperSchedulePage />} />
+        <Route path="/helper/new-jobs" element={<HelperNewJobPage />} />
         {/* legacy path kept for compatibility */}
         <Route path="/helper-dashboard" element={<HelperDashboardPage />} />
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
