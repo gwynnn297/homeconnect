@@ -4,6 +4,7 @@ import com.homeconnect.core.dto.request.HelperRegistrationStage1Request;
 import com.homeconnect.core.dto.request.HelperRegistrationStage2Request;
 import com.homeconnect.core.dto.response.UpdateKycResponse;
 import com.homeconnect.core.repository.ServiceCategoryRepository;
+import com.homeconnect.core.repository.ServiceRepository;
 import com.homeconnect.core.service.HelperRegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -27,6 +28,7 @@ public class HelperRegistrationController {
 
     private final HelperRegistrationService helperRegistrationService;
     private final ServiceCategoryRepository serviceCategoryRepository;
+    private final ServiceRepository serviceRepository;
 
     @GetMapping("/categories")
     @Operation(summary = "Lấy danh mục dịch vụ (Cha)", description = "Dùng để chọn kỹ năng đăng ký (Cha làm được hết con)")
@@ -46,12 +48,20 @@ public class HelperRegistrationController {
         return ResponseEntity.ok(categories);
     }
 
-
-
-
-
-
-
+    @GetMapping("/categories/{categoryId}/services")
+    @Operation(summary = "Lấy danh sách dịch vụ con", description = "Dùng để xem các dịch vụ cụ thể thuộc một danh mục")
+    public ResponseEntity<List<Map<String, Object>>> getServicesByCategoryId(@PathVariable Integer categoryId) {
+        List<Map<String, Object>> services = serviceRepository.findByCategoryCategoryIdAndIsActiveTrue(categoryId).stream()
+                .map(s -> {
+                    Map<String, Object> map = new java.util.HashMap<>();
+                    map.put("id", s.getServiceId());
+                    map.put("name", s.getName());
+                    map.put("basePrice", s.getBasePrice());
+                    return map;
+                })
+                .collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(services);
+    }
 
     @PostMapping("/register-stage1")
     @Operation(summary = "Giai đoạn 1: Thông tin cá nhân & Dịch vụ", 

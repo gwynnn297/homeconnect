@@ -14,8 +14,6 @@ public interface JobPostRepository extends JpaRepository<JobPost, Long> {
 
     List<JobPost> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
 
-    List<JobPost> findByStatusAndWorkDateBefore(String status, LocalDate expireDate);
-
     @Query("SELECT jp FROM JobPost jp WHERE jp.status = 'PUBLISHED' AND jp.workDate >= :today " +
            "AND (jp.expiresAt IS NULL OR jp.expiresAt > :now) ORDER BY jp.createdAt DESC")
     List<JobPost> findActiveJobPosts(@Param("today") java.time.LocalDate today, @Param("now") java.time.LocalDateTime now);
