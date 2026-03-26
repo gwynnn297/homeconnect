@@ -246,8 +246,7 @@ sendJobInvitationEmail(helperId, postId, jobPost);
                 .filter(helperId -> districtMapByHelper.getOrDefault(helperId, List.of()).stream()
                         .map(this::normalizeLocationText)
                         .anyMatch(district ->
-                                !district.isBlank()
-                                        && (normalizedJobDistrict.contains(district) || district.contains(normalizedJobDistrict))))
+                                !district.isBlank() && normalizedJobDistrict.equals(district)))
                 .toList();
     }
 
