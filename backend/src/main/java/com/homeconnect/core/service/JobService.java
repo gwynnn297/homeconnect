@@ -61,6 +61,7 @@ public class JobService {
     private final AddressRepository addressRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final NotificationService notificationService;
+    private final HelperScheduleRepository helperScheduleRepository;
 
     public EstimatePriceResponse estimatePrice(EstimatePriceRequest request) {
         log.info("Estimating price for category {}, duration {} hours",
@@ -215,15 +216,30 @@ public class JobService {
 
         return activeJobs.stream()
                 .filter(jp -> {
+                    // 1. Lọc theo Quận (Sử dụng equals để tránh nhầm Quận 1/12)
                     String jobDistrict = jp.getAddress() != null ? normalizeLocationText(jp.getAddress().getDistrictName()) : "";
-                    return helperDistricts.stream().anyMatch(hd -> jobDistrict.contains(hd) || hd.contains(jobDistrict));
+                    boolean districtMatch = helperDistricts.stream().anyMatch(hd -> jobDistrict.equals(hd));
+                    if (!districtMatch) return false;
+
+                    // 2. Lọc theo Lịch rảnh (Phải có slot AVAILABLE bao trùm Job)
+                    java.time.LocalTime endTime = jp.getStartTime().plusHours(jp.getDurationHours());
+                    long availableCount = helperScheduleRepository.countAvailableSchedules(
+                            helperId,
+                            jp.getWorkDate(),
+                            jp.getStartTime(),
+                            endTime
+                    );
+                    return availableCount > 0;
                 })
                 .map(this::mapToJobPostResponse)
                 .collect(Collectors.toList());
     }
 
     public List<JobPostResponse> getAllPublishedJobs(Long helperId) {
+        // Lấy tất cả các việc đang mở (PUBLISHED)
+        // Chỉ lọc bỏ các việc thợ đã ứng tuyển rồi
         return jobPostRepository.findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalDateTime.now()).stream()
+                .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(), helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
                 .map(this::mapToJobPostResponse)
                 .collect(Collectors.toList());
     }
@@ -248,6 +264,9 @@ public class JobService {
             
             // Nếu là lời mời (loại INVITED)
             if ("INVITED".equals(app.getType())) {
+                // Kiểm tra lịch rảnh TRỰC TIẾP trước khi chấp nhận lời mời (Chắc ăn hơn)
+                validateHelperAvailability(jobPost, helperId);
+
                 // Chuyển thành APPLIED (Chấp nhận lời mời)
                 app.setType("APPLIED");
                 app.setStatus("PENDING"); 
@@ -255,6 +274,9 @@ public class JobService {
                 return;
             }
         }
+
+        // --- Ràng buộc mới: Phải có lịch rảnh (AVAILABLE) mới được ứng tuyển ---
+        validateHelperAvailability(jobPost, helperId);
 
         // Tạo application mới nếu chưa tồn tại bất kỳ loại nào
 
@@ -546,6 +568,20 @@ public class JobService {
             }
         }
         return totalPrice;
+    }
+
+    private void validateHelperAvailability(JobPost jobPost, Long helperId) {
+        java.time.LocalTime endTime = jobPost.getStartTime().plusHours(jobPost.getDurationHours());
+        long availableCount = helperScheduleRepository.countAvailableSchedules(
+                helperId,
+                jobPost.getWorkDate(),
+                jobPost.getStartTime(),
+                endTime
+        );
+
+        if (availableCount == 0) {
+            throw new ApiException("Bạn chưa cài đặt lịch trống (AVAILABLE) vào khung giờ này hoặc đã bận việc khác. Vui lòng kiểm tra lại lịch làm việc của mình.", HttpStatus.BAD_REQUEST);
+        }
     }
 
     private List<Integer> parseServiceIds(String serviceIdStr) {
