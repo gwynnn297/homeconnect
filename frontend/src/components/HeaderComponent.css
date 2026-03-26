@@ -48,15 +48,259 @@
     color: #346252;
 }
 
+.notification-wrapper {
+    position: relative;
+}
+
 .notification-badge {
     position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 8px;
-    height: 8px;
+    top: -4px;
+    right: -6px;
     background-color: #e74c3c;
-    border-radius: 50%;
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
     border: 1.5px solid #fff;
+}
+
+.notification-dropdown {
+    position: absolute;
+    top: 100%;
+    right: -10px;
+    width: 320px;
+    background: white;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1002;
+    margin-top: 15px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #eee;
+    background-color: #fafafa;
+}
+
+.notification-header h4 {
+    margin: 0;
+    font-size: 15px;
+    color: #333;
+}
+
+.mark-read-btn {
+    font-size: 12px;
+    color: #346252;
+    cursor: pointer;
+}
+
+.mark-read-btn:hover {
+    text-decoration: underline;
+}
+
+.notification-list {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.notification-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.notification-item:hover {
+    background-color: #f9f9f9;
+}
+
+.notification-item.unread {
+    background-color: #f0f9f6;
+}
+
+.notification-title {
+    margin: 0 0 4px 0;
+    font-weight: 600;
+    font-size: 14px;
+    color: #2c3e50;
+}
+
+.notification-message {
+    margin: 0 0 6px 0;
+    font-size: 13px;
+    color: #555;
+    line-height: 1.4;
+}
+
+.notification-time {
+    font-size: 11px;
+    color: #999;
+}
+
+.notification-empty {
+    padding: 24px;
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+}
+
+.hc-job-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.45);
+    z-index: 5000;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 80px 16px 24px;
+}
+
+.hc-job-modal {
+    width: min(680px, 100%);
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+}
+
+.hc-job-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid #eef2f7;
+    background: #ffffff;
+}
+
+.hc-job-modal__title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.hc-job-modal__close {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: none;
+    background: #f8fafc;
+    color: #475569;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hc-job-modal__close:hover {
+    background: #eef2f7;
+    color: #0f172a;
+}
+
+.hc-job-modal__close svg {
+    width: 18px;
+    height: 18px;
+}
+
+.hc-job-modal__body {
+    padding: 16px;
+}
+
+.hc-job-modal__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+}
+
+.hc-job-modal__row {
+    display: grid;
+    gap: 4px;
+}
+
+.hc-job-modal__row--full {
+    grid-column: 1 / -1;
+}
+
+.hc-job-modal__label {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.hc-job-modal__value {
+    font-size: 14px;
+    color: #0f172a;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+.hc-job-modal__muted {
+    color: #64748b;
+    font-size: 14px;
+}
+
+.hc-job-modal__error {
+    background: #fff1f2;
+    border: 1px solid #ffe4e6;
+    color: #9f1239;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.hc-job-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.hc-job-modal__btn {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.hc-job-modal__btn:hover {
+    background: #f8fafc;
+}
+
+.hc-job-modal__btn--primary {
+    border: none;
+    background: #346252;
+    color: #fff;
+}
+
+.hc-job-modal__btn--primary:hover {
+    background: #2b5548;
+}
+
+@media (max-width: 768px) {
+    .hc-job-modal-overlay {
+        padding-top: 96px;
+    }
+    .hc-job-modal__grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .user-info {

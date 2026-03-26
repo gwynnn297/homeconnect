@@ -16,6 +16,25 @@ const NotificationService = {
     },
 
     /**
+     * Đánh dấu 1 thông báo đã đọc
+     * Backend: PATCH /api/v1/notifications/{notificationId}/read
+     * Response: ApiResponse<NotificationResponse>
+     * @param {number|string} notificationId
+     */
+    markAsRead: async (notificationId) => {
+        return apiClient.patch(`/api/v1/notifications/${notificationId}/read`);
+    },
+
+    /**
+     * Đánh dấu tất cả thông báo đã đọc
+     * Backend: PATCH /api/v1/notifications/read-all
+     * Response: ApiResponse<Integer> (số lượng đã update)
+     */
+    markAllAsRead: async () => {
+        return apiClient.patch('/api/v1/notifications/read-all');
+    },
+
+    /**
      * Lấy URL kết nối SSE (Server-Sent Events) để nhận thông báo realtime
      * Endpoint: GET /api/v1/notifications/stream
      * Role: HELPER, CUSTOMER, ADMIN
