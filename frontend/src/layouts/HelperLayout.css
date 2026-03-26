@@ -5,6 +5,15 @@
     min-height: 100vh;
 }
 
+.helper-layout-wrapper .header {
+    position: sticky;
+    top: 0;
+    z-index: 1200;
+    height: 80px; 
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+    flex-shrink: 0;
+}
+
 .helper-layout-body {
     display: flex;
     flex: 1;
@@ -20,6 +29,10 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+    .helper-layout-wrapper .header {
+        height: auto;
+    }
+
     .helper-layout-body {
         flex-direction: column;
     }

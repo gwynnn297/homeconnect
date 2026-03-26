@@ -1,4 +1,4 @@
-.helper-sidebar {
+.hc-helper-sidebar {
     width: 250px;
     background-color: #fff;
     border-right: 1px solid #e2e8f0;
@@ -11,14 +11,14 @@
     padding: 24px 0;
 }
 
-.sidebar-nav {
+.hc-helper-sidebar__nav {
     display: flex;
     flex-direction: column;
     gap: 8px;
     padding: 0 16px;
 }
 
-.sidebar-link {
+.hc-helper-sidebar__link {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -31,17 +31,17 @@
     font-size: 15px;
 }
 
-.sidebar-link:hover {
+.hc-helper-sidebar__link:hover {
     background-color: #f8fafc;
     color: #346252;
 }
 
-.sidebar-link.active {
+.hc-helper-sidebar__link--active {
     background-color: #f0faf5;
     color: #346252;
 }
 
-.icon-wrapper {
+.hc-helper-sidebar__icon-wrap {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -49,19 +49,19 @@
     height: 24px;
 }
 
-.sidebar-icon {
+.hc-helper-sidebar__icon {
     width: 20px;
     height: 20px;
     transition: color 0.3s ease;
 }
 
-.sidebar-link:hover .sidebar-icon,
-.sidebar-link.active .sidebar-icon {
+.hc-helper-sidebar__link:hover .hc-helper-sidebar__icon,
+.hc-helper-sidebar__link--active .hc-helper-sidebar__icon {
     color: #346252;
 }
 
 @media (max-width: 768px) {
-    .helper-sidebar {
+    .hc-helper-sidebar {
         width: 100%;
         height: auto;
         border-right: none;
@@ -70,7 +70,7 @@
         padding: 16px;
     }
 
-    .sidebar-nav {
+    .hc-helper-sidebar__nav {
         flex-direction: row;
         overflow-x: auto;
         padding: 0;
@@ -80,12 +80,12 @@
         /* Firefox */
     }
 
-    .sidebar-nav::-webkit-scrollbar {
+    .hc-helper-sidebar__nav::-webkit-scrollbar {
         display: none;
         /* Chrome, Safari and Opera */
     }
 
-    .sidebar-link {
+    .hc-helper-sidebar__link {
         flex: 0 0 auto;
         padding: 10px 16px;
     }
