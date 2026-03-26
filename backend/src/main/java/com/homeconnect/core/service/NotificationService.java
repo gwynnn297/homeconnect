@@ -10,6 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.http.HttpStatus;
 
@@ -97,7 +99,20 @@ public class NotificationService {
 
         Notification saved = notificationRepository.save(notification);
         NotificationResponse response = toResponse(saved);
-        pushRealtime(helperId, response);
+        
+        // CHỈ đẩy realtime sau khi transaction đã commit thành công 
+        // để tránh thông báo trùng lặp khi transaction bị rollback/retry
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    pushRealtime(helperId, response);
+                }
+            });
+        } else {
+            pushRealtime(helperId, response);
+        }
+        
         return response;
     }
 
@@ -116,7 +131,19 @@ public class NotificationService {
 
         Notification saved = notificationRepository.save(notification);
         NotificationResponse response = toResponse(saved);
-        pushRealtime(userId, response);
+
+        // CHỈ đẩy realtime sau khi transaction đã commit thành công
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    pushRealtime(userId, response);
+                }
+            });
+        } else {
+            pushRealtime(userId, response);
+        }
+
         return response;
     }
 

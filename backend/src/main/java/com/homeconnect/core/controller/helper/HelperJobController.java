@@ -1,6 +1,7 @@
 package com.homeconnect.core.controller.helper;
 
 import com.homeconnect.core.dto.response.ApiResponse;
+import com.homeconnect.core.dto.response.JobApplicationStatusResponse;
 import com.homeconnect.core.dto.response.JobPostResponse;
 import com.homeconnect.core.service.JobService;
 import com.homeconnect.core.util.SecurityUtil;
@@ -38,7 +39,6 @@ public class HelperJobController {
                 .build());
     }
 
-
     @Operation(summary = "Xem danh sách việc làm phù hợp", description = "Lấy danh sách các công việc đang mở, phù hợp với kỹ năng và khu vực thợ đã đăng ký (so khớp theo tên quận).")
     @GetMapping("")
     @PreAuthorize("hasRole('HELPER')")
@@ -65,6 +65,22 @@ public class HelperJobController {
 
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .message("Ứng tuyển thành công! Vui lòng chờ khách hàng phản hồi.")
+                .build());
+    }
+
+    @Operation(summary = "Lấy trạng thái ứng tuyển", description = "Kiểm tra xem thợ đã ứng tuyển hoặc được mời cho công việc này chưa.")
+    @GetMapping("/{id}/application-status")
+    @PreAuthorize("hasRole('HELPER')")
+    public ResponseEntity<ApiResponse<JobApplicationStatusResponse>> getApplicationStatus(
+            @PathVariable("id") Long id, Authentication authentication) {
+        Long helperId = securityUtil.getCurrentUserId(authentication);
+        log.info("Helper {} checking application status for job {}", helperId, id);
+
+        JobApplicationStatusResponse response = jobService.getApplicationStatus(id, helperId);
+
+        return ResponseEntity.ok(ApiResponse.<JobApplicationStatusResponse>builder()
+                .message("Lấy trạng thái ứng tuyển thành công")
+                .data(response)
                 .build());
     }
 }

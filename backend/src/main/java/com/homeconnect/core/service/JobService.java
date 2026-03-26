@@ -4,6 +4,7 @@ import com.homeconnect.core.dto.request.CreateJobPostRequest;
 import com.homeconnect.core.dto.request.EstimatePriceRequest;
 import com.homeconnect.core.dto.response.EstimatePriceResponse;
 import com.homeconnect.core.dto.request.UpdateJobPostRequest;
+import com.homeconnect.core.dto.response.JobApplicationStatusResponse;
 import com.homeconnect.core.dto.response.JobPostResponse;
 import com.homeconnect.core.entity.Address;
 import com.homeconnect.core.entity.JobPost;
@@ -595,6 +596,25 @@ public class JobService {
             }
         }
         return sIds;
+    }
+
+    @Transactional(readOnly = true)
+    public JobApplicationStatusResponse getApplicationStatus(Long jobId, Long helperId) {
+        return jobApplicationRepository.findById(jobId).isPresent() ? 
+            jobApplicationRepository.findByPostIdAndHelperId(jobId, helperId)
+                .map(app -> JobApplicationStatusResponse.builder()
+                        .applicationId(app.getApplicationId())
+                        .type(app.getType())
+                        .status(app.getStatus())
+                        .createdAt(app.getCreatedAt())
+                        .exists(true)
+                        .build())
+                .orElse(JobApplicationStatusResponse.builder()
+                        .exists(false)
+                        .build()) : 
+            JobApplicationStatusResponse.builder()
+                .exists(false)
+                .build();
     }
 }
 
