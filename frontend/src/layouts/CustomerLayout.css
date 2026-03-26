@@ -2,28 +2,51 @@
 .customer-layout-wrapper {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--bg-main);
 }
 
 .customer-layout-body {
     display: flex;
     flex: 1;
+    background: var(--bg-main);
+    overflow: hidden;
+    position: relative;
 }
 
 .customer-content {
     flex: 1;
+    min-height: 0; /* required for flex children scrolling */
     padding: 2rem;
-    background-color: #f8fafc;
+    background-color: var(--bg-main);
     max-width: 100%;
+    overflow-y: auto;
+}
+
+.cs-mobile-overlay {
+    display: none;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-    .customer-layout-body {
-        flex-direction: column;
-    }
-
     .customer-content {
         padding: 1rem;
+    }
+
+    .cs-mobile-overlay {
+        display: block;
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 44, 36, 0.35);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 2400;
+    }
+
+    .cs-mobile-overlay.open {
+        opacity: 1;
+        pointer-events: auto;
     }
 }

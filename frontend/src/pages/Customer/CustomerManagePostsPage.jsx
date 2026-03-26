@@ -4,13 +4,39 @@ import CustomerLayout from '../../layouts/CustomerLayout';
 import apiClient from '../../services/apiClient';
 import './CustomerManagePostsPage.css';
 
-const SERVICE_INFOS = {
-    1: { name: 'Dọn dẹp nhà cửa', icon: '🏡', color: '#2F5D50' },
-    2: { name: 'Nấu ăn', icon: '🍳', color: '#2F5D50' },
-    3: { name: 'Đi chợ', icon: '🛒', color: '#2F5D50' },
-};
+const JOB_LIST_ENDPOINT = '/api/v1/jobs';
 
-const JOB_LIST_ENDPOINTS = ['/api/v1/jobs/my', '/api/v1/jobs/customer', '/api/v1/jobs'];
+const PALETTE = ['#2F5D50', '#B56A00', '#2196F3', '#16A34A', '#E74C3C'];
+
+const normalizeServiceLabel = (label = '') =>
+    String(label)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+const getCategoryEmoji = (categoryName) => {
+    const normalized = normalizeServiceLabel(categoryName);
+
+    if (
+        normalized.includes('don dep') ||
+        normalized.includes('ve sinh') ||
+        normalized.includes('tap vu') ||
+        normalized.includes('lau')
+    ) {
+        return '🏡';
+    }
+
+    if (normalized.includes('nau') || normalized.includes('bep') || normalized.includes('an uong')) {
+        return '🍳';
+    }
+
+    if (normalized.includes('di cho') || normalized.includes('cho') || normalized.includes('mua sam')) {
+        return '🛒';
+    }
+
+    return '✨';
+};
 
 const CustomerManagePostsPage = () => {
     const navigate = useNavigate();
@@ -26,22 +52,23 @@ const CustomerManagePostsPage = () => {
             let fetched = null;
             let lastErr = null;
 
-            for (const endpoint of JOB_LIST_ENDPOINTS) {
-                try {
-                    const res = await apiClient.get(endpoint);
-                    const list = res?.data ?? res;
-                    if (Array.isArray(list)) {
-                        fetched = list;
-                        break;
-                    }
-                } catch (err) {
-                    lastErr = err;
+            try {
+                const res = await apiClient.get(JOB_LIST_ENDPOINT);
+                const list = res?.data ?? res;
+                if (Array.isArray(list)) {
+                    fetched = list;
                 }
+            } catch (err) {
+                lastErr = err;
             }
 
             if (!Array.isArray(fetched)) {
                 setPosts([]);
-                setError(lastErr?.message || 'Không thể tải danh sách bài đăng từ hệ thống.');
+                const rawMsg = String(lastErr?.message || '');
+                const friendlyMsg = rawMsg.includes('Unable to find com.homeconnect.core.entity.Address with id')
+                    ? 'Không thể tải bài đăng do có dữ liệu địa chỉ cũ đã bị xóa khỏi hệ thống. Vui lòng liên hệ quản trị để đồng bộ lại dữ liệu địa chỉ cho các bài đăng trước đây.'
+                    : (rawMsg || 'Không thể tải danh sách bài đăng từ hệ thống.');
+                setError(friendlyMsg);
                 setLoading(false);
                 return;
             }
@@ -58,6 +85,7 @@ const CustomerManagePostsPage = () => {
             (Array.isArray(posts) ? posts : []).map((post) => {
                 const postId = post?.postId ?? post?.post_id ?? '';
                 const categoryId = Number(post?.categoryId ?? post?.service_id ?? 0);
+                const categoryName = post?.categoryName ?? post?.category_name ?? '';
                 const addressText = [post?.addressDetail, post?.wardName, post?.districtName, post?.provinceName]
                     .filter(Boolean)
                     .join(', ');
@@ -65,6 +93,7 @@ const CustomerManagePostsPage = () => {
                 return {
                     postId,
                     categoryId,
+                    categoryName,
                     title: post?.title || `Bài đăng #${postId}`,
                     description: post?.description || 'Không có mô tả.',
                     addressText: addressText || post?.address_detail || 'Chưa có địa chỉ',
@@ -131,7 +160,12 @@ const CustomerManagePostsPage = () => {
                     ) : (
                         <div className="cmp-post-grid">
                             {normalizedPosts.map(post => {
-                                const service = SERVICE_INFOS[post.categoryId] || { name: 'Dịch vụ', icon: '✨', color: '#2F5D50' };
+                                const serviceColor = PALETTE[(Number(post.categoryId) || 0) % PALETTE.length];
+                                const service = {
+                                    name: post.categoryName || 'Dịch vụ',
+                                    icon: getCategoryEmoji(post.categoryName),
+                                    color: serviceColor
+                                };
                                 const statusConf = getStatusConfig(post.status);
 
                                 return (
@@ -176,7 +210,12 @@ const CustomerManagePostsPage = () => {
                                         </div>
 
                                         <div className="cmp-post-card-footer">
-                                            <button className="cmp-btn-outline" style={{ borderColor: service.color, color: service.color }} type="button">
+                                            <button
+                                                className="cmp-btn-outline"
+                                                style={{ borderColor: service.color, color: service.color }}
+                                                type="button"
+                                                onClick={() => navigate(`/customer/manage-posts/${post.postId}`)}
+                                            >
                                                 Xem chi tiết
                                             </button>
                                         </div>

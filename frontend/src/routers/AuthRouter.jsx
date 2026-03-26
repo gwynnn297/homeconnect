@@ -25,6 +25,7 @@ import HelperSchedulePage from '../pages/Helper/HelperSchedulePage'
 import ForgotPasswordPage from '../pages/ForgotPassword/ForgotPasswordPage'
 import CustomerPostJobPage from '../pages/Customer/CustomerPostJobPage'
 import CustomerManagePostsPage from '../pages/Customer/CustomerManagePostsPage'
+import CustomerPostDetailPage from '../pages/Customer/CustomerPostDetailPage'
 
 const AuthRouter = () => {
   return (
@@ -58,6 +59,7 @@ const AuthRouter = () => {
         <Route path="/admin/reports" element={<AdminReportsPage />} />
         <Route path="/customer/post-job" element={<CustomerPostJobPage />} />
         <Route path="/customer/manage-posts" element={<CustomerManagePostsPage />} />
+        <Route path="/customer/manage-posts/:postId" element={<CustomerPostDetailPage />} />
       </Routes>
     </BrowserRouter>
   )

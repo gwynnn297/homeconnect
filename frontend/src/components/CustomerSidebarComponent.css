@@ -1,23 +1,23 @@
-.customer-sidebar {
+.cs-sidebar {
     width: 250px;
     background-color: var(--sidebar-bg);
     border-right: 1px solid var(--border);
-    height: calc(100vh - 80px);
-    position: sticky;
-    top: 80px;
+    height: 100%;
+    position: relative;
+    top: auto;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    overflow-y: visible;
 }
 
-.sidebar-nav {
+.cs-sidebar-nav {
     display: flex;
     flex-direction: column;
     padding: 1rem 0;
     gap: 4px;
 }
 
-.sidebar-link {
+.cs-sidebar-link {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -29,17 +29,17 @@
     font-weight: 500;
 }
 
-.sidebar-link:hover {
+.cs-sidebar-link:hover {
     background: var(--primary-soft);
     color: var(--primary);
 }
 
-.sidebar-link.active {
+.cs-sidebar-link.active {
     background: rgba(47, 93, 80, 0.12);
     color: var(--primary);
 }
 
-.icon-wrapper {
+.cs-icon-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -47,24 +47,24 @@
     height: 24px;
 }
 
-.sidebar-icon {
+.cs-sidebar-icon {
     width: 20px;
     height: 20px;
 }
 
-.sidebar-link-left {
+.cs-sidebar-link-left {
     display: flex;
     align-items: center;
     gap: 0.75rem;
     min-width: 0;
 }
 
-.sidebar-link:hover .sidebar-icon,
-.sidebar-link.active .sidebar-icon {
+.cs-sidebar-link:hover .cs-sidebar-icon,
+.cs-sidebar-link.active .cs-sidebar-icon {
     color: var(--primary);
 }
 
-.sidebar-badge {
+.cs-sidebar-badge {
     margin-left: auto;
     font-size: 11px;
     font-weight: 800;
@@ -75,34 +75,55 @@
 }
 
 @media (max-width: 768px) {
-    .customer-sidebar {
-        width: 100%;
-        height: auto;
-        border-right: none;
-        border-bottom: 1px solid var(--border);
-        position: static;
-        background: var(--bg-main);
-        overflow-y: visible;
+    .cs-sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 250px;
+        border-right: 1px solid var(--border);
+        border-bottom: none;
+        background: var(--sidebar-bg);
+        overflow-y: auto;
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+        z-index: 2600;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
     }
 
-    .sidebar-nav {
-        flex-direction: row;
-        overflow-x: auto;
-        padding: 0;
-        gap: 12px;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
+    .cs-sidebar-nav {
+        flex-direction: column;
+        overflow-x: visible;
+        padding: 1rem 0;
+        gap: 4px;
     }
 
-    .sidebar-nav::-webkit-scrollbar {
+    .cs-sidebar-nav::-webkit-scrollbar {
         display: none;
     }
 
-    .sidebar-link {
-        flex: 0 0 auto;
-        padding: 0.65rem 0.9rem;
-        border-radius: 12px;
-        min-width: max-content;
-        max-width: 260px;
+    .cs-sidebar-link {
+        justify-content: space-between;
+        padding: 0.75rem 1.25rem;
+        border-radius: 0;
+        min-width: 0;
+        max-width: none;
+        white-space: nowrap;
     }
+
+    .cs-sidebar-link-left {
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+
+    .cs-sidebar-link-left span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+/* Open state driven by CustomerLayout */
+.cs-sidebar-open .cs-sidebar {
+    transform: translateX(0);
 }

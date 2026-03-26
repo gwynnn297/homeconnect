@@ -80,18 +80,7 @@
     outline: none;
 }
 
-.cdh-filter-btn {
-    width: 44px;
-    height: 44px;
-    border: 1px solid var(--primary);
-    background: var(--primary);
-    color: #fff;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-}
+/* filter button removed */
 
 .cdh-section {
     border: 1px solid var(--border);
@@ -349,10 +338,7 @@
         align-items: stretch;
     }
 
-    .cdh-filter-btn {
-        width: 100%;
-        height: 40px;
-    }
+    /* filter button removed */
 
     .cdh-categories-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));

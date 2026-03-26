@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import ProfileService from '../../services/ProfileService';
+import apiClient from '../../services/apiClient';
 import './CustomerDashboardPage.css';
+
+const JOB_LIST_ENDPOINTS = ['/api/v1/jobs/my', '/api/v1/jobs/customer', '/api/v1/jobs'];
 
 const normalizeServiceLabel = (label = '') =>
     String(label)
@@ -85,6 +88,58 @@ const getServiceIcon = (label) => {
     );
 };
 
+const parseYmdToDate = (ymd) => {
+    if (!ymd || typeof ymd !== 'string') return null;
+    const parts = ymd.split('-');
+    if (parts.length !== 3) return null;
+    const [y, m, d] = parts.map((p) => Number(p));
+    if ([y, m, d].some((n) => Number.isNaN(n))) return null;
+    // Noon to reduce timezone edge cases when formatting/displaying.
+    return new Date(y, m - 1, d, 12, 0, 0, 0);
+};
+
+const parseHmsToHHmm = (hms) => {
+    if (!hms || typeof hms !== 'string') return null;
+    const parts = hms.split(':');
+    if (parts.length < 2) return null;
+    const hh = Number(parts[0]);
+    const mm = Number(parts[1]);
+    if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+};
+
+const formatJobTimeLabel = (workDate, startTime) => {
+    const dateObj = parseYmdToDate(workDate);
+    const ddmm = dateObj
+        ? dateObj.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+        : '---';
+    const hhmm = parseHmsToHHmm(startTime) || '--:--';
+    return `${hhmm} • ${ddmm}`;
+};
+
+const parseDateTime = (value) => {
+    if (!value) return null;
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const getJobStatusText = (status = '') => {
+    switch (status) {
+        case 'PUBLISHED':
+            return 'Đang tìm helper';
+        case 'ASSIGNED':
+            return 'Đã có helper nhận';
+        case 'CANCELLED':
+            return 'Đã hủy';
+        case 'COMPLETED':
+            return 'Đã hoàn thành';
+        case 'EXPIRED':
+            return 'Hết hạn';
+        default:
+            return status ? String(status) : '—';
+    }
+};
+
 /* ──────────────────────────────────────────
    Component
 ────────────────────────────────────────── */
@@ -95,6 +150,10 @@ const CustomerDashboardPage = () => {
     const [categories, setCategories] = useState([]);
     const [isLoadingCategories, setIsLoadingCategories] = useState(false);
     const [categoriesError, setCategoriesError] = useState('');
+
+    const [jobs, setJobs] = useState([]);
+    const [isLoadingJobs, setIsLoadingJobs] = useState(false);
+    const [jobsError, setJobsError] = useState('');
 
     useEffect(() => {
         const loadCategories = async () => {
@@ -113,6 +172,41 @@ const CustomerDashboardPage = () => {
         };
 
         loadCategories();
+    }, []);
+
+    useEffect(() => {
+        const loadJobs = async () => {
+            setIsLoadingJobs(true);
+            setJobsError('');
+
+            let fetched = null;
+            let lastErr = null;
+
+            for (const endpoint of JOB_LIST_ENDPOINTS) {
+                try {
+                    const res = await apiClient.get(endpoint);
+                    const list = res?.data ?? res;
+                    if (Array.isArray(list)) {
+                        fetched = list;
+                        break;
+                    }
+                } catch (err) {
+                    lastErr = err;
+                }
+            }
+
+            if (!Array.isArray(fetched)) {
+                setJobs([]);
+                setJobsError(lastErr?.message || 'Không thể tải bài đăng từ hệ thống.');
+                setIsLoadingJobs(false);
+                return;
+            }
+
+            setJobs(fetched);
+            setIsLoadingJobs(false);
+        };
+
+        loadJobs();
     }, []);
 
     const PALETTE = useMemo(
@@ -140,23 +234,61 @@ const CustomerDashboardPage = () => {
         navigate(`/customer/post-job?serviceId=${serviceId}`);
     };
 
-    const mockOverview = useMemo(
-        () => [
-            { label: 'Bài đăng đang mở', value: 3, tone: 'warning' },
-            { label: 'Lịch sắp tới', value: 2, tone: 'primary' },
-            { label: 'Đã hoàn thành tháng này', value: 7, tone: 'success' },
-        ],
-        []
-    );
+    const normalizedJobs = useMemo(() => {
+        return (Array.isArray(jobs) ? jobs : []).map((job) => {
+            const jobId = job?.postId ?? job?.post_id ?? job?.jobId ?? '';
+            const status = job?.status || 'PUBLISHED';
+            return {
+                postId: jobId,
+                title: job?.title || `Bài đăng #${jobId}`,
+                workDate: job?.workDate ?? job?.work_date,
+                startTime: job?.startTime ?? job?.start_time,
+                createdAt: job?.createdAt ?? job?.created_at,
+                status
+            };
+        });
+    }, [jobs]);
 
-    const mockRecentPosts = useMemo(
-        () => [
-            { id: 101, title: 'Dọn dẹp căn hộ 2PN', time: '08:00 • 28/03', status: 'Đang tìm helper' },
-            { id: 102, title: 'Nấu ăn theo tuần', time: '17:30 • 29/03', status: 'Đã có helper nhận' },
-            { id: 103, title: 'Đi chợ và sơ chế', time: '09:00 • 30/03', status: 'Chờ xác nhận' },
-        ],
-        []
-    );
+    const dashboardStats = useMemo(() => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const in7Days = new Date(today);
+        in7Days.setDate(in7Days.getDate() + 7);
+
+        const completedMonthKey = `${now.getFullYear()}-${now.getMonth()}`;
+
+        const openCount = normalizedJobs.filter((j) => ['PUBLISHED', 'ASSIGNED'].includes(j.status)).length;
+        const upcomingCount = normalizedJobs.filter((j) => {
+            const dt = parseYmdToDate(j.workDate);
+            if (!dt) return false;
+            const dateOnly = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 0, 0, 0, 0);
+            return dateOnly >= today && dateOnly <= in7Days;
+        }).length;
+
+        const completedThisMonthCount = normalizedJobs.filter((j) => {
+            if (j.status !== 'COMPLETED') return false;
+            const createdAt = parseDateTime(j.createdAt);
+            if (!createdAt) return false;
+            const key = `${createdAt.getFullYear()}-${createdAt.getMonth()}`;
+            return key === completedMonthKey;
+        }).length;
+
+        const recentPosts = [...normalizedJobs]
+            .sort((a, b) => {
+                const ta = parseDateTime(a.createdAt)?.getTime() ?? 0;
+                const tb = parseDateTime(b.createdAt)?.getTime() ?? 0;
+                return tb - ta;
+            })
+            .slice(0, 3)
+            .map((p) => ({
+                id: p.postId,
+                title: p.title,
+                time: formatJobTimeLabel(p.workDate, p.startTime),
+                status: getJobStatusText(p.status),
+            }));
+
+        return { openCount, upcomingCount, completedThisMonthCount, recentPosts };
+    }, [normalizedJobs]);
 
     return (
         <CustomerLayout>
@@ -186,12 +318,6 @@ const CustomerDashboardPage = () => {
                             onChange={e => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    <button className="cdh-filter-btn" title="Lọc">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                        </svg>
-                    </button>
                 </section>
 
                 <section className="cdh-section">
@@ -240,7 +366,11 @@ const CustomerDashboardPage = () => {
                             <h2 className="cdh-section-title">Tình hình nhanh</h2>
                         </div>
                         <div className="cdh-overview-grid">
-                            {mockOverview.map((item) => (
+                            {[
+                                { label: 'Bài đăng đang mở', value: isLoadingJobs ? '...' : dashboardStats.openCount, tone: 'warning' },
+                                { label: 'Lịch sắp tới', value: isLoadingJobs ? '...' : dashboardStats.upcomingCount, tone: 'primary' },
+                                { label: 'Đã hoàn thành tháng này', value: isLoadingJobs ? '...' : dashboardStats.completedThisMonthCount, tone: 'success' },
+                            ].map((item) => (
                                 <article key={item.label} className={`cdh-overview-card cdh-overview-${item.tone}`}>
                                     <p className="cdh-overview-value">{item.value}</p>
                                     <p className="cdh-overview-label">{item.label}</p>
@@ -266,18 +396,28 @@ const CustomerDashboardPage = () => {
 
                 <section className="cdh-section">
                     <div className="cdh-section-header">
-                        <h2 className="cdh-section-title">Bài đăng gần đây (mô phỏng)</h2>
+                        <h2 className="cdh-section-title">Bài đăng gần đây</h2>
                     </div>
                     <div className="cdh-recent-list">
-                        {mockRecentPosts.map((post) => (
-                            <article key={post.id} className="cdh-recent-item">
-                                <div>
-                                    <p className="cdh-recent-title">{post.title}</p>
-                                    <p className="cdh-recent-time">{post.time}</p>
-                                </div>
-                                <span className="cdh-recent-status">{post.status}</span>
-                            </article>
-                        ))}
+                        {isLoadingJobs ? (
+                            <div className="cdh-empty" style={{ gridColumn: 'auto' }}>
+                                Đang tải bài đăng...
+                            </div>
+                        ) : jobsError ? (
+                            <div className="cdh-empty cdh-empty-error">{jobsError}</div>
+                        ) : dashboardStats.recentPosts.length === 0 ? (
+                            <div className="cdh-empty">Chưa có bài đăng gần đây.</div>
+                        ) : (
+                            dashboardStats.recentPosts.map((post) => (
+                                <article key={post.id} className="cdh-recent-item">
+                                    <div>
+                                        <p className="cdh-recent-title">{post.title}</p>
+                                        <p className="cdh-recent-time">{post.time}</p>
+                                    </div>
+                                    <span className="cdh-recent-status">{post.status}</span>
+                                </article>
+                            ))
+                        )}
                     </div>
                 </section>
 
