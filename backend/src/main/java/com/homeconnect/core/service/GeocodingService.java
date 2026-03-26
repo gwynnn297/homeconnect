@@ -51,6 +51,7 @@ public class GeocodingService {
      * Validate tọa độ do client gửi có khớp với placeId từ Goong hay không.
      */
     @RateLimiter(name = "goong")
+    @SuppressWarnings("unchecked")
     public void validatePlaceCoordinates(String placeId, BigDecimal latitude, BigDecimal longitude) {
         try {
             String url = UriComponentsBuilder.fromUriString(goongPlaceDetailUrl)
@@ -189,6 +190,7 @@ public class GeocodingService {
         return null;
     }
 
+    @SuppressWarnings("unchecked")
     private GeoResult executeRequest(String url, String originalAddress) {
         org.springframework.http.ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
                 url, org.springframework.http.HttpMethod.GET, null, 

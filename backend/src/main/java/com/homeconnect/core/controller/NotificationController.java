@@ -11,10 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -50,5 +47,31 @@ public class NotificationController {
     public SseEmitter streamNotifications(Authentication authentication) {
         Long userId = securityUtil.getCurrentUserId(authentication);
         return notificationService.subscribe(userId);
+    }
+
+    @Operation(summary = "Đánh dấu 1 thông báo đã đọc", description = "Chỉ user sở hữu notification mới được đánh dấu đã đọc")
+    @PatchMapping("/{notificationId}/read")
+    @PreAuthorize("hasAnyRole('HELPER','CUSTOMER','ADMIN')")
+    public ResponseEntity<ApiResponse<NotificationResponse>> markAsRead(
+            @PathVariable Long notificationId,
+            Authentication authentication) {
+        Long userId = securityUtil.getCurrentUserId(authentication);
+NotificationResponse response = notificationService.markAsRead(userId, notificationId);
+        return ResponseEntity.ok(ApiResponse.<NotificationResponse>builder()
+                .message("Đã đánh dấu thông báo là đã đọc")
+                .data(response)
+                .build());
+    }
+
+    @Operation(summary = "Đánh dấu tất cả thông báo đã đọc", description = "Đánh dấu tất cả thông báo chưa đọc của user hiện tại là đã đọc")
+    @PatchMapping("/read-all")
+    @PreAuthorize("hasAnyRole('HELPER','CUSTOMER','ADMIN')")
+    public ResponseEntity<ApiResponse<Integer>> markAllAsRead(Authentication authentication) {
+        Long userId = securityUtil.getCurrentUserId(authentication);
+        int updated = notificationService.markAllAsRead(userId);
+        return ResponseEntity.ok(ApiResponse.<Integer>builder()
+                .message("Đã đánh dấu tất cả thông báo là đã đọc")
+                .data(updated)
+                .build());
     }
 }

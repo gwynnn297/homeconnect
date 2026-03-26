@@ -4,12 +4,14 @@ import com.homeconnect.core.dto.response.NotificationResponse;
 import com.homeconnect.core.entity.JobPost;
 import com.homeconnect.core.entity.Notification;
 import com.homeconnect.core.repository.NotificationRepository;
+import com.homeconnect.core.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.http.HttpStatus;
 
 import java.io.IOException;
 import java.util.List;
@@ -74,7 +76,7 @@ public class NotificationService {
      * Tạo thông báo MATCHING khi helper được mời vào job,
      * sau đó đẩy ngay notification realtime nếu helper đang online trên web.
      */
-    @Transactional
+@Transactional
     public NotificationResponse createMatchingNotification(Long helperId, Long postId, JobPost jobPost) {
         String location = jobPost.getAddress() != null ? 
                 jobPost.getAddress().getWardName() + ", " + jobPost.getAddress().getDistrictName() : "N/A";
@@ -119,10 +121,39 @@ public class NotificationService {
     }
 
     /**
+     * Đánh dấu 1 thông báo đã đọc (chỉ chủ sở hữu mới được update)
+     */
+    @Transactional
+    public NotificationResponse markAsRead(Long userId, Long notificationId) {
+        Notification notification = notificationRepository.findByNotificationIdAndUserId(notificationId, userId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy thông báo", HttpStatus.NOT_FOUND));
+
+        if (Boolean.TRUE.equals(notification.getIsRead())) {
+            return toResponse(notification);
+        }
+
+        notification.setIsRead(true);
+        Notification saved = notificationRepository.save(notification);
+        return toResponse(saved);
+    }
+
+    /**
+     * Đánh dấu tất cả thông báo của user là đã đọc
+     */
+    @Transactional
+    public int markAllAsRead(Long userId) {
+        List<Notification> unread = notificationRepository.findByUserIdAndIsReadFalse(userId);
+        if (unread.isEmpty()) return 0;
+        unread.forEach(n -> n.setIsRead(true));
+        notificationRepository.saveAll(unread);
+        return unread.size();
+    }
+
+    /**
      * Gửi payload realtime đến toàn bộ SSE emitter của user.
      * Nếu emitter lỗi thì remove khỏi danh sách để tránh leak.
      */
-    private void pushRealtime(Long userId, NotificationResponse payload) {
+private void pushRealtime(Long userId, NotificationResponse payload) {
         List<SseEmitter> emitters = emittersByUserId.get(userId);
         if (emitters == null || emitters.isEmpty()) {
             return;

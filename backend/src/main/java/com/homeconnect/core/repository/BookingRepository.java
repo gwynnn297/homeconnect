@@ -24,5 +24,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                                   @Param("endTime") java.time.LocalDateTime endTime);
 
     List<com.homeconnect.core.entity.Booking> findByStatusAndCreatedAtBefore(com.homeconnect.core.enums.BookingStatus status, java.time.LocalDateTime dateTime);
+
+    boolean existsByAddress_AddressId(Integer addressId);
 }
 

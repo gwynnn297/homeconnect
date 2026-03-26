@@ -5,6 +5,8 @@ import com.homeconnect.core.dto.request.UpdateAddressRequest;
 import com.homeconnect.core.dto.response.AddressResponse;
 import com.homeconnect.core.entity.Address;
 import com.homeconnect.core.repository.AddressRepository;
+import com.homeconnect.core.repository.BookingRepository;
+import com.homeconnect.core.repository.JobPostRepository;
 import com.homeconnect.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,8 @@ import java.util.stream.Collectors;
 public class AddressService {
     private final AddressRepository addressRepository;
     private final UserRepository userRepository;
+    private final JobPostRepository jobPostRepository;
+    private final BookingRepository bookingRepository;
     private final GeocodingService geocodingService;
 
     // ─── GET ──────────────────────────────────────────────────────────────────
@@ -192,6 +196,19 @@ public class AddressService {
             throw new com.homeconnect.core.exception.ApiException(
                     "Bạn không có quyền xóa địa chỉ này.", org.springframework.http.HttpStatus.FORBIDDEN);
         }
+
+        // RÀNG BUỘC: Không xóa địa chỉ nếu đang có bài đăng tin hoặc đơn hàng liên kết
+        if (jobPostRepository.existsByAddress_AddressId(addressId)) {
+            throw new com.homeconnect.core.exception.ApiException(
+                    "Không thể xóa địa chỉ này vì đang có bài đăng tin liên kết.", 
+                    org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
+        if (bookingRepository.existsByAddress_AddressId(addressId)) {
+            throw new com.homeconnect.core.exception.ApiException(
+                    "Không thể xóa địa chỉ này vì đang có đơn hàng (booking) liên kết.", 
+                    org.springframework.http.HttpStatus.BAD_REQUEST);
+        }
+
         addressRepository.delete(existing);
     }
 
@@ -205,8 +222,12 @@ public class AddressService {
                 });
     }
 
-    /** Dùng giá trị từ Goong nếu có, fallback về giá trị request của user. */
+    /** Ưu tiên giá trị nhập từ user (fallback) nếu có, nếu trống mới dùng từ Goong (val). */
     private String resolve(Map<String, Object> components, String key, String fallback) {
+        // Nếu user đã nhập/chọn từ gợi ý có data rồi thì giữ nguyên để tránh mất số nhà 
+        if (fallback != null && !fallback.isBlank()) {
+            return fallback;
+        }
         Object val = components.get(key);
         return (val != null && !val.toString().isBlank()) ? val.toString() : fallback;
     }

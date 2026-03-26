@@ -50,8 +50,6 @@ public class MatchingService {
     @Value("${matching.min-reviews:0}")
     private Integer MIN_REVIEWS;
 
-    @Value("${matching.max-distance-km:5.0}")
-    private Double MAX_DISTANCE_KM;
 
     // BE-Match-01: Tìm và mời helper phù hợp
     // Chạy async để không block API response
@@ -67,7 +65,7 @@ public class MatchingService {
                 .collect(Collectors.toList());
         
         for (JobApplication inv : pendingInvites) {
-            inv.setStatus("CANCELLED");
+inv.setStatus("CANCELLED");
             jobApplicationRepository.save(inv);
             notificationService.createNotification(
                 inv.getHelperId(),
@@ -111,17 +109,18 @@ public class MatchingService {
             }
 
             // 3. Filter theo working districts ở service layer
-            List<Long> districtMatchedHelperIds = filterHelpersByWorkingDistrict(eligibleHelperIds,
-                    jobPost.getAddress() != null ? jobPost.getAddress().getAddressDetail() : null);
+            List<Long> districtMatchedHelperIds = filterHelpersByWorkingDistrict(
+                    eligibleHelperIds,
+                    jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : null
+            );
             log.info("Kết quả lọc working district: {} helper", districtMatchedHelperIds.size());
             if (districtMatchedHelperIds.isEmpty()) {
                 log.warn(
-                        "Không tìm thấy helper theo working district cho Job Post ID: {}, địa chỉ job='{}', candidates={} ",
-                        postId, jobPost.getAddress() != null ? jobPost.getAddress().getAddressDetail() : "N/A", eligibleHelperIds);
+                        "Không tìm thấy helper theo working district cho Job Post ID: {}, district='{}', candidates={} ",
+                        postId, jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : "N/A", eligibleHelperIds);
                 return;
             }
-
-            // 4. Filter + ranking theo rating/reviews ở service layer
+// 4. Filter + ranking theo rating/reviews ở service layer
             List<Long> rankedHelperIds = filterAndSortByRating(districtMatchedHelperIds);
             log.info("Kết quả lọc rating/reviews: {} helper", rankedHelperIds.size());
             if (rankedHelperIds.isEmpty()) {
@@ -133,12 +132,8 @@ public class MatchingService {
 
             log.info("Tìm thấy {} helper phù hợp sau district + rating: {}", rankedHelperIds.size(), rankedHelperIds);
 
-            // 5. Filter theo khoảng cách GPS nếu có tọa độ
+            // 5. Kết quả cuối cùng (Sau khi tối ưu địa chỉ, ta chỉ dùng District matching)
             List<Long> finalHelperIds = rankedHelperIds;
-            if (jobPost.getAddress() != null && jobPost.getAddress().getLatitude() != null && jobPost.getAddress().getLongitude() != null) {
-                finalHelperIds = filterHelpersByDistance(rankedHelperIds, jobPost);
-                log.info("Sau khi filter khoảng cách: {} helper trong {}km", finalHelperIds.size(), MAX_DISTANCE_KM);
-            }
 
             // 6. Xử lý các ứng tuyển cũ (APPLIED): Hủy những người không còn phù hợp & báo Cập nhật cho những người vẫn phù hợp
             List<JobApplication> existingAppliedApps = jobApplicationRepository.findByPostId(postId).stream()
@@ -158,7 +153,7 @@ public class MatchingService {
                     );
                     log.info("Đã tự động hủy ứng tuyển của thợ {} do không còn phù hợp với Job #{} sau cập nhật", oldApp.getHelperId(), postId);
                 } else {
-                    // Thợ cũ VẪN phù hợp với yêu cầu mới -> Gửi thông báo cập nhật thông tin
+// Thợ cũ VẪN phù hợp với yêu cầu mới -> Gửi thông báo cập nhật thông tin
                     notificationService.createNotification(
                         oldApp.getHelperId(),
                         "Công việc đã cập nhật",
@@ -183,8 +178,22 @@ public class MatchingService {
                 Optional<JobApplication> existingApp = jobApplicationRepository.findByPostIdAndHelperId(postId, helperId);
                 
                 if (existingApp.isPresent()) {
-                    // Đã xử lý thông báo ứng tuyển ở bước 6 hoặc đã mời rồi -> Bỏ qua
-                    continue; 
+                    JobApplication app = existingApp.get();
+                    String currentStatus = app.getStatus();
+
+                    // Cho phép mời lại khi record cũ đã bị hủy/từ chối.
+                    // Các trạng thái còn hiệu lực (PENDING/ACCEPTED/ASSIGNED/...) thì bỏ qua để tránh duplicate.
+                    if ("CANCELLED".equals(currentStatus) || "REJECTED".equals(currentStatus)) {
+                        app.setType("INVITED");
+                        app.setStatus("PENDING");
+                        jobApplicationRepository.save(app);
+
+                        notificationService.createMatchingNotification(helperId, postId, jobPost);
+                        inviteCount++;
+                        sendJobInvitationEmail(helperId, postId, jobPost);
+                        log.debug("Đã mời lại Helper ID: {} cho Job Post ID: {}", helperId, postId);
+                    }
+                    continue;
                 }
 
                 // 7.2. Tạo lời mời cho thợ mới (INVITED)
@@ -203,7 +212,7 @@ public class MatchingService {
                 inviteCount++;
 
                 // Gửi email thông báo
-                sendJobInvitationEmail(helperId, postId, jobPost);
+sendJobInvitationEmail(helperId, postId, jobPost);
                 log.debug("Đã mời Helper ID: {} cho Job Post ID: {}", helperId, postId);
             }
 
@@ -215,12 +224,17 @@ public class MatchingService {
     }
 
     // Filter helper theo khu vực làm việc đã đăng ký
-    private List<Long> filterHelpersByWorkingDistrict(List<Long> helperIds, String jobAddressDetail) {
-        if (helperIds.isEmpty() || jobAddressDetail == null || jobAddressDetail.isBlank()) {
+    private List<Long> filterHelpersByWorkingDistrict(List<Long> helperIds, String jobDistrictName) {
+        if (helperIds.isEmpty()) {
             return List.of();
         }
 
-        String normalizedJobAddress = normalizeLocationText(jobAddressDetail);
+        // Nếu job thiếu districtName thì bỏ qua filter quận để tránh false-negative.
+        if (jobDistrictName == null || jobDistrictName.isBlank()) {
+            return helperIds;
+        }
+
+        String normalizedJobDistrict = normalizeLocationText(jobDistrictName);
         List<HelperWorkingDistrict> workingDistricts = helperWorkingDistrictRepository.findByHelper_IdIn(helperIds);
 
         Map<Long, List<String>> districtMapByHelper = workingDistricts.stream()
@@ -231,7 +245,9 @@ public class MatchingService {
         return helperIds.stream()
                 .filter(helperId -> districtMapByHelper.getOrDefault(helperId, List.of()).stream()
                         .map(this::normalizeLocationText)
-                        .anyMatch(district -> !district.isBlank() && normalizedJobAddress.contains(district)))
+                        .anyMatch(district ->
+                                !district.isBlank()
+                                        && (normalizedJobDistrict.contains(district) || district.contains(normalizedJobDistrict))))
                 .toList();
     }
 
@@ -258,7 +274,7 @@ public class MatchingService {
                 })
                 .sorted(Comparator.comparing(
                         (Long helperId) -> {
-                            HelperProfile profile = profileByHelperId.get(helperId);
+HelperProfile profile = profileByHelperId.get(helperId);
                             return profile != null ? profile.getRatingAverage() : null;
                         },
                         Comparator.nullsLast(Comparator.reverseOrder()))
@@ -285,46 +301,6 @@ public class MatchingService {
                 .trim();
     }
 
-    // Filter helper theo khoảng cách GPS dùng công thức Haversine
-    private List<Long> filterHelpersByDistance(List<Long> helperIds, JobPost jobPost) {
-        return helperIds.stream()
-                .filter(helperId -> {
-                    com.homeconnect.core.entity.Address address = addressRepository
-                            .findByUser_IdAndIsDefaultTrueOrderByAddressIdAsc(helperId)
-                            .stream()
-                            .findFirst()
-                            .orElse(null);
-
-                    if (address == null || address.getLatitude() == null || address.getLongitude() == null) {
-                        return false;
-                    }
-
-                    double distance = calculateDistance(
-                            address.getLatitude(),
-                            address.getLongitude(),
-                            jobPost.getAddress().getLatitude(),
-                            jobPost.getAddress().getLongitude());
-                    return distance <= MAX_DISTANCE_KM;
-                })
-                .toList();
-    }
-
-    // Tính khoảng cách 2 tọa độ dùng công thức Haversine (kết quả tính bằng km)
-    private double calculateDistance(BigDecimal lat1, BigDecimal lng1,
-            BigDecimal lat2, BigDecimal lng2) {
-        final int EARTH_RADIUS = 6371; // km
-
-        double dLat = Math.toRadians(lat2.doubleValue() - lat1.doubleValue());
-        double dLng = Math.toRadians(lng2.doubleValue() - lng1.doubleValue());
-
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(Math.toRadians(lat1.doubleValue())) *
-                        Math.cos(Math.toRadians(lat2.doubleValue())) *
-                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
-
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return EARTH_RADIUS * c;
-    }
 
     // Gửi email mời việc cho helper
     private void sendJobInvitationEmail(Long helperId, Long postId, JobPost jobPost) {
@@ -390,8 +366,8 @@ public class MatchingService {
                 jobPost.getDurationHours(),
                 jobPost.getAddress() != null ? 
                     String.format("%s, %s, %s", 
-                        jobPost.getAddress().getWardName(), 
-                        jobPost.getAddress().getDistrictName(), 
+                        jobPost.getAddress().getWardName(),
+jobPost.getAddress().getDistrictName(), 
                         jobPost.getAddress().getProvinceName()) : "N/A",
                 jobPost.getOfferPrice().longValue());
     }
