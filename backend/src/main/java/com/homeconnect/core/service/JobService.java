@@ -193,7 +193,7 @@ public class JobService {
         // --- 5. Publish event thông báo ---
         eventPublisher.publishEvent(new JobPostCreatedEvent(jobPost.getPostId()));
 
-        return mapToJobPostResponse(jobPost);
+        return mapToJobPostResponse(jobPost, true);
     }
 
     // REMOVED autoSaveAddress (unused)
@@ -234,7 +234,7 @@ public class JobService {
                     );
                     return availableCount > 0;
                 })
-                .map(this::mapToJobPostResponse)
+                .map(jp -> mapToJobPostResponse(jp, false))
                 .collect(Collectors.toList());
     }
 
@@ -243,7 +243,7 @@ public class JobService {
         // Chỉ lọc bỏ các việc thợ đã ứng tuyển rồi
         return jobPostRepository.findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalDateTime.now()).stream()
                 .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(), helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
-                .map(this::mapToJobPostResponse)
+                .map(jp -> mapToJobPostResponse(jp, false))
                 .collect(Collectors.toList());
     }
 
@@ -292,7 +292,7 @@ public class JobService {
         jobApplicationRepository.save(application);
     }
 
-    private JobPostResponse mapToJobPostResponse(JobPost jobPost) {
+    private JobPostResponse mapToJobPostResponse(JobPost jobPost, boolean showAddressDetail) {
         List<Integer> sIds = parseServiceIds(jobPost.getServiceId());
         StringBuilder sNames = new StringBuilder();
         for (Integer id : sIds) {
@@ -302,7 +302,7 @@ public class JobService {
             });
         }
 
-        return JobPostResponse.builder()
+        JobPostResponse.JobPostResponseBuilder builder = JobPostResponse.builder()
                 .postId(jobPost.getPostId())
                 .serviceIds(sIds)
                 .serviceNames(sNames.toString())
@@ -324,8 +324,25 @@ public class JobService {
                 .workSize(jobPost.getWorkSize())
                 .isPremium(jobPost.getIsPremium())
                 .hasPets(jobPost.getHasPets())
-                .bringTools(jobPost.getBringTools())
-                .build();
+                .bringTools(jobPost.getBringTools());
+
+        // Nếu được yêu cầu hiển thị địa chỉ chi tiết (Dành cho Customer hoặc View riêng biệt)
+        if (showAddressDetail && jobPost.getAddress() != null) {
+            com.homeconnect.core.entity.Address addr = jobPost.getAddress();
+            String fullAddress = String.join(", ",
+                    addr.getAddressDetail() != null ? addr.getAddressDetail() : "",
+                    addr.getWardName() != null ? addr.getWardName() : "",
+                    addr.getDistrictName() != null ? addr.getDistrictName() : "",
+                    addr.getProvinceName() != null ? addr.getProvinceName() : ""
+            ).replaceAll(", $", "").replaceAll("^, ", "");
+
+            builder.addressDetail(addr.getAddressDetail())
+                   .latitude(addr.getLatitude())
+                   .longitude(addr.getLongitude())
+                   .fullAddress(fullAddress);
+        }
+
+        return builder.build();
     }
 
     private String normalizeLocationText(String text) {
@@ -401,7 +418,7 @@ public class JobService {
     public List<JobPostResponse> getCustomerJobs(Long customerId) {
         log.info("Lấy danh sách job post của customer {}", customerId);
         return jobPostRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
-                .map(this::mapToJobPostResponse)
+                .map(jp -> mapToJobPostResponse(jp, true))
                 .collect(Collectors.toList());
     }
 
@@ -416,7 +433,7 @@ public class JobService {
             throw new ApiException("Bạn không có quyền xem bài đăng này", HttpStatus.FORBIDDEN);
         }
 
-        return mapToJobPostResponse(jobPost);
+        return mapToJobPostResponse(jobPost, true);
     }
 
     /**
@@ -509,7 +526,7 @@ public class JobService {
             log.info("Cập nhật bài đăng Job #{} thành công (Không thay đổi tiêu chí Matching, giữ nguyên thợ cũ)", jobId);
         }
 
-        return mapToJobPostResponse(saved);
+        return mapToJobPostResponse(saved, true);
     }
 
     /**

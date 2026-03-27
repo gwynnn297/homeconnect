@@ -40,4 +40,10 @@ public class JobPostResponse {
 
     private Integer categoryId;
     private String categoryName;
+
+    // --- Thông tin chi tiết địa chỉ (Chỉ hiển thị cho Customer hoặc Helper đã được accept) ---
+    private String addressDetail;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
+    private String fullAddress;
 }
