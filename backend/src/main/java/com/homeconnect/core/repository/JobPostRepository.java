@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Repository
@@ -16,6 +18,15 @@ public interface JobPostRepository extends JpaRepository<JobPost, Long> {
     @Query("SELECT jp FROM JobPost jp WHERE jp.status = 'PUBLISHED' AND jp.workDate >= :today " +
            "AND (jp.expiresAt IS NULL OR jp.expiresAt > :now) ORDER BY jp.createdAt DESC")
     List<JobPost> findActiveJobPosts(@Param("today") java.time.LocalDate today, @Param("now") java.time.LocalDateTime now);
+
+    /**
+     * Tìm các bài đăng PUBLISHED đã quá giờ bắt đầu công việc:
+     * - workDate < today (ngày qua)
+     * - HOẶC workDate = today VÀ startTime <= currentTime (hôm nay nhưng đã qua giờ bắt đầu)
+     */
+    @Query("SELECT jp FROM JobPost jp WHERE jp.status = 'PUBLISHED' " +
+           "AND (jp.workDate < :today OR (jp.workDate = :today AND jp.startTime <= :currentTime))")
+    List<JobPost> findExpiredJobPosts(@Param("today") LocalDate today, @Param("currentTime") LocalTime currentTime);
 
     boolean existsByAddress_AddressId(Integer addressId);
 }

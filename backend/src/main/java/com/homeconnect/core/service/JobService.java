@@ -36,6 +36,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Collections;
@@ -600,21 +602,173 @@ public class JobService {
 
     @Transactional(readOnly = true)
     public JobApplicationStatusResponse getApplicationStatus(Long jobId, Long helperId) {
-        return jobApplicationRepository.findById(jobId).isPresent() ? 
-            jobApplicationRepository.findByPostIdAndHelperId(jobId, helperId)
-                .map(app -> JobApplicationStatusResponse.builder()
-                        .applicationId(app.getApplicationId())
-                        .type(app.getType())
-                        .status(app.getStatus())
-                        .createdAt(app.getCreatedAt())
-                        .exists(true)
-                        .build())
-                .orElse(JobApplicationStatusResponse.builder()
-                        .exists(false)
-                        .build()) : 
-            JobApplicationStatusResponse.builder()
-                .exists(false)
-                .build();
+        // Kiểm tra bài đăng tồn tại
+        JobPost jobPost = jobPostRepository.findById(jobId).orElse(null);
+        if (jobPost == null) {
+            return JobApplicationStatusResponse.builder()
+                    .exists(false)
+                    .build();
+        }
+
+        // Tìm application của thợ này với bài đăng
+        Optional<JobApplication> appOpt = jobApplicationRepository.findByPostIdAndHelperId(jobId, helperId);
+        if (appOpt.isEmpty()) {
+            return JobApplicationStatusResponse.builder()
+                    .exists(false)
+                    .postId(jobPost.getPostId())
+                    .jobTitle(jobPost.getTitle())
+                    .workDate(jobPost.getWorkDate())
+                    .startTime(jobPost.getStartTime())
+                    .durationHours(jobPost.getDurationHours())
+                    .offerPrice(jobPost.getOfferPrice())
+                    .categoryName(jobPost.getCategory() != null ? jobPost.getCategory().getName() : null)
+                    .jobStatus(jobPost.getStatus())
+                    .build();
+        }
+
+        JobApplication app = appOpt.get();
+        boolean isAccepted = "ACCEPTED".equals(app.getStatus());
+
+        // Xây dựng builder với thông tin cơ bản & bài đăng
+        JobApplicationStatusResponse.JobApplicationStatusResponseBuilder builder = JobApplicationStatusResponse.builder()
+                .applicationId(app.getApplicationId())
+                .type(app.getType())
+                .status(app.getStatus())
+                .createdAt(app.getCreatedAt())
+                .exists(true)
+                // Thông tin bài đăng
+                .postId(jobPost.getPostId())
+                .jobTitle(jobPost.getTitle())
+                .jobDescription(jobPost.getDescription())
+                .workDate(jobPost.getWorkDate())
+                .startTime(jobPost.getStartTime())
+                .durationHours(jobPost.getDurationHours())
+                .offerPrice(jobPost.getOfferPrice())
+                .categoryName(jobPost.getCategory() != null ? jobPost.getCategory().getName() : null)
+                .jobStatus(jobPost.getStatus());
+
+        // Nếu đã được ACCEPTED → tiết lộ địa chỉ chi tiết của khách hàng
+        if (isAccepted && jobPost.getAddress() != null) {
+            com.homeconnect.core.entity.Address addr = jobPost.getAddress();
+
+            String fullAddress = String.join(", ",
+                    addr.getAddressDetail() != null ? addr.getAddressDetail() : "",
+                    addr.getWardName() != null ? addr.getWardName() : "",
+                    addr.getDistrictName() != null ? addr.getDistrictName() : "",
+                    addr.getProvinceName() != null ? addr.getProvinceName() : ""
+            ).replaceAll(", $", "").replaceAll("^, ", "");
+
+            builder.addressDetail(addr.getAddressDetail())
+                   .wardName(addr.getWardName())
+                   .districtName(addr.getDistrictName())
+                   .provinceName(addr.getProvinceName())
+                   .latitude(addr.getLatitude())
+                   .longitude(addr.getLongitude())
+                   .fullAddress(fullAddress);
+
+            log.info("Thợ #{} đã ACCEPTED bài #{} → Trả về địa chỉ khách hàng: {}", helperId, jobId, fullAddress);
+        } else if (isAccepted) {
+            log.warn("Thợ #{} đã ACCEPTED bài #{} nhưng bài đăng không có địa chỉ.", helperId, jobId);
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * [BE-Auto-01] Tự động hết hạn bài đăng khi qua giờ bắt đầu công việc.
+     * Chạy bởi JobAutomationTask định kỳ.
+     * Logic:
+     *   1. Tìm các bài đăng PUBLISHED đã qua giờ bắt đầu.
+     *   2. Chuyển trạng thái sang EXPIRED.
+     *   3. Hoàn tiền ký quỹ về ví khách hàng.
+     *   4. Hủy các đơn ứng tuyển/lời mời PENDING.
+     *   5. Gửi thông báo cho khách hàng và thợ.
+     */
+    @Transactional
+    public void cleanupExpiredJobs() {
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+
+        List<JobPost> expiredPosts = jobPostRepository.findExpiredJobPosts(today, now);
+        if (expiredPosts.isEmpty()) {
+            log.debug("[Auto-Expiry] Không có bài đăng nào hết hạn.");
+            return;
+        }
+
+        log.info("[Auto-Expiry] Tìm thấy {} bài đăng cần hết hạn lúc {}.", expiredPosts.size(), LocalDateTime.now());
+
+        for (JobPost jobPost : expiredPosts) {
+            try {
+                expireSingleJobPost(jobPost);
+            } catch (Exception e) {
+                // Log lỗi nhưng tiếp tục xử lý các bài đăng còn lại
+                log.error("[Auto-Expiry] Lỗi khi xử lý bài đăng #{}: {}", jobPost.getPostId(), e.getMessage(), e);
+            }
+        }
+
+        log.info("[Auto-Expiry] Hoàn tất xử lý {} bài đăng hết hạn.", expiredPosts.size());
+    }
+
+    /**
+     * Xử lý hết hạn cho một bài đăng cụ thể.
+     */
+    private void expireSingleJobPost(JobPost jobPost) {
+        Long postId = jobPost.getPostId();
+        Long customerId = jobPost.getCustomerId();
+
+        log.info("[Auto-Expiry] Xử lý bài đăng #{} - '{}'  (ngày: {}, giờ: {})",
+                postId, jobPost.getTitle(), jobPost.getWorkDate(), jobPost.getStartTime());
+
+        // 1. Chuyển trạng thái bài đăng sang EXPIRED
+        jobPost.setStatus("EXPIRED");
+        jobPostRepository.save(jobPost);
+
+        // 2. Hoàn tiền ký quỹ về ví khách hàng
+        try {
+            walletService.refundHold(
+                customerId,
+                jobPost.getOfferPrice(),
+                postId,
+                "Bài đăng tự động hết hạn do quá giờ làm việc"
+            );
+            log.info("[Auto-Expiry] Đã hoàn {} VNĐ về ví khách hàng #{} cho bài đăng #{}.",
+                    jobPost.getOfferPrice(), customerId, postId);
+        } catch (Exception e) {
+            log.warn("[Auto-Expiry] Không thể hoàn tiền cho khách #{} (bài #{}): {}",
+                    customerId, postId, e.getMessage());
+        }
+
+        // 3. Lấy danh sách ứng tuyển đang PENDING và hủy tất cả
+        List<JobApplication> pendingApps = jobApplicationRepository.findByPostId(postId).stream()
+                .filter(app -> "PENDING".equals(app.getStatus()))
+                .collect(Collectors.toList());
+
+        for (JobApplication app : pendingApps) {
+            app.setStatus("CANCELLED");
+            jobApplicationRepository.save(app);
+
+            // 4. Thông báo cho từng thợ đã ứng tuyển/được mời
+            notificationService.createNotification(
+                app.getHelperId(),
+                "Công việc đã hết hạn",
+                String.format("Công việc '%s' (vào lúc %s ngày %s) đã hết hạn vì khách hàng chưa xác nhận. Bạn có thể tìm thêm việc mới!",
+                    jobPost.getTitle(), jobPost.getStartTime(), jobPost.getWorkDate()),
+                "JOB_EXPIRED"
+            );
+            log.debug("[Auto-Expiry] Đã báo hủy cho thợ #{} (bài #{}).", app.getHelperId(), postId);
+        }
+
+        // 5. Thông báo cho khách hàng
+        notificationService.createNotification(
+            customerId,
+            "Bài đăng đã tự động hết hạn",
+            String.format("Bài đăng '%s' (lúc %s ngày %s) đã hết hạn vì chưa có thợ được chốt. Tiền giữ chỗ đã được hoàn lại vào ví của bạn.",
+                jobPost.getTitle(), jobPost.getStartTime(), jobPost.getWorkDate()),
+            "JOB_POST_EXPIRED"
+        );
+
+        log.info("[Auto-Expiry] Bài đăng #{} đã hết hạn. Đã hủy {} đơn ứng tuyển PENDING và gửi thông báo.",
+                postId, pendingApps.size());
     }
 }
 
