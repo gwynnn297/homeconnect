@@ -83,4 +83,21 @@ public class HelperJobController {
                 .data(response)
                 .build());
     }
+
+    @Operation(summary = "Lấy danh sách việc làm theo trạng thái", description = "Lấy danh sách việc làm dựa trên tab: NEW (mới), PENDING (đang chờ), CONFIRMED (đã xác nhận/đang làm).")
+    @GetMapping("/by-tab")
+    @PreAuthorize("hasRole('HELPER')")
+    public ResponseEntity<ApiResponse<List<JobPostResponse>>> getJobsByTab(
+            @RequestParam(value = "tab", defaultValue = "NEW") String tab,
+            Authentication authentication) {
+        Long helperId = securityUtil.getCurrentUserId(authentication);
+        log.info("Helper {} fetching jobs for tab {}", helperId, tab);
+
+        List<JobPostResponse> response = jobService.getHelperJobsByTab(helperId, tab);
+
+        return ResponseEntity.ok(ApiResponse.<List<JobPostResponse>>builder()
+                .message("Lấy danh sách việc làm thành công")
+                .data(response)
+                .build());
+    }
 }

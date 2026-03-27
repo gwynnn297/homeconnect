@@ -1,3 +1,4 @@
+
 package com.homeconnect.core.service;
 
 import com.homeconnect.core.dto.request.CreateJobPostRequest;
@@ -12,16 +13,12 @@ import com.homeconnect.core.event.JobPostCreatedEvent;
 import com.homeconnect.core.repository.JobPostRepository;
 import com.homeconnect.core.repository.ServiceRepository;
 import com.homeconnect.core.repository.JobApplicationRepository;
-import com.homeconnect.core.repository.BookingRepository;
 import com.homeconnect.core.repository.HelperScheduleRepository;
 import com.homeconnect.core.repository.HelperServiceRepository;
 import com.homeconnect.core.repository.HelperWorkingDistrictRepository;
 import com.homeconnect.core.repository.ServiceCategoryRepository;
-import com.homeconnect.core.enums.BookingStatus;
 import com.homeconnect.core.entity.ServiceCategory;
 import com.homeconnect.core.repository.AddressRepository;
-import com.homeconnect.core.repository.UserRepository;
-import com.homeconnect.core.entity.User;
 import com.homeconnect.core.entity.JobApplication;
 import java.util.stream.Collectors;
 import java.util.Optional;
@@ -30,8 +27,6 @@ import com.homeconnect.core.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +37,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Collections;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Objects;
 
 /**
  * Service layer cho Job Posts - BE-Post-01 & BE-Post-02
@@ -243,6 +242,49 @@ public class JobService {
         // Chỉ lọc bỏ các việc thợ đã ứng tuyển rồi
         return jobPostRepository.findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalDateTime.now()).stream()
                 .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(), helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
+                .map(jp -> mapToJobPostResponse(jp, false))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<JobPostResponse> getHelperJobsByTab(Long helperId, String tab) {
+        String normalizedTab = tab == null ? "NEW" : tab.trim().toUpperCase();
+
+        if ("NEW".equals(normalizedTab)) {
+            return getAllPublishedJobs(helperId);
+        }
+
+        List<String> applicationStatuses = switch (normalizedTab) {
+            case "PENDING" -> List.of("PENDING");
+            case "CONFIRMED" -> List.of("ACCEPTED", "ASSIGNED");
+            default -> throw new ApiException("Tab không hợp lệ: " + normalizedTab, HttpStatus.BAD_REQUEST);
+        };
+
+        List<JobApplication> applications = jobApplicationRepository
+                .findByHelperIdAndStatusInOrderByCreatedAtDesc(helperId, applicationStatuses);
+
+        if (applications.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        LinkedHashSet<Long> orderedPostIds = applications.stream()
+                .map(JobApplication::getPostId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (orderedPostIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<JobPost> posts = jobPostRepository.findByPostIdInOrderByCreatedAtDesc(orderedPostIds);
+        Map<Long, JobPost> postById = new HashMap<>();
+        for (JobPost post : posts) {
+            postById.put(post.getPostId(), post);
+        }
+
+        return orderedPostIds.stream()
+                .map(postById::get)
+                .filter(Objects::nonNull)
                 .map(jp -> mapToJobPostResponse(jp, false))
                 .collect(Collectors.toList());
     }
@@ -788,4 +830,5 @@ public class JobService {
                 postId, pendingApps.size());
     }
 }
+
 

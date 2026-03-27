@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Collection;
 
 @Repository
 public interface JobPostRepository extends JpaRepository<JobPost, Long> {
@@ -27,6 +28,6 @@ public interface JobPostRepository extends JpaRepository<JobPost, Long> {
     @Query("SELECT jp FROM JobPost jp WHERE jp.status = 'PUBLISHED' " +
            "AND (jp.workDate < :today OR (jp.workDate = :today AND jp.startTime <= :currentTime))")
     List<JobPost> findExpiredJobPosts(@Param("today") LocalDate today, @Param("currentTime") LocalTime currentTime);
-
+    List<JobPost> findByPostIdInOrderByCreatedAtDesc(Collection<Long> postIds);
     boolean existsByAddress_AddressId(Integer addressId);
 }

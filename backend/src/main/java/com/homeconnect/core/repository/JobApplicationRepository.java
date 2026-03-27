@@ -18,7 +18,7 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
 
     @Query("SELECT DISTINCT ja.helperId FROM JobApplication ja WHERE ja.postId = :postId")
     List<Long> findHelperIdsByPostId(@Param("postId") Long postId);
-
+    List<JobApplication> findByHelperIdAndStatusInOrderByCreatedAtDesc(Long helperId, java.util.Collection<String> statuses);
     boolean existsByPostIdAndHelperId(Long postId, Long helperId);
 
     boolean existsByPostIdAndHelperIdAndStatusIn(Long postId, Long helperId, java.util.Collection<String> statuses);
