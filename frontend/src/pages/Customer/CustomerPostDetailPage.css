@@ -176,6 +176,350 @@
     font-weight: 800;
 }
 
+.cpd-applicants-card {
+    margin-top: 16px;
+}
+
+.cpd-applicants-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.cpd-applicants-header h3 {
+    margin: 0;
+}
+
+.cpd-applicants-header span {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.cpd-action-message {
+    margin: 0 0 12px 0;
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.cpd-applicants-loading,
+.cpd-applicants-empty {
+    margin: 0;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.cpd-applicants-error {
+    margin: 0;
+    color: #b42318;
+    font-weight: 700;
+}
+
+.cpd-applicants-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cpd-applicant-item {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.cpd-applicant-main {
+    display: flex;
+    gap: 10px;
+    min-width: 0;
+}
+
+.cpd-applicant-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--primary-soft);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.cpd-applicant-info {
+    min-width: 0;
+}
+
+.cpd-applicant-name {
+    margin: 0;
+    font-weight: 800;
+}
+
+.cpd-applicant-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.cpd-applicant-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 800;
+    border: 1px solid transparent;
+}
+
+.cpd-applicant-status.pending {
+    color: #b45309;
+    background: #fef3c7;
+    border-color: #fde68a;
+}
+
+.cpd-applicant-status.accepted {
+    color: #166534;
+    background: #dcfce7;
+    border-color: #86efac;
+}
+
+.cpd-applicant-status.rejected {
+    color: #b42318;
+    background: #fee2e2;
+    border-color: #fecaca;
+}
+
+.cpd-applicant-status.default {
+    color: #374151;
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+}
+
+.cpd-applicant-meta {
+    margin: 3px 0 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.cpd-applicant-bio {
+    margin: 6px 0 0 0;
+    color: var(--text-main);
+    font-size: 13px;
+}
+
+.cpd-top-reviews {
+    margin: 8px 0 0 16px;
+    padding: 0;
+    color: #374151;
+    font-size: 12px;
+}
+
+.cpd-top-reviews li + li {
+    margin-top: 4px;
+}
+
+.cpd-applicant-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.cpd-applicant-actions .cpd-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.cpd-helper-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.42);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+    padding: 16px;
+}
+
+.cpd-helper-modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    width: min(600px, 100%);
+    padding: 16px;
+    box-shadow: var(--shadow-lg);
+}
+
+.cpd-helper-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.cpd-helper-modal-header h3 {
+    margin: 0;
+}
+
+.cpd-helper-profile-content p {
+    margin: 0 0 8px 0;
+}
+
+.cpd-helper-profile-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.cpd-helper-hero {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 12px;
+    border-radius: 12px;
+    background: linear-gradient(120deg, #f5faf8 0%, #eef5ff 100%);
+    border: 1px solid var(--border);
+}
+
+.cpd-helper-avatar-wrap {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid rgba(47, 93, 80, 0.2);
+    background: #fff;
+}
+
+.cpd-helper-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.cpd-helper-avatar-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-size: 24px;
+    font-weight: 900;
+    background: var(--primary-soft);
+}
+
+.cpd-helper-headline h4 {
+    margin: 0;
+    font-size: 20px;
+    color: var(--text-main);
+}
+
+.cpd-helper-badges {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cpd-helper-badge {
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #eef2ff;
+    color: #3730a3;
+    border: 1px solid #dbeafe;
+}
+
+.cpd-helper-badge.online {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #bbf7d0;
+}
+
+.cpd-helper-badge.offline {
+    background: #f3f4f6;
+    color: #4b5563;
+    border-color: #e5e7eb;
+}
+
+.cpd-helper-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.cpd-helper-metric-item {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    background: #fff;
+}
+
+.cpd-helper-metric-item span {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.cpd-helper-metric-item strong {
+    font-size: 14px;
+    color: var(--text-main);
+}
+
+.cpd-helper-section h5 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: var(--text-main);
+}
+
+.cpd-helper-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cpd-helper-chip {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #0f766e;
+    background: #ecfeff;
+    border: 1px solid #bae6fd;
+}
+
+.cpd-helper-chip.location {
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.cpd-helper-muted {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.cpd-helper-bio-text {
+    margin: 0;
+    color: #334155;
+    line-height: 1.5;
+    font-size: 14px;
+}
+
 @media (max-width: 980px) {
     .cpd-grid {
         grid-template-columns: 1fr;
@@ -183,6 +527,19 @@
 
     .cpd-kv {
         grid-template-columns: 120px 1fr;
+    }
+
+    .cpd-applicant-item {
+        flex-direction: column;
+    }
+
+    .cpd-applicant-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .cpd-helper-metrics {
+        grid-template-columns: 1fr;
     }
 }
 

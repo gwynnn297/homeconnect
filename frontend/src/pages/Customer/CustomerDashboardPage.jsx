@@ -326,37 +326,37 @@ const CustomerDashboardPage = () => {
                         <span className="cdh-section-badge">{dashboardCategories.length}</span>
                     </div>
                     <div className="cdh-categories-grid">
-                            {isLoadingCategories && (
-                                <div className="cdh-empty">
-                                    Đang tải danh sách dịch vụ...
-                                </div>
-                            )}
+                        {isLoadingCategories && (
+                            <div className="cdh-empty">
+                                Đang tải danh sách dịch vụ...
+                            </div>
+                        )}
 
-                            {!isLoadingCategories && categoriesError && (
-                                <div className="cdh-empty cdh-empty-error">
-                                    {categoriesError}
-                                </div>
-                            )}
+                        {!isLoadingCategories && categoriesError && (
+                            <div className="cdh-empty cdh-empty-error">
+                                {categoriesError}
+                            </div>
+                        )}
 
-                            {!isLoadingCategories && !categoriesError && dashboardCategories.length === 0 && (
-                                <div className="cdh-empty">
-                                    Chưa có dịch vụ nào để hiển thị.
-                                </div>
-                            )}
+                        {!isLoadingCategories && !categoriesError && dashboardCategories.length === 0 && (
+                            <div className="cdh-empty">
+                                Chưa có dịch vụ nào để hiển thị.
+                            </div>
+                        )}
 
-                            {!isLoadingCategories && !categoriesError && dashboardCategories.map(cat => (
-                                <button
-                                    key={cat.id}
-                                    className="cdh-category-card"
-                                    onClick={() => handleServiceClick(cat.id)}
-                                >
-                                    <div className="cdh-category-icon" style={{ backgroundColor: cat.color }}>
-                                        {cat.icon}
-                                    </div>
-                                    <span className="cdh-category-label">{cat.label}</span>
-                                    <span className="cdh-category-action">Đăng tin</span>
-                                </button>
-                            ))}
+                        {!isLoadingCategories && !categoriesError && dashboardCategories.map(cat => (
+                            <button
+                                key={cat.id}
+                                className="cdh-category-card"
+                                onClick={() => handleServiceClick(cat.id)}
+                            >
+                                <div className="cdh-category-icon" style={{ backgroundColor: cat.color }}>
+                                    {cat.icon}
+                                </div>
+                                <span className="cdh-category-label">{cat.label}</span>
+                                <span className="cdh-category-action">Đăng tin</span>
+                            </button>
+                        ))}
                     </div>
                 </section>
 

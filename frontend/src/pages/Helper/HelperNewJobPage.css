@@ -40,6 +40,7 @@
     border-radius: 999px;
     cursor: pointer;
     transition: all 0.15s ease;
+    gap: 8px;
 }
 
 .hnj-tab:hover {
@@ -52,6 +53,20 @@
     background: #0f172a;
     border-color: #0f172a;
     color: #ffffff;
+}
+
+.hnj-tab-count {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
 }
 
 .hnj-title {
@@ -105,6 +120,67 @@
     gap: 24px;
 }
 
+.hnj-status-strip {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.hnj-status-strip--new {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.hnj-status-strip--pending {
+    background: #fff7ed;
+    border-color: #fed7aa;
+}
+
+.hnj-status-strip--confirmed {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+}
+
+.hnj-status-strip-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    color: #334155;
+    flex-shrink: 0;
+}
+
+.hnj-status-strip-content h3 {
+    margin: 0;
+    font-size: 15px;
+    color: #0f172a;
+}
+
+.hnj-status-strip-content p {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: #475569;
+}
+
+.hnj-status-strip-total {
+    margin-left: auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    background: rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+}
+
 /* Job Card */
 .hnj-card {
     background: #ffffff;
@@ -124,6 +200,22 @@
     transform: translateY(-4px);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     border-color: #cbd5e1;
+}
+
+.hnj-card--new {
+    border-left: 4px solid #3b82f6;
+}
+
+.hnj-card--pending {
+    border-left: 4px solid #f97316;
+}
+
+.hnj-card--confirmed {
+    border-left: 4px solid #10b981;
+}
+
+.hnj-card--done {
+    border-left: 4px solid #22c55e;
 }
 
 .hnj-card-top {
@@ -189,6 +281,45 @@
 
 .hnj-card-body {
     flex-grow: 1;
+}
+
+.hnj-card-status-row {
+    margin-bottom: 12px;
+}
+
+.hnj-state-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid transparent;
+}
+
+.hnj-state-pill--new {
+    color: #1d4ed8;
+    background: #dbeafe;
+    border-color: #bfdbfe;
+}
+
+.hnj-state-pill--pending {
+    color: #c2410c;
+    background: #ffedd5;
+    border-color: #fed7aa;
+}
+
+.hnj-state-pill--confirmed {
+    color: #047857;
+    background: #d1fae5;
+    border-color: #a7f3d0;
+}
+
+.hnj-state-pill--done {
+    color: #166534;
+    background: #dcfce7;
+    border-color: #bbf7d0;
 }
 
 .hnj-info-row {

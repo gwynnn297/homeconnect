@@ -340,6 +340,17 @@
 
     /* filter button removed */
 
+    .cdh-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .cdh-hero-btn,
+    .cdh-promo-btn {
+        width: 100%;
+    }
+
     .cdh-categories-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -350,7 +361,18 @@
 }
 
 @media (max-width: 440px) {
+    .cdh-recent-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
     .cdh-categories-grid {
         grid-template-columns: 1fr;
+    }
+
+    .cdh-recent-status {
+        align-self: flex-start;
+        white-space: normal;
     }
 }

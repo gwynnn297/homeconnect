@@ -2,11 +2,21 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import apiClient from '../../services/apiClient';
+import BookingService from '../../services/BookingService';
 import './CustomerManagePostsPage.css';
 
 const JOB_LIST_ENDPOINT = '/api/v1/jobs';
+const extractPayload = (res) => (res && typeof res === 'object' && 'data' in res ? res.data : res);
 
 const PALETTE = ['#2F5D50', '#B56A00', '#2196F3', '#16A34A', '#E74C3C'];
+const STATUS_GROUPS = [
+    { key: 'ALL', label: 'Tất cả', statuses: null },
+    { key: 'OPEN', label: 'Đang tìm helper', statuses: ['PENDING', 'PUBLISHED'] },
+    { key: 'ASSIGNED', label: 'Đã chốt helper', statuses: ['MATCHED', 'ASSIGNED', 'CONFIRMED'] },
+    { key: 'COMPLETED', label: 'Đã hoàn thành', statuses: ['COMPLETED'] },
+    { key: 'EXPIRED', label: 'Đã hết hạn', statuses: ['EXPIRED'] },
+    { key: 'CANCELLED', label: 'Đã hủy', statuses: ['CANCELLED'] },
+];
 
 const normalizeServiceLabel = (label = '') =>
     String(label)
@@ -38,11 +48,18 @@ const getCategoryEmoji = (categoryName) => {
     return '✨';
 };
 
+const getInitial = (name = '') => {
+    const trimmed = String(name).trim();
+    return trimmed ? trimmed.charAt(0).toUpperCase() : 'H';
+};
+
 const CustomerManagePostsPage = () => {
     const navigate = useNavigate();
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [activeGroup, setActiveGroup] = useState('ALL');
+    const [applicantsByPostId, setApplicantsByPostId] = useState({});
 
     useEffect(() => {
         const fetchPosts = async () => {
@@ -54,7 +71,7 @@ const CustomerManagePostsPage = () => {
 
             try {
                 const res = await apiClient.get(JOB_LIST_ENDPOINT);
-                const list = res?.data ?? res;
+                const list = extractPayload(res);
                 if (Array.isArray(list)) {
                     fetched = list;
                 }
@@ -98,7 +115,7 @@ const CustomerManagePostsPage = () => {
                     description: post?.description || 'Không có mô tả.',
                     addressText: addressText || post?.address_detail || 'Chưa có địa chỉ',
                     createdAt: post?.createdAt ?? post?.created_at,
-                    status: post?.status || 'PENDING',
+                    status: post?.status || 'PUBLISHED',
                     estimatedPrice: Number(post?.offerPrice ?? post?.estimated_price ?? 0),
                 };
             }),
@@ -109,6 +126,8 @@ const CustomerManagePostsPage = () => {
         if (Number.isNaN(Number(val))) return '0 ₫';
         return val.toLocaleString('vi-VN') + ' ₫';
     };
+
+    const isAssignedPost = (status) => ['MATCHED', 'ASSIGNED', 'CONFIRMED'].includes(status);
 
     const getStatusConfig = (status) => {
         switch (status) {
@@ -123,10 +142,66 @@ const CustomerManagePostsPage = () => {
                 return { label: 'Đã hoàn thành', color: '#16A34A', bg: '#DCFCE7' };
             case 'CANCELLED':
                 return { label: 'Đã hủy', color: '#E74C3C', bg: '#FEE2E2' };
+            case 'EXPIRED':
+                return { label: 'Đã hết hạn', color: '#6B7280', bg: '#F3F4F6' };
             default:
                 return { label: status, color: '#6B7280', bg: '#F3F4F6' };
         }
     };
+
+    const groupedPosts = useMemo(() => {
+        const groupMap = STATUS_GROUPS.reduce((acc, group) => {
+            if (!group.statuses) {
+                acc[group.key] = normalizedPosts;
+                return acc;
+            }
+            acc[group.key] = normalizedPosts.filter((post) => group.statuses.includes(post.status));
+            return acc;
+        }, {});
+        return groupMap;
+    }, [normalizedPosts]);
+
+    const visiblePosts = groupedPosts[activeGroup] || [];
+
+    useEffect(() => {
+        const openPostIds = normalizedPosts
+            .filter((post) => ['PENDING', 'PUBLISHED'].includes(post.status))
+            .map((post) => post.postId)
+            .filter(Boolean);
+
+        const pendingIds = openPostIds.filter((postId) => !(postId in applicantsByPostId));
+        if (pendingIds.length === 0) return;
+
+        let cancelled = false;
+
+        const fetchApplicantsForPosts = async () => {
+            const entries = await Promise.all(
+                pendingIds.map(async (postId) => {
+                    try {
+                        const res = await BookingService.getApplicants(postId);
+                        const list = extractPayload(res);
+                        return [postId, Array.isArray(list) ? list : []];
+                    } catch {
+                        return [postId, []];
+                    }
+                })
+            );
+
+            if (cancelled) return;
+            setApplicantsByPostId((prev) => {
+                const next = { ...prev };
+                entries.forEach(([postId, list]) => {
+                    next[postId] = list;
+                });
+                return next;
+            });
+        };
+
+        fetchApplicantsForPosts();
+        return () => {
+            cancelled = true;
+        };
+    }, [normalizedPosts, applicantsByPostId]);
 
     return (
         <CustomerLayout>
@@ -154,12 +229,34 @@ const CustomerManagePostsPage = () => {
                             <h3>Bạn chưa có bài đăng nào</h3>
                             <p>Hãy đặt dịch vụ để trải nghiệm tiện ích tuyệt vời của chúng tôi nhé!</p>
                             <button className="cmp-btn-outline cmp-btn-action" onClick={() => navigate('/customer-dashboard')}>
-                                Đăng bài mới
+                                Đăng bài
                             </button>
                         </div>
                     ) : (
-                        <div className="cmp-post-grid">
-                            {normalizedPosts.map(post => {
+                        <>
+                            <div className="cmp-group-tabs" role="tablist" aria-label="Nhóm trạng thái bài đăng">
+                                {STATUS_GROUPS.map((group) => (
+                                    <button
+                                        key={group.key}
+                                        type="button"
+                                        className={`cmp-group-tab ${activeGroup === group.key ? 'cmp-group-tab-active' : ''}`}
+                                        onClick={() => setActiveGroup(group.key)}
+                                    >
+                                        {group.label}
+                                        <span className="cmp-group-count">{(groupedPosts[group.key] || []).length}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {visiblePosts.length === 0 ? (
+                                <div className="cmp-empty-state">
+                                    <div className="cmp-empty-icon">📭</div>
+                                    <h3>Không có bài đăng trong nhóm này</h3>
+                                    <p>Hãy chọn nhóm trạng thái khác để xem thêm dữ liệu.</p>
+                                </div>
+                            ) : (
+                                <div className="cmp-post-grid">
+                                    {visiblePosts.map(post => {
                                 const serviceColor = PALETTE[(Number(post.categoryId) || 0) % PALETTE.length];
                                 const service = {
                                     name: post.categoryName || 'Dịch vụ',
@@ -167,9 +264,16 @@ const CustomerManagePostsPage = () => {
                                     color: serviceColor
                                 };
                                 const statusConf = getStatusConfig(post.status);
+                                const isAssigned = isAssignedPost(post.status);
+                                const applicants = applicantsByPostId[post.postId] || [];
+                                const hasApplicants = ['PENDING', 'PUBLISHED'].includes(post.status) && applicants.length > 0;
+                                const previewApplicants = applicants.slice(0, 3);
 
                                 return (
-                                    <div key={post.postId} className="cmp-post-card">
+                                    <div
+                                        key={post.postId}
+                                        className={`cmp-post-card ${isAssigned ? 'cmp-post-card-assigned' : ''}`}
+                                    >
                                         <div className="cmp-post-card-header" style={{ borderBottomColor: `${service.color}30` }}>
                                             <div className="cmp-service-badge" style={{ color: service.color, backgroundColor: `${service.color}15` }}>
                                                 <span className="cmp-icon">{service.icon}</span>
@@ -181,6 +285,11 @@ const CustomerManagePostsPage = () => {
                                         </div>
 
                                         <div className="cmp-post-card-body">
+                                            {isAssigned ? (
+                                                <div className="cmp-assigned-banner">
+                                                    ✅ Bài đăng đã chốt helper. Theo dõi chi tiết để xem tiến độ làm việc.
+                                                </div>
+                                            ) : null}
                                             <h3 className="cmp-post-title">{post.title}</h3>
                                             <p className="cmp-post-desc">{post.description}</p>
                                             
@@ -207,6 +316,48 @@ const CustomerManagePostsPage = () => {
                                             <div className="cmp-post-price">
                                                 Giá dự kiến: <strong>{formatCurrency(post.estimatedPrice)}</strong>
                                             </div>
+
+                                            {hasApplicants ? (
+                                                <div
+                                                    className="cmp-applicant-preview"
+                                                    onClick={() => navigate(`/customer/manage-posts/${post.postId}`)}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            navigate(`/customer/manage-posts/${post.postId}`);
+                                                        }
+                                                    }}
+                                                >
+                                                    <div className="cmp-applicant-avatars">
+                                                        {previewApplicants.map((applicant, idx) => (
+                                                            applicant?.avatarUrl ? (
+                                                                <img
+                                                                    key={`${post.postId}-avatar-${applicant.applicationId || idx}`}
+                                                                    src={applicant.avatarUrl}
+                                                                    alt={applicant.fullName || 'Helper'}
+                                                                    className="cmp-applicant-avatar"
+                                                                    style={{ zIndex: previewApplicants.length - idx }}
+                                                                />
+                                                            ) : (
+                                                                <div
+                                                                    key={`${post.postId}-avatar-fallback-${applicant.applicationId || idx}`}
+                                                                    className="cmp-applicant-avatar cmp-applicant-avatar-fallback"
+                                                                    style={{ zIndex: previewApplicants.length - idx }}
+                                                                >
+                                                                    {getInitial(applicant?.fullName)}
+                                                                </div>
+                                                            )
+                                                        ))}
+                                                    </div>
+                                                    <p className="cmp-applicant-text">
+                                                        {applicants.length === 1
+                                                            ? 'Đã có 1 helper apply vào bài đăng này'
+                                                            : `Đã có ${applicants.length} helper apply vào bài đăng này`}
+                                                    </p>
+                                                </div>
+                                            ) : null}
                                         </div>
 
                                         <div className="cmp-post-card-footer">
@@ -221,8 +372,10 @@ const CustomerManagePostsPage = () => {
                                         </div>
                                     </div>
                                 );
-                            })}
-                        </div>
+                                    })}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

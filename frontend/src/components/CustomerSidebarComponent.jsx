@@ -5,7 +5,7 @@ import './CustomerSidebarComponent.css';
 const csPrimaryLinks = [
     { to: '/customer-dashboard', label: 'Tổng quan', icon: 'grid' },
     { to: '/customer/book', label: 'Đặt dịch vụ', icon: 'plus' },
-    { to: '/customer/manage-posts', label: 'Quản lý bài đăng', icon: 'file', badge: 'Mới' },
+    { to: '/customer/manage-posts', label: 'Quản lý bài đăng', icon: 'file' },
 ];
 
 const csAccountLinks = [

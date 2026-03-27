@@ -5,6 +5,8 @@ import ProfileService from '../../services/ProfileService';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import './CustomerPostJobPage.css';
 
+const extractPayload = (res) => (res && typeof res === 'object' && 'data' in res ? res.data : res);
+
 const DEFAULT_LATITUDE = 10.762622;
 const DEFAULT_LONGITUDE = 106.660172;
 
@@ -73,7 +75,7 @@ const CustomerPostJobPage = () => {
                 description: jobData.description
             };
             const res = await apiClient.post('/api/v1/jobs', payload);
-            alert(res.message || "Đăng tin thành công! Bạn có thể xem tin đã đăng ở phần Quản lý bài đăng.");
+            alert(res?.message || "Đăng tin thành công! Bạn có thể xem tin đã đăng ở phần Quản lý bài đăng.");
             navigate('/customer/manage-posts');
         } catch (error) {
             console.error("Error creating job", error);
@@ -87,7 +89,7 @@ const CustomerPostJobPage = () => {
         const loadCategoryName = async () => {
             try {
                 const res = await ProfileService.getActiveCategories();
-                const list = res?.data ?? res;
+                const list = extractPayload(res);
                 const matched = Array.isArray(list) ? list.find((item) => Number(item?.id) === categoryId) : null;
                 setCategoryName(matched?.name || '');
             } catch {
@@ -107,23 +109,23 @@ const CustomerPostJobPage = () => {
         <CustomerLayout>
             <div className="customer-post-job-page">
                 {step === 1 && (
-                    <AddressStep 
-                        onBack={() => navigate('/customer-dashboard')} 
+                    <AddressStep
+                        onBack={() => navigate('/customer-dashboard')}
                         onSelectAddress={handleSelectAddress}
                         serviceInfo={serviceInfo}
                     />
                 )}
                 {step === 2 && (
-                    <JobDetailsStep 
-                        onBack={() => setStep(1)} 
+                    <JobDetailsStep
+                        onBack={() => setStep(1)}
                         onSubmit={handleJobDetailsSubmit}
                         initialData={jobData}
                         serviceInfo={serviceInfo}
                     />
                 )}
                 {step === 3 && (
-                    <ConfirmPayStep 
-                        onBack={() => setStep(2)} 
+                    <ConfirmPayStep
+                        onBack={() => setStep(2)}
                         onConfirm={handleConfirmAndPay}
                         jobData={jobData}
                         estimateData={estimateData}
@@ -210,7 +212,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
             setIsLoadingSaved(true);
             setSavedError('');
             const res = await apiClient.get('/api/v1/addresses');
-            const list = res?.data ?? res;
+            const list = extractPayload(res);
             setSavedAddresses(Array.isArray(list) ? list : []);
         } catch (err) {
             setSavedAddresses([]);
@@ -228,7 +230,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
         const loadInUseAddressIds = async () => {
             try {
                 const res = await apiClient.get('/api/v1/jobs');
-                const list = res?.data ?? res;
+                const list = extractPayload(res);
                 if (!Array.isArray(list)) {
                     setInUseAddressIds([]);
                     return;
@@ -261,7 +263,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
             const res = await apiClient.get('/api/v1/addresses/autocomplete', {
                 params: { input }
             });
-            const list = res?.data ?? res;
+            const list = extractPayload(res);
             setSuggestions(Array.isArray(list) ? list : []);
         } catch (err) {
             setSuggestions([]);
@@ -315,7 +317,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                 isDefault: false
             };
             const res = await apiClient.post('/api/v1/addresses', payload);
-            const saved = res?.data ?? res;
+            const saved = extractPayload(res);
             setSavedAddresses((prev) => {
                 const next = [saved, ...(Array.isArray(prev) ? prev : []).filter((a) => a?.addressId !== saved?.addressId)];
                 return next;
@@ -449,7 +451,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                     <div className="pj-column">
                         <div className="pj-section">
                             <h3 className="pj-section-title">Tìm địa chỉ mới</h3>
-                            
+
                             <div className="pj-form-group">
                                 <label className="pj-label">Địa chỉ thi công</label>
                                 <input
@@ -520,7 +522,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                                 {isLoadingSaved && (
                                     <div className="pj-hint">Đang tải địa chỉ...</div>
                                 )}
-                                
+
                                 {!isLoadingSaved && savedError && (
                                     <div className="pj-error">{savedError}</div>
                                 )}
@@ -538,56 +540,56 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                                             (() => {
                                                 const isInUse = inUseAddressIds.includes(Number(addr?.addressId));
                                                 return (
-                                            <div 
-                                                className="pj-address-item" 
-                                                key={addr.addressId} 
-                                                onClick={() => handlePickSaved(addr)}
-                                            >
-                                                <div className="pj-address-icon">
-                                                    {String(addr.type || '').toUpperCase() === 'HOME' ? '🏠' : 
-                                                     String(addr.type || '').toUpperCase() === 'OFFICE' ? '🏢' : '📍'}
-                                                </div>
-                                                <div className="pj-address-info">
-                                                    <div className="pj-address-name">
-                                                        {String(addr.type || '').toUpperCase() === 'HOME'
-                                                            ? 'Nhà riêng'
-                                                            : String(addr.type || '').toUpperCase() === 'OFFICE'
-                                                                ? 'Văn phòng'
-                                                                : 'Địa chỉ khác'}
-                                                        {addr.isDefault && <span className="pj-badge">Mặc định</span>}
-                                                        {isInUse && <span className="pj-badge pj-badge-inuse">Đang dùng</span>}
+                                                    <div
+                                                        className="pj-address-item"
+                                                        key={addr.addressId}
+                                                        onClick={() => handlePickSaved(addr)}
+                                                    >
+                                                        <div className="pj-address-icon">
+                                                            {String(addr.type || '').toUpperCase() === 'HOME' ? '🏠' :
+                                                                String(addr.type || '').toUpperCase() === 'OFFICE' ? '🏢' : '📍'}
+                                                        </div>
+                                                        <div className="pj-address-info">
+                                                            <div className="pj-address-name">
+                                                                {String(addr.type || '').toUpperCase() === 'HOME'
+                                                                    ? 'Nhà riêng'
+                                                                    : String(addr.type || '').toUpperCase() === 'OFFICE'
+                                                                        ? 'Văn phòng'
+                                                                        : 'Địa chỉ khác'}
+                                                                {addr.isDefault && <span className="pj-badge">Mặc định</span>}
+                                                                {isInUse && <span className="pj-badge pj-badge-inuse">Đang dùng</span>}
+                                                            </div>
+                                                            <div className="pj-address-detail">{buildFullAddress(addr)}</div>
+                                                        </div>
+                                                        <div
+                                                            className="pj-address-actions"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                className="pj-address-action-btn"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    openEditAddress(addr);
+                                                                }}
+                                                                disabled={isUpdatingAddress || isDeletingAddress}
+                                                            >
+                                                                ✏️ Sửa
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="pj-address-action-btn pj-address-action-delete"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteAddress(addr.addressId);
+                                                                }}
+                                                                disabled={isUpdatingAddress || isDeletingAddress || isInUse}
+                                                            >
+                                                                🗑️ Xóa
+                                                            </button>
+                                                        </div>
+                                                        <div className="pj-address-arrow">→</div>
                                                     </div>
-                                                    <div className="pj-address-detail">{buildFullAddress(addr)}</div>
-                                                </div>
-                                                <div
-                                                    className="pj-address-actions"
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        className="pj-address-action-btn"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            openEditAddress(addr);
-                                                        }}
-                                                        disabled={isUpdatingAddress || isDeletingAddress}
-                                                    >
-                                                        ✏️ Sửa
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className="pj-address-action-btn pj-address-action-delete"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDeleteAddress(addr.addressId);
-                                                        }}
-                                                        disabled={isUpdatingAddress || isDeletingAddress || isInUse}
-                                                    >
-                                                        🗑️ Xóa
-                                                    </button>
-                                                </div>
-                                                <div className="pj-address-arrow">→</div>
-                                            </div>
                                                 );
                                             })()
                                         ))}
@@ -721,7 +723,22 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
 /* -------------------------------------------------------------------------- */
 const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
     const [workDate, setWorkDate] = useState(initialData.workDate || new Date().toISOString().split('T')[0]);
-    const [startTime, setStartTime] = useState(initialData.startTime || '08:00');
+    const [startHour, setStartHour] = useState(() => {
+        const raw = String(initialData?.startTime || '08:00');
+        const parts = raw.split(':');
+        const hh = Number(parts[0]);
+        if (!Number.isFinite(hh)) return 8;
+        return Math.max(0, Math.min(23, hh));
+    });
+    const [startMinute, setStartMinute] = useState(() => {
+        const raw = String(initialData?.startTime || '08:00');
+        const parts = raw.split(':');
+        const mm = Number(parts[1]);
+        if (!Number.isFinite(mm)) return 0;
+        // Chỉ cho phép chọn 00 hoặc 30.
+        if (mm <= 15) return 0;
+        return 30;
+    });
     const [durationHours, setDurationHours] = useState(initialData.durationHours || 2);
     const [title, setTitle] = useState(initialData.title || `Cần tìm người ${serviceInfo.name.toLowerCase()}`);
     const [description, setDescription] = useState(initialData.description || '');
@@ -751,7 +768,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                     serviceIds: selectedSubServiceIds,
                     durationHours: durationHours
                 });
-                setPreEstimate(res?.data ?? res);
+                setPreEstimate(extractPayload(res));
             } catch (err) {
                 console.error("Lỗi tính giá", err);
                 setPreEstimate(null);
@@ -769,7 +786,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                 setLoadingSubServices(true);
                 setSubServiceError('');
                 const res = await apiClient.get(`/api/helpers/categories/${initialData.categoryId}/services`);
-                const list = res?.data ?? res;
+                const list = extractPayload(res);
                 setSubServices(Array.isArray(list) ? list : []);
             } catch {
                 setSubServices([]);
@@ -787,6 +804,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
     };
 
     const handleSubmit = () => {
+        const startTime = `${String(startHour).padStart(2, '0')}:${startMinute === 0 ? '00' : '30'}`;
         onSubmit({
             serviceIds: selectedSubServiceIds,
             workDate,
@@ -804,6 +822,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
         });
     };
 
+    const startTime = `${String(startHour).padStart(2, '0')}:${startMinute === 0 ? '00' : '30'}`;
     const isFormValid = initialData.addressId && workDate && startTime && durationHours > 0;
 
     return (
@@ -818,14 +837,14 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                 </div>
                 <div className="pj-step">Bước 2/3</div>
             </div>
-            
+
             <div className="pj-body">
                 <div className="pj-two-columns">
                     {/* Cột trái - Form nhập thông tin */}
                     <div className="pj-column">
                         <div className="pj-section">
                             <h3 className="pj-section-title">📋 Thông tin công việc</h3>
-                            
+
                             <div className="pj-form-row">
                                 <div className="pj-form-group half">
                                     <label className="pj-label">📅 Ngày làm việc *</label>
@@ -839,12 +858,34 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                 </div>
                                 <div className="pj-form-group half">
                                     <label className="pj-label">⏰ Giờ bắt đầu *</label>
-                                    <input
-                                        type="time"
-                                        className="pj-input"
-                                        value={startTime}
-                                        onChange={e => setStartTime(e.target.value)}
-                                    />
+                                    <div className="pj-time-dropdowns" aria-label="Chọn giờ bắt đầu (phút chỉ 00 hoặc 30)">
+                                        <div className="pj-time-dropdown">
+                                            <div className="pj-time-dropdown-label">Giờ</div>
+                                            <select
+                                                className="pj-select pj-time-select"
+                                                value={startHour}
+                                                onChange={(e) => setStartHour(Number(e.target.value))}
+                                            >
+                                                {Array.from({ length: 24 }, (_, i) => (
+                                                    <option key={i} value={i}>
+                                                        {String(i).padStart(2, '0')}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="pj-time-dropdown">
+                                            <div className="pj-time-dropdown-label">Phút</div>
+                                            <select
+                                                className="pj-select pj-time-select"
+                                                value={startMinute}
+                                                onChange={(e) => setStartMinute(Number(e.target.value))}
+                                            >
+                                                <option value={0}>00</option>
+                                                <option value={30}>30</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -930,12 +971,12 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                     <div className="pj-column">
                         <div className="pj-sidebar">
                             <h3 className="pj-sidebar-title">💰 Tóm tắt & giá dự kiến</h3>
-                            
+
                             <div className="pj-sidebar-item">
                                 <span className="pj-sidebar-label">Dịch vụ con</span>
                                 <span className="pj-sidebar-value">{selectedSubServiceItems.length} mục</span>
                             </div>
-                            
+
                             {selectedSubServiceItems.length > 0 && (
                                 <div className="pj-sidebar-detail">
                                     {selectedSubServiceItems.slice(0, 3).map((s) => s?.name).filter(Boolean).join(', ')}
@@ -947,7 +988,12 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                 <span className="pj-sidebar-label">Thời gian</span>
                                 <span className="pj-sidebar-value">{startTime} - {workDate}</span>
                             </div>
-                            
+
+                            <div className="pj-sidebar-item">
+                                <span className="pj-sidebar-label">📍 Địa chỉ</span>
+                                <span className="pj-sidebar-value">{initialData.addressDetail || 'Chưa chọn địa chỉ'}</span>
+                            </div>
+
                             <div className="pj-sidebar-item">
                                 <span className="pj-sidebar-label">Số giờ</span>
                                 <span className="pj-sidebar-value">{durationHours} giờ</span>
@@ -995,7 +1041,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
 /* STEP 3: Confirm & Pay Step                                                 */
 /* -------------------------------------------------------------------------- */
 const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstimate, loadingSubmit, serviceInfo }) => {
-    
+
     const formatCurrency = (val) => {
         if (val === undefined || val === null) return '0 ₫';
         return val.toLocaleString('vi-VN') + ' ₫';
@@ -1018,7 +1064,7 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                 </div>
                 <div className="pj-step">Bước 3/3</div>
             </div>
-            
+
             <div className="pj-body">
                 {loadingEstimate ? (
                     <div className="pj-loading">💰 Đang tính toán giá...</div>
@@ -1026,12 +1072,12 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                     <>
                         <div className="pj-summary">
                             <h3 className="pj-summary-title">📋 Thông tin công việc</h3>
-                            
+
                             <div className="pj-summary-row">
                                 <div className="pj-summary-label">Dịch vụ</div>
                                 <div className="pj-summary-value">{serviceInfo.name}</div>
                             </div>
-                            
+
                             <div className="pj-summary-row">
                                 <div className="pj-summary-label">Dịch vụ con</div>
                                 <div className="pj-summary-value">
@@ -1045,29 +1091,29 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                                     )}
                                 </div>
                             </div>
-                            
+
                             <div className="pj-summary-row">
                                 <div className="pj-summary-label">Thời gian</div>
                                 <div className="pj-summary-value">{jobData.startTime} - Ngày {jobData.workDate}</div>
                             </div>
-                            
+
                             <div className="pj-summary-row">
                                 <div className="pj-summary-label">Số giờ</div>
                                 <div className="pj-summary-value">{jobData.durationHours} giờ</div>
                             </div>
-                            
+
                             <div className="pj-summary-row">
                                 <div className="pj-summary-label">Địa chỉ</div>
                                 <div className="pj-summary-value">{jobData.addressDetail}</div>
                             </div>
-                            
+
                             {jobData.title && (
                                 <div className="pj-summary-row">
                                     <div className="pj-summary-label">Tiêu đề</div>
                                     <div className="pj-summary-value">{jobData.title}</div>
                                 </div>
                             )}
-                            
+
                             {jobData.description && (
                                 <div className="pj-summary-row">
                                     <div className="pj-summary-label">Ghi chú</div>
@@ -1106,9 +1152,9 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                         )}
 
                         <div className="pj-actions">
-                            <button 
-                                className={`pj-btn-primary ${loadingSubmit ? 'disabled' : ''}`} 
-                                disabled={loadingSubmit} 
+                            <button
+                                className={`pj-btn-primary ${loadingSubmit ? 'disabled' : ''}`}
+                                disabled={loadingSubmit}
                                 onClick={onConfirm}
                                 style={{ backgroundColor: serviceInfo.color }}
                             >

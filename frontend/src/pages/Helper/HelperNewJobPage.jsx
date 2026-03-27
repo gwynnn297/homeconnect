@@ -5,11 +5,37 @@ import NotificationModal from '../../components/NotificationModal';
 import HelperJobService from '../../services/HelperJobService';
 import './HelperNewJobPage.css';
 
+const extractPayload = (res) => (res && typeof res === 'object' && 'data' in res ? res.data : res);
+
 const TABS = [
     { id: 'NEW', label: 'Việc mới' },
     { id: 'PENDING', label: 'Chờ xác nhận' },
     { id: 'CONFIRMED', label: 'Xác nhận' }
 ];
+
+const TAB_UI = {
+    NEW: {
+        title: 'Việc mới đang mở',
+        desc: 'Công việc phù hợp bạn có thể ứng tuyển ngay.',
+        badgeLabel: 'Có thể ứng tuyển',
+        badgeClass: 'new',
+        icon: 'spark'
+    },
+    PENDING: {
+        title: 'Đang chờ khách xác nhận',
+        desc: 'Bạn đã ứng tuyển, đang chờ khách hàng ra quyết định.',
+        badgeLabel: 'Đang chờ xác nhận',
+        badgeClass: 'pending',
+        icon: 'clock'
+    },
+    CONFIRMED: {
+        title: 'Đã được xác nhận',
+        desc: 'Bạn đã được chọn. Vui lòng chuẩn bị đến đúng giờ.',
+        badgeLabel: 'Đã xác nhận làm việc',
+        badgeClass: 'confirmed',
+        icon: 'check'
+    }
+};
 
 const formatCurrencyVnd = (value) => {
     if (value === undefined || value === null || Number.isNaN(Number(value))) return 'N/A';
@@ -27,6 +53,68 @@ const formatWorkDate = (value) => {
 const buildLocationText = (job) =>
     [job?.wardName, job?.districtName, job?.provinceName].filter(Boolean).join(', ') || 'N/A';
 
+const getTabMeta = (tabId) => TAB_UI[tabId] || TAB_UI.NEW;
+
+const getDisplayStatus = (tabId, jobStatus) => {
+    const fallback = getTabMeta(tabId);
+
+    if (tabId === 'NEW') return fallback;
+    if (tabId === 'PENDING') return fallback;
+    if (tabId === 'CONFIRMED') {
+        if (jobStatus === 'COMPLETED') {
+            return {
+                ...fallback,
+                badgeLabel: 'Đã hoàn thành',
+                badgeClass: 'done'
+            };
+        }
+        if (jobStatus === 'CANCELLED' || jobStatus === 'EXPIRED') {
+            return {
+                ...fallback,
+                badgeLabel: jobStatus === 'EXPIRED' ? 'Đã hết hạn' : 'Đã hủy',
+                badgeClass: 'pending',
+                icon: 'clock'
+            };
+        }
+        return fallback;
+    }
+
+    return fallback;
+};
+
+const StatusIcon = ({ type }) => {
+    if (type === 'clock') {
+        return (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="9"></circle>
+                <polyline points="12 7 12 12 15 14"></polyline>
+            </svg>
+        );
+    }
+
+    if (type === 'check') {
+        return (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="9"></circle>
+                <polyline points="8 12 11 15 16 9"></polyline>
+            </svg>
+        );
+    }
+
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 3v5"></path>
+            <path d="M12 16v5"></path>
+            <path d="M4.22 5.64l3.54 3.54"></path>
+            <path d="M16.24 17.66l3.54 3.54"></path>
+            <path d="M1 12h5"></path>
+            <path d="M18 12h5"></path>
+            <path d="M4.22 18.36l3.54-3.54"></path>
+            <path d="M16.24 6.34l3.54-3.54"></path>
+        </svg>
+    );
+};
+
 const HelperNewJobPage = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -39,6 +127,7 @@ const HelperNewJobPage = () => {
     const [jobsError, setJobsError] = useState('');
     const [hasLoadedJobsOnce, setHasLoadedJobsOnce] = useState(false);
     const handledNotificationTokenRef = useRef(null);
+    const tabMeta = getTabMeta(activeTab);
 
     const handleViewJob = (job) => {
         setSelectedJob(job);
@@ -51,6 +140,7 @@ const HelperNewJobPage = () => {
     };
 
     const handleApplyJob = () => {
+        if (!selectedJob || activeTab !== 'NEW') return;
         setLoadingApply(true);
         HelperJobService.applyForJob(selectedJob?.postId)
             .then(() => {
@@ -74,23 +164,42 @@ const HelperNewJobPage = () => {
 
         const loadJobs = async () => {
             setJobsError('');
+            const userRaw = localStorage.getItem('user');
+            let user = null;
+            try {
+                user = userRaw ? JSON.parse(userRaw) : null;
+            } catch {
+                user = null;
+            }
+            const userRole = user?.role;
 
-            // Only "Việc mới" is wired to backend per requirement
-            if (activeTab !== 'NEW') {
+            if (userRole !== 'HELPER') {
                 setJobs([]);
+                setJobsError('Bạn không có quyền truy cập trang này. Vui lòng đăng nhập bằng tài khoản Helper.');
                 setHasLoadedJobsOnce(true);
                 return;
             }
 
             setLoadingJobs(true);
             try {
-                const res = await HelperJobService.getAllJobs();
-                const data = res?.data;
+                const res = await HelperJobService.getJobsByTab(activeTab);
+                const data = extractPayload(res);
                 const list = Array.isArray(data) ? data : [];
                 if (!cancelled) setJobs(list);
             } catch (e) {
-                const msg = e?.message || e?.error || e?.msg || 'Không thể tải danh sách việc.';
+                const statusCode = e?.status || e?.code || e?.response?.status;
                 if (!cancelled) {
+                    // Tab phụ có thể chưa được backend hỗ trợ đầy đủ.
+                    // Không hiển thị lỗi quyền kỹ thuật để tránh gây hiểu nhầm cho người dùng.
+                    if ((activeTab === 'PENDING' || activeTab === 'CONFIRMED') && (statusCode === 403 || statusCode === 404)) {
+                        setJobs([]);
+                        setJobsError('');
+                        return;
+                    }
+
+                    const msg = statusCode === 403
+                        ? 'Phiên đăng nhập không có quyền HELPER hoặc đã hết hạn. Vui lòng đăng nhập lại bằng tài khoản Helper.'
+                        : (e?.message || e?.error || e?.msg || 'Không thể tải danh sách việc.');
                     setJobs([]);
                     setJobsError(typeof msg === 'string' ? msg : 'Không thể tải danh sách việc.');
                 }
@@ -171,7 +280,8 @@ const HelperNewJobPage = () => {
                                 role="tab"
                                 aria-selected={activeTab === t.id}
                             >
-                                {t.label}
+                                <span>{t.label}</span>
+                                {activeTab === t.id && <span className="hnj-tab-count">{jobs.length}</span>}
                             </button>
                         ))}
                     </div>
@@ -183,6 +293,16 @@ const HelperNewJobPage = () => {
                             Bộ lọc
                         </button>
                     </div>
+                </div>
+                <div className={`hnj-status-strip hnj-status-strip--${tabMeta.badgeClass}`}>
+                    <div className="hnj-status-strip-icon">
+                        <StatusIcon type={tabMeta.icon} />
+                    </div>
+                    <div className="hnj-status-strip-content">
+                        <h3>{tabMeta.title}</h3>
+                        <p>{tabMeta.desc}</p>
+                    </div>
+                    <div className="hnj-status-strip-total">{jobs.length} công việc</div>
                 </div>
 
                 <div className="hnj-grid">
@@ -199,7 +319,7 @@ const HelperNewJobPage = () => {
                     )}
 
                     {!loadingJobs && !jobsError && jobs.map((job) => (
-                        <div key={job.postId} className="hnj-card" onClick={() => handleViewJob(job)}>
+                        <div key={job.postId} className={`hnj-card hnj-card--${getDisplayStatus(activeTab, job.status).badgeClass}`} onClick={() => handleViewJob(job)}>
                             <div className="hnj-card-top">
                                 <div className="hnj-customer-info">
                                     <div className="hnj-avatar" aria-hidden="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#0f172a', fontWeight: 700 }}>
@@ -213,6 +333,12 @@ const HelperNewJobPage = () => {
                                     </div>
                                 </div>
                                 <div className="hnj-price-badge">{formatCurrencyVnd(job.offerPrice)}</div>
+                            </div>
+                            <div className="hnj-card-status-row">
+                                <span className={`hnj-state-pill hnj-state-pill--${getDisplayStatus(activeTab, job.status).badgeClass}`}>
+                                    <StatusIcon type={getDisplayStatus(activeTab, job.status).icon} />
+                                    {getDisplayStatus(activeTab, job.status).badgeLabel}
+                                </span>
                             </div>
 
                             <div className="hnj-card-body">
@@ -248,7 +374,7 @@ const HelperNewJobPage = () => {
                                         <polyline points="3 11 21 11"></polyline>
                                         <polyline points="10 4 3 11 10 18"></polyline>
                                     </svg>
-                                    {job.status || 'PUBLISHED'}
+                                    Mã trạng thái: {job.status || 'PUBLISHED'}
                                 </div>
                                 <button className="hnj-view-btn">
                                     Xem chi tiết
@@ -265,9 +391,9 @@ const HelperNewJobPage = () => {
                         <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px', color: '#64748b' }}>
                             <h3>Không có dữ liệu</h3>
                             <p>
-                                {activeTab === 'NEW'
-                                    ? 'Không có công việc đang mở lúc này.'
-                                    : 'Chức năng sẽ được cập nhật.'}
+                                {activeTab === 'NEW' && 'Không có công việc đang mở lúc này.'}
+                                {activeTab === 'PENDING' && 'Bạn chưa có công việc nào đang chờ khách hàng xác nhận.'}
+                                {activeTab === 'CONFIRMED' && 'Bạn chưa có công việc nào đã được xác nhận.'}
                             </p>
                         </div>
                     )}
@@ -295,6 +421,10 @@ const HelperNewJobPage = () => {
                                     <div className="hnj-price-badge" style={{ fontSize: '18px' }}>
                                         {formatCurrencyVnd(selectedJob.offerPrice)}
                                     </div>
+                                </div>
+                                <div className={`hnj-state-pill hnj-state-pill--${getDisplayStatus(activeTab, selectedJob.status).badgeClass}`}>
+                                    <StatusIcon type={getDisplayStatus(activeTab, selectedJob.status).icon} />
+                                    {getDisplayStatus(activeTab, selectedJob.status).badgeLabel}
                                 </div>
 
                                 <div className="hnj-detail-section">
@@ -329,22 +459,24 @@ const HelperNewJobPage = () => {
                                 <button className="hnj-btn-cancel" onClick={handleCloseModal} disabled={loadingApply}>
                                     Đóng
                                 </button>
-                                <button className="hnj-btn-apply" onClick={handleApplyJob} disabled={loadingApply}>
-                                    {loadingApply ? (
-                                        <>
-                                            <div className="hnj-spinner"></div>
-                                            Đang ứng tuyển...
-                                        </>
-                                    ) : (
-                                        <>
-                                            Ứng tuyển ngay
-                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                                            </svg>
-                                        </>
-                                    )}
-                                </button>
+                                {activeTab === 'NEW' && (
+                                    <button className="hnj-btn-apply" onClick={handleApplyJob} disabled={loadingApply}>
+                                        {loadingApply ? (
+                                            <>
+                                                <div className="hnj-spinner"></div>
+                                                Đang ứng tuyển...
+                                            </>
+                                        ) : (
+                                            <>
+                                                Ứng tuyển ngay
+                                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                                </svg>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

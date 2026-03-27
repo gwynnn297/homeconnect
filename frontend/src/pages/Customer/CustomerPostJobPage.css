@@ -147,6 +147,8 @@
     font-size: 14px;
     transition: all 0.2s;
     font-family: inherit;
+    box-sizing: border-box;
+    min-height: 44px; /* align date/time inputs visually */
 }
 
 .pj-input:focus,
@@ -160,6 +162,42 @@
 .pj-textarea {
     resize: vertical;
     font-family: inherit;
+}
+
+/* Time dropdowns (hour + minute) */
+.pj-time-dropdowns {
+    display: flex;
+    gap: 12px;
+    flex-direction: row;
+    align-items: stretch;
+}
+
+.pj-time-dropdown {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.pj-time-dropdown-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #555555;
+    margin-bottom: 8px;
+    display: none; /* hide to avoid extra height; hour/minute implied by order */
+}
+
+.pj-time-select {
+    padding: 10px 12px;
+    min-height: 44px; /* align visually with date input */
+}
+
+@media (max-width: 480px) {
+    .pj-time-dropdowns {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+    }
 }
 
 /* Duration Buttons */
@@ -512,6 +550,7 @@
     font-size: 13px;
     font-weight: 500;
     color: #333333;
+    word-break: break-word;
 }
 
 .pj-sidebar-detail {
@@ -743,37 +782,37 @@
     .customer-post-job-page .post-job-container {
         padding: 16px;
     }
-    
+
     .customer-post-job-page .pj-header {
         padding: 16px 20px;
     }
-    
+
     .customer-post-job-page .pj-body {
         padding: 20px;
     }
-    
+
     .customer-post-job-page .pj-two-columns {
         grid-template-columns: 1fr;
         gap: 24px;
     }
-    
+
     .customer-post-job-page .pj-form-row {
         grid-template-columns: 1fr;
         gap: 16px;
     }
-    
+
     .customer-post-job-page .pj-services-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .customer-post-job-page .pj-actions {
         justify-content: stretch;
     }
-    
+
     .customer-post-job-page .pj-btn-primary {
         width: 100%;
     }
-    
+
     .customer-post-job-page .pj-summary-label {
         width: 90px;
     }
@@ -783,16 +822,16 @@
     .customer-post-job-page .pj-header-title {
         font-size: 16px;
     }
-    
+
     .customer-post-job-page .pj-step {
         font-size: 11px;
     }
-    
+
     .customer-post-job-page .pj-duration-btn {
         min-width: 60px;
         font-size: 12px;
     }
-    
+
     .customer-post-job-page .pj-back-btn {
         width: 32px;
         height: 32px;

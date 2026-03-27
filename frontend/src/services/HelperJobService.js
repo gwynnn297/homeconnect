@@ -22,6 +22,27 @@ const HelperJobService = {
     },
 
     /**
+     * Lấy danh sách việc theo tab trạng thái của Helper
+     * Backend: GET /api/v1/helper/jobs/by-tab?tab=NEW|PENDING|CONFIRMED
+     * @param {'NEW'|'PENDING'|'CONFIRMED'} tab
+     */
+    getJobsByTab: async (tab = 'NEW') => {
+        try {
+            return await apiClient.get(`${HELPER_JOB_BASE_URL}/by-tab`, { params: { tab } });
+        } catch (error) {
+            // Fallback mềm nếu backend chưa bật endpoint theo tab.
+            const statusCode = error?.status || error?.code || error?.response?.status;
+            if (statusCode === 404) {
+                if (tab === 'NEW') {
+                    return await HelperJobService.getAllJobs();
+                }
+                return { message: '', data: [] };
+            }
+            throw error;
+        }
+    },
+
+    /**
      * Ứng tuyển công việc
      * Backend: POST /api/v1/helper/jobs/{id}/apply
      * Response: ApiResponse<Void>
