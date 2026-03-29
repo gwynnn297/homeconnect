@@ -22,6 +22,7 @@ import AdminComplaintsPage from '../pages/Admin/AdminComplaintsPage'
 import AdminReportsPage from '../pages/Admin/AdminReportsPage'
 import ServiceManagerPage from '../pages/Admin/ServiceManagerPage'
 import HelperSchedulePage from '../pages/Helper/HelperSchedulePage'
+import HelperWalletPage from '../pages/Helper/HelperWalletPage'
 import ForgotPasswordPage from '../pages/ForgotPassword/ForgotPasswordPage'
 import CustomerPostJobPage from '../pages/Customer/CustomerPostJobPage'
 import CustomerManagePostsPage from '../pages/Customer/CustomerManagePostsPage'
@@ -46,6 +47,7 @@ const AuthRouter = () => {
         <Route path="/helper/profile" element={<HelperProfilePage />} />
         <Route path="/helper/schedule" element={<HelperSchedulePage />} />
         <Route path="/helper/new-jobs" element={<HelperNewJobPage />} />
+        <Route path="/helper/wallet" element={<HelperWalletPage />} />
         {/* legacy path kept for compatibility */}
         <Route path="/helper-dashboard" element={<HelperDashboardPage />} />
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />

@@ -47,6 +47,9 @@ public class WalletService {
     @Value("${wallet.bank.name:NGUYEN VAN A}")
     private String bankAccountName;
 
+    @Value("${wallet.commission.rate:0.15}")
+    private BigDecimal commissionRate; // Tỷ lệ hoa hồng sàn (mặc định 15%)
+
     /**
      * Tạo ví mới cho user vừa đăng ký
      */
@@ -73,6 +76,9 @@ public class WalletService {
         Wallet wallet = walletRepository.findByUserId(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng"));
 
+        BigDecimal totalEarnings = transactionRepository.getTotalEarningsByWalletId(wallet.getWalletId());
+        if (totalEarnings == null) totalEarnings = BigDecimal.ZERO;
+
         return WalletInfoResponse.builder()
                 .walletId(wallet.getWalletId())
                 .userId(userId)
@@ -80,6 +86,7 @@ public class WalletService {
                 .holdBalance(wallet.getHoldBalance())
                 .debtBalance(wallet.getDebtBalance())
                 .isFrozen(wallet.getIsFrozen())
+                .totalEarnings(totalEarnings)
                 .build();
     }
 
@@ -377,5 +384,93 @@ public class WalletService {
         transactionRepository.save(transaction);
         
         log.info("✅ Đã hoàn {} VNĐ về ví khả dụng.", amount);
+    }
+
+    /**
+     * [BE-Wallet-03 Cronjob] Giải phóng lương cho Helper sau khi booking hoàn thành.
+     * Logic:
+     * 1. Tính commission = totalPrice * commissionRate
+     * 2. Trừ totalPrice khỏi hold_balance ví Khách
+     * 3. Cộng (totalPrice - commission) vào available_balance ví Thợ
+     * 4. Ghi 2 transaction: COMMISSION (khách) và RELEASE (thợ)
+     *
+     * @param booking   Booking đã COMPLETED
+     * @return helperSalary Số tiền thực nhận của Helper
+     */
+    @Transactional
+    public BigDecimal releaseSalary(com.homeconnect.core.entity.Booking booking) {
+        BigDecimal totalPrice = booking.getTotalPrice();
+        Long customerId = booking.getCustomer().getId();
+        Long helperId = booking.getHelper().getId();
+        Long bookingId = booking.getId();
+
+        log.info("Release salary cho Booking #{}: totalPrice={}, customer={}, helper={}",
+                bookingId, totalPrice, customerId, helperId);
+
+        // 1. Tính commission
+        BigDecimal commission = totalPrice.multiply(commissionRate)
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal helperSalary = totalPrice.subtract(commission);
+
+        log.info("Commission: {} ({}%), Helper nhận: {}", commission, 
+                commissionRate.multiply(BigDecimal.valueOf(100)), helperSalary);
+
+        // 2. Trừ hold_balance ví Khách
+        Wallet customerWallet = walletRepository.findByUserIdWithLock(customerId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của khách hàng ID: " + customerId));
+
+        if (customerWallet.getHoldBalance().compareTo(totalPrice) < 0) {
+            log.warn("Hold balance ({}) < totalPrice ({}). Trừ tối đa hold balance.",
+                    customerWallet.getHoldBalance(), totalPrice);
+            totalPrice = customerWallet.getHoldBalance();
+            commission = totalPrice.multiply(commissionRate)
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+            helperSalary = totalPrice.subtract(commission);
+        }
+
+        customerWallet.setHoldBalance(customerWallet.getHoldBalance().subtract(totalPrice));
+        walletRepository.save(customerWallet);
+
+        // Ghi transaction COMMISSION cho ví Khách
+        WalletTransaction commissionTx = WalletTransaction.builder()
+                .wallet(customerWallet)
+                .amount(totalPrice)
+                .type(TransactionType.COMMISSION)
+                .referenceType(ReferenceType.BOOKING)
+                .referenceId(bookingId.intValue())
+                .description(String.format("Thanh toán Booking #%d (Hoa hồng sàn: %s VNĐ)", bookingId, commission))
+                .build();
+        transactionRepository.save(commissionTx);
+
+        // 3. Cộng available_balance ví Helper
+        Wallet helperWallet = walletRepository.findByUserIdWithLock(helperId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của thợ ID: " + helperId));
+
+        helperWallet.setAvailableBalance(helperWallet.getAvailableBalance().add(helperSalary));
+        walletRepository.save(helperWallet);
+
+        // Ghi transaction RELEASE cho ví Helper
+        WalletTransaction releaseTx = WalletTransaction.builder()
+                .wallet(helperWallet)
+                .amount(helperSalary)
+                .type(TransactionType.RELEASE)
+                .referenceType(ReferenceType.BOOKING)
+                .referenceId(bookingId.intValue())
+                .description(String.format("Nhận lương Booking #%d (Sau hoa hồng %s%%)", 
+                        bookingId, commissionRate.multiply(BigDecimal.valueOf(100))))
+                .build();
+        transactionRepository.save(releaseTx);
+
+        log.info("Đã release {} VNĐ cho Helper ID: {}. Commission: {} VNĐ",
+                helperSalary, helperId, commission);
+
+        return helperSalary;
+    }
+
+    /**
+     * Getter cho commission rate (dùng bởi WalletScheduler để log)
+     */
+    public BigDecimal getCommissionRate() {
+        return commissionRate;
     }
 }

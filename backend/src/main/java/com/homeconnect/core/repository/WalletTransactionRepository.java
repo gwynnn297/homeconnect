@@ -25,4 +25,10 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
      */
     @Query("SELECT wt FROM WalletTransaction wt WHERE wt.referenceId = :referenceId AND wt.referenceType = 'WEBHOOK'")
     Optional<WalletTransaction> findByReferenceIdAndReferenceTypeWebhook(@Param("referenceId") Integer referenceId);
+
+    /**
+     * Tính tổng thu nhập bằng cách tính tổng các giao dịch nhận lương (RELEASE)
+     */
+    @Query("SELECT SUM(wt.amount) FROM WalletTransaction wt WHERE wt.wallet.walletId = :walletId AND wt.type = 'RELEASE'")
+    java.math.BigDecimal getTotalEarningsByWalletId(@Param("walletId") Integer walletId);
 }

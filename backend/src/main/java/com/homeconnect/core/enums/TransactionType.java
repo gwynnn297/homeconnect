@@ -9,5 +9,6 @@ public enum TransactionType {
     PAYMENT, // Thanh toán
     REFUND, // Hoàn tiền
     HOLD, // Giữ tiền (khi đặt việc)
-    RELEASE // Giải phóng tiền giữ
+    RELEASE, // Giải phóng tiền giữ
+    COMMISSION // Hoa hồng sàn
 }

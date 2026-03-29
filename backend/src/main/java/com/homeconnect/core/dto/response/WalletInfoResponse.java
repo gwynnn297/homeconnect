@@ -22,4 +22,5 @@ public class WalletInfoResponse {
     private BigDecimal holdBalance; // Số tiền đang giữ
     private BigDecimal debtBalance; // Số tiền nợ
     private Boolean isFrozen; // Ví có bị đóng băng không
+    private BigDecimal totalEarnings; // Tổng thu nhập (chỉ có ý nghĩa với Helper, mặc định null/0 với Customer)
 }
