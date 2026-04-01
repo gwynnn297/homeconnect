@@ -105,4 +105,52 @@ public class BookingController {
                 .data(response)
                 .build());
     }
+
+    @Operation(summary = "Khách hàng xác nhận thợ đã đến (Tú)", description = "Khách hàng xác nhận thợ đã đến nhà và cho phép bắt đầu công việc")
+    @PostMapping("/{bookingId}/confirm-start")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<Void>> confirmStart(
+            @PathVariable Long bookingId,
+            Authentication authentication) {
+        
+        Long customerId = securityUtil.getCurrentUserId(authentication);
+        bookingService.confirmStart(bookingId, customerId);
+        
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Xác nhận bắt đầu công việc thành công!")
+                .build());
+    }
+
+    @Operation(summary = "[BE-Exec-03] Thợ check-out + ảnh hoàn thành (Tú)", 
+               description = "Thợ gửi URL ảnh sau khi làm xong. Status: IN_PROGRESS → PENDING_COMPLETION (chờ khách xác nhận). Nếu làm < 80% thời gian, job bị gắn cờ bất thường.")
+    @PostMapping("/{bookingId}/check-out")
+    @PreAuthorize("hasRole('HELPER')")
+    public ResponseEntity<ApiResponse<Void>> checkOut(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody com.homeconnect.core.dto.request.CheckOutRequest request,
+            Authentication authentication) {
+        
+        Long helperId = securityUtil.getCurrentUserId(authentication);
+        bookingService.checkOut(bookingId, request.getCheckoutPhotoUrl(), request.getCheckoutReason(), helperId);
+        
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Đã báo hoàn thành! Đang chờ khách hàng xác nhận.")
+                .build());
+    }
+
+    @Operation(summary = "[BE-Exec-03b] Khách xác nhận hoàn thành (Tú)",
+               description = "Khách bấm 'Xác nhận & Đánh giá'. Status: PENDING_COMPLETION → COMPLETED. Nếu khách im lặng 24h, hệ thống tự động xác nhận.")
+    @PostMapping("/{bookingId}/confirm-complete")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<ApiResponse<Void>> confirmComplete(
+            @PathVariable Long bookingId,
+            Authentication authentication) {
+        
+        Long customerId = securityUtil.getCurrentUserId(authentication);
+        bookingService.confirmComplete(bookingId, customerId);
+        
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Đã xác nhận hoàn thành! Cảm ơn bạn đã sử dụng dịch vụ.")
+                .build());
+    }
 }

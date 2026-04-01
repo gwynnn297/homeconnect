@@ -26,6 +26,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     List<com.homeconnect.core.entity.Booking> findByStatusAndCreatedAtBefore(com.homeconnect.core.enums.BookingStatus status, java.time.LocalDateTime dateTime);
 
+    List<com.homeconnect.core.entity.Booking> findByStatusAndCheckedOutAtBefore(com.homeconnect.core.enums.BookingStatus status, java.time.LocalDateTime dateTime);
+
     boolean existsByAddress_AddressId(Integer addressId);
 
     /**
@@ -33,7 +35,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      * và thời gian checkout (scheduledEndTime) đã qua cutoff.
      * Dùng cho cronjob auto salary release.
      */
-    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"helper", "service", "customer"})
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"helper", "customer"})
     @Query("SELECT b FROM Booking b " +
            "WHERE b.status = :status " +
            "AND b.paymentStatus = :paymentStatus " +

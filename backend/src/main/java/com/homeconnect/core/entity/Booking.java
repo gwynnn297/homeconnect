@@ -9,6 +9,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "bookings")
@@ -33,8 +34,8 @@ public class Booking {
     private User helper;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "service_id", nullable = false)
-    private Service service;
+    @JoinColumn(name = "category_id", nullable = false)
+    private ServiceCategory category;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "address_id")
@@ -65,6 +66,36 @@ public class Booking {
     @Column(name = "payment_status", length = 30)
     @Builder.Default
     private PaymentStatus paymentStatus = PaymentStatus.HOLDING;
+
+    @Column(name = "expired_at")
+    private LocalDateTime expiredAt;
+
+    // ===== PB-14: Execution Fields (Phúc + Tú) =====
+
+    @Column(name = "checkin_photo_url", length = 500)
+    private String checkinPhotoUrl;         // Ảnh TRƯỚC khi làm (Phúc check-in)
+
+    @Column(name = "checkout_photo_url", length = 500)
+    private String checkoutPhotoUrl;        // Ảnh SAU khi làm (Tú check-out)
+
+    @Column(name = "checkout_reason", length = 500)
+    private String checkoutReason;          // Lý do hoàn thành sớm
+
+    @Column(name = "checked_in_at")
+    private LocalDateTime checkedInAt;      // Lúc thợ check-in (Phúc)
+
+    @Column(name = "checked_out_at")
+    private LocalDateTime checkedOutAt;     // Lúc thợ báo xong (Tú)
+
+    @Column(name = "confirmed_start_at")
+    private LocalDateTime confirmedStartAt; // Lúc khách xác nhận bắt đầu (Tú)
+
+    @Column(name = "confirmed_done_at")
+    private LocalDateTime confirmedDoneAt;  // Lúc khách xác nhận hoàn thành (Tú)
+
+    @Column(name = "is_flagged")
+    @Builder.Default
+    private Boolean isFlagged = false;      // Đánh dấu đơn bất thường
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

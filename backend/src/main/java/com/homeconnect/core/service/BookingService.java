@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,7 +39,7 @@ public class BookingService {
     private final ReviewRepository reviewRepository;
     private final ConflictEngine conflictEngine;
     private final NotificationService notificationService;
-    private final ServiceRepository serviceRepository;
+
 
     /**
      * Xác nhận đơn hàng và cập nhật lịch của Helper sang BUSY
@@ -171,33 +173,15 @@ public class BookingService {
             throw new ApiException("Thợ này hiện tại không còn lịch trống cho khung giờ này.", HttpStatus.CONFLICT);
         }
 
-        // 4. Resolve Service (Lấy service đầu tiên từ JobPost)
-        String serviceIdStr = jobPost.getServiceId();
-        com.homeconnect.core.entity.Service bookingServiceEntity = null;
-        if (serviceIdStr != null && !serviceIdStr.isBlank()) {
-            try {
-                Integer firstServiceId = Integer.parseInt(serviceIdStr.split(",")[0]);
-                bookingServiceEntity = serviceRepository.findById(firstServiceId).orElse(null);
-            } catch (Exception ignored) {}
-        }
-        
-        // Fallback: Lấy service đầu tiên trong category nếu không tìm thấy serviceId cụ thể
-        if (bookingServiceEntity == null) {
-            bookingServiceEntity = serviceRepository.findAll().stream()
-                    .filter(s -> s.getCategory() != null && s.getCategory().getCategoryId() == jobPost.getCategory().getCategoryId())
-                    .findFirst()
-                    .orElseThrow(() -> new ApiException("Không tìm thấy dịch vụ tương ứng cho đơn hàng", HttpStatus.BAD_REQUEST));
-        }
-
         User customer = userRepository.findById(customerId).get();
         User helper = userRepository.findById(application.getHelperId()).get();
-        
+
         Booking booking = Booking.builder()
                 .customer(customer)
                 .helper(helper)
-                .service(bookingServiceEntity) // FIX: gán service_id
+                .category(jobPost.getCategory())
                 .jobPostId(jobId)
-                .address(jobPost.getAddress()) // FIX: gán address_id
+                .address(jobPost.getAddress())
                 .scheduledStartTime(start)
                 .scheduledEndTime(end)
                 .totalPrice(jobPost.getOfferPrice())
@@ -239,7 +223,7 @@ public class BookingService {
             }
         }
 
-        return mapToBookingResponse(booking);
+        return mapToBookingResponse(booking, customerId);
     }
 
     /**
@@ -292,17 +276,11 @@ public class BookingService {
                 .build();
         bookingAddress = addressRepository.save(bookingAddress);
 
-        // 5. Resolve Service (Lấy service đầu tiên trong category)
-        com.homeconnect.core.entity.Service bookingServiceEntity = serviceRepository.findAll().stream()
-                .filter(s -> s.getCategory() != null && s.getCategory().getCategoryId() == category.getCategoryId())
-                .findFirst()
-                .orElseThrow(() -> new ApiException("Không tìm thấy dịch vụ tương ứng cho danh mục này", HttpStatus.BAD_REQUEST));
-
         Booking booking = Booking.builder()
                 .customer(customer)
                 .helper(helper)
-                .service(bookingServiceEntity) // FIX: gán service_id
-                .address(bookingAddress) // FIX: gán address_id
+                .category(category)
+                .address(bookingAddress)
                 .scheduledStartTime(start)
                 .scheduledEndTime(end)
                 .totalPrice(category.getBasePrice().multiply(java.math.BigDecimal.valueOf(request.getDurationHours())))
@@ -318,8 +296,9 @@ public class BookingService {
         helperScheduleRepository.save(targetSchedule);
 
         log.info("Direct booking {} created. Waiting for helper {} to respond.", booking.getId(), helper.getId());
-
-        return mapToBookingResponse(booking);
+        
+        // Trả về response với address đầy đủ (cho khách hàng - người vừa tạo)
+        return mapToBookingResponse(booking, customerId);
     }
 
     /**
@@ -358,14 +337,132 @@ public class BookingService {
         helperScheduleRepository.save(schedule);
     }
 
-    private BookingResponse mapToBookingResponse(Booking b) {
+    /**
+     * [BE-Exec-02] Khách hàng xác nhận thợ đã đến và bắt đầu công việc (Tú)
+     * Tiền điều kiện: status = ARRIVED (sau khi Phúc làm Face ID check-in)
+     */
+    @Transactional
+    public void confirmStart(Long bookingId, Long customerId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+
+        if (!booking.getCustomer().getId().equals(customerId)) {
+            throw new ApiException("Bạn không có quyền xác nhận đơn này", HttpStatus.FORBIDDEN);
+        }
+
+        if (booking.getStatus() != BookingStatus.ARRIVED) {
+            throw new ApiException("Đơn hàng phải ở trạng thái ARRIVED (Thợ đã xác thực khuôn mặt) mới có thể xác nhận bắt đầu", HttpStatus.BAD_REQUEST);
+        }
+
+        booking.setStatus(BookingStatus.IN_PROGRESS);
+        booking.setConfirmedStartAt(LocalDateTime.now());
+        bookingRepository.save(booking);
+        
+        log.info("[BE-Exec-02] Customer {} confirmed start for booking {}. Status: IN_PROGRESS", customerId, bookingId);
+        
+        notificationService.createNotification(booking.getHelper().getId(), 
+                "Công việc đã bắt đầu!", 
+                "Khách hàng đã xác nhận. Bạn có thể bắt đầu làm việc ngay.", "WORK_STARTED");
+    }
+
+    /**
+     * [BE-Exec-03] Thợ chụp ảnh hoàn thành -> WAITING_FOR_CONFIRMATION (Tú)
+     * Ràng buộc: Không được check-out khi chưa làm đủ 80% thời gian cam kết mà không có lý do
+     */
+    @Transactional
+    public void checkOut(Long bookingId, String checkoutPhotoUrl, String checkoutReason, Long helperId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+
+        if (!booking.getHelper().getId().equals(helperId)) {
+            throw new ApiException("Bạn không có quyền hoàn thành đơn này", HttpStatus.FORBIDDEN);
+        }
+
+        if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+            throw new ApiException("Đơn hàng phải ở trạng thái IN_PROGRESS mới có thể check-out", HttpStatus.BAD_REQUEST);
+        }
+
+        // [Conflict 1] Kiểm tra nếu thực tế làm < 80% thời gian đặt
+        LocalDateTime startRef = booking.getConfirmedStartAt() != null
+                ? booking.getConfirmedStartAt()
+                : booking.getScheduledStartTime();
+
+        long scheduledMinutes = java.time.Duration.between(
+                booking.getScheduledStartTime(), booking.getScheduledEndTime()).toMinutes();
+        long workedMinutes = java.time.Duration.between(startRef, LocalDateTime.now()).toMinutes();
+
+        boolean isUndertime = workedMinutes < scheduledMinutes * 0.8;
+        if (isUndertime) {
+            if (checkoutReason == null || checkoutReason.trim().isEmpty()) {
+                throw new ApiException("Bạn hoàn thành sớm hơn 80% thời gian dự kiến. Vui lòng cung cấp lý do (Làm xong sớm, Khách cho về...)", HttpStatus.BAD_REQUEST);
+            }
+            // Gắn flag bất thường, log để Admin theo dõi
+            booking.setIsFlagged(true);
+            booking.setCheckoutReason(checkoutReason);
+            log.warn("[PB-14][Conflict1] Helper {} checked out early. Reason: {}. Booking {} is FLAGGED.",
+                    helperId, checkoutReason, bookingId);
+        }
+
+        booking.setStatus(BookingStatus.PENDING_COMPLETION); // WAITING_FOR_CONFIRMATION
+        booking.setCheckoutPhotoUrl(checkoutPhotoUrl);
+        booking.setCheckedOutAt(LocalDateTime.now());
+        bookingRepository.save(booking);
+
+        log.info("[BE-Exec-03] Helper {} checked out booking {}. Status: PENDING_COMPLETION", helperId, bookingId);
+
+        String notifContent = isUndertime
+                ? "Thợ đã báo hoàn thành sớm (Lý do: " + checkoutReason + "). Vui lòng kiểm tra kỹ trước khi xác nhận."
+                : "Công việc đã xong. Vui lòng kiểm tra và bấm 'Xác nhận & Đánh giá'.";
+
+        notificationService.createNotification(booking.getCustomer().getId(),
+                "Thợ báo đã hoàn thành!", notifContent, "WORK_DONE_BY_HELPER");
+    }
+
+    /**
+     * [BE-Exec-03b] Khách xác nhận hoàn thành -> COMPLETED (Tú)
+     * Kịch bản: Thợ check-out xong, khách kiểm tra và bấm "Xác nhận & Đánh giá"
+     * Conflict 2: Nếu khách im lặng 24h, scheduler sẽ tự động COMPLETED
+     */
+    @Transactional
+    public void confirmComplete(Long bookingId, Long customerId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+
+        if (!booking.getCustomer().getId().equals(customerId)) {
+            throw new ApiException("Bạn không có quyền xác nhận đơn này", HttpStatus.FORBIDDEN);
+        }
+
+        if (booking.getStatus() != BookingStatus.PENDING_COMPLETION) {
+            throw new ApiException("Đơn hàng chưa được thợ báo hoàn thành", HttpStatus.BAD_REQUEST);
+        }
+
+        booking.setStatus(BookingStatus.COMPLETED);
+        booking.setConfirmedDoneAt(LocalDateTime.now());
+        bookingRepository.save(booking);
+
+        log.info("[BE-Exec-03b] Customer {} confirmed completion of booking {}. Status: COMPLETED", customerId, bookingId);
+
+        notificationService.createNotification(booking.getHelper().getId(),
+                "Khách đã xác nhận hoàn thành!",
+                "Tuyệt vời! Khách hàng đã xác nhận. Lương sẽ được giải ngân sau 24h.", "WORK_COMPLETED");
+    }
+
+    private BookingResponse mapToBookingResponse(Booking b, Long viewerId) {
         String fullAddress = "";
         if (b.getAddress() != null) {
-            fullAddress = String.format("%s, %s, %s, %s",
-                    b.getAddress().getAddressDetail(),
-                    b.getAddress().getWardName(),
-                    b.getAddress().getDistrictName(),
-                    b.getAddress().getProvinceName());
+            // [PB-15] Privacy: Helper chỉ thấy Quận/Huyện khi đơn ở trạng thái PENDING_ACCEPTANCE
+            if (b.getHelper().getId().equals(viewerId) && b.getStatus() == BookingStatus.PENDING_ACCEPTANCE) {
+                fullAddress = String.format("%s, %s, %s",
+                        b.getAddress().getWardName(),
+                        b.getAddress().getDistrictName(),
+                        b.getAddress().getProvinceName());
+            } else {
+                fullAddress = String.format("%s, %s, %s, %s",
+                        b.getAddress().getAddressDetail(),
+                        b.getAddress().getWardName(),
+                        b.getAddress().getDistrictName(),
+                        b.getAddress().getProvinceName());
+            }
         }
 
         return BookingResponse.builder()
@@ -374,7 +471,7 @@ public class BookingService {
                 .customerName(b.getCustomer().getFullName())
                 .helperId(b.getHelper().getId())
                 .helperName(b.getHelper().getFullName())
-                .serviceName(b.getService() != null ? b.getService().getName() : "Dịch vụ")
+                .serviceName(b.getCategory() != null ? b.getCategory().getName() : "Dịch vụ")
                 .scheduledStartTime(b.getScheduledStartTime())
                 .scheduledEndTime(b.getScheduledEndTime())
                 .status(b.getStatus())
@@ -392,6 +489,6 @@ public class BookingService {
             throw new ApiException("Bạn không có quyền xem thông tin đơn hàng này", HttpStatus.FORBIDDEN);
         }
 
-        return mapToBookingResponse(booking);
+        return mapToBookingResponse(booking, userId);
     }
 }
