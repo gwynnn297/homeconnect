@@ -1,37 +1,99 @@
-import java.util.ArrayList;
-import java.util.List;
-import Models.GoodStudents;
-import Models.NormalStudents;
-import Models.Student;
-import Exceptions.InvalidFullNameException;
-import Exceptions.InvalidDOBException;
-import Exceptions.InvalidPhoneNumberException;
+############################
+# OS
+############################
+.DS_Store
+Thumbs.db
 
-public class Main {
-    public static void main(String[] args) {
-        List<Student> students = new ArrayList<>();
+############################
+# IDE
+############################
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
 
-        System.out.println("--- 1. Testing GoodStudents ---");
+############################
+# Environment
+############################
+.env
+.env.*
+backend/.env
+frontend/.env
 
-            GoodStudents good = new GoodStudents(
-                "Nguyen Van A", "01/01/2000", "Male", "0901234567", 
-                "Hanoi University", "Excellent", 3.8, "Scholarship 2024"
-            );
-            students.add(good);
-            good.ShowMyInFor();
+############################
+# Backend - Spring Boot
+############################
+**/build/
+**/target/
+**/bin/
+**/.gradle/
+.gradle/
+backend/.gradle/
+out/
 
-        System.out.println("\n--- 2. Testing NormalStudents ---");
+# Log files
+*.log
+logs/
+backend/logs/
 
-            NormalStudents normal = new NormalStudents(
-                "Le Thi B", "15/05/2001", "Female", "0987654321", 
-                "Saigon University", "Good", 85, 90
-            );
-            students.add(normal);
-            normal.ShowMyInFor();
+############################
+# Frontend - React / Node
+############################
+**/node_modules/
+node_modules/
+**/dist/
+dist/
+**/build/
+frontend/build/
 
-        System.out.println("\n--- 4. Polymorphism Demo ---");
-        for (Student s : students) {
-            s.ShowMyInFor();
-        }
-    }
-}
+# Cache
+.npm/
+.cache/
+.parcel-cache/
+
+############################
+# Lock files (tuỳ team quyết định)
+############################
+# Nếu team dùng npm → nên giữ package-lock.json
+# Nếu không muốn commit lock file thì mở dòng dưới
+
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+############################
+# Gradle wrapper (QUAN TRỌNG)
+############################
+# KHÔNG ignore dòng này:
+# gradle/wrapper/gradle-wrapper.jar
+# gradle/wrapper/gradle-wrapper.properties
+
+############################
+# Misc
+############################
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar
+*.rar
+
+.DS_Store
+
+
+.idea
+*.iml
+
+.env
+
+**/build/
+**/target/
+**/bin/
+**/.gradle/
+**/node_modules/
+**/dist/
+
+*.log
+logs/
