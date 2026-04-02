@@ -50,7 +50,6 @@ public class MatchingService {
     @Value("${matching.min-reviews:0}")
     private Integer MIN_REVIEWS;
 
-
     // BE-Match-01: Tìm và mời helper phù hợp
     // Chạy async để không block API response
     // Criteria: Dịch vụ + Online + KYC + Lịch rảnh + Rating tối thiểu
@@ -59,20 +58,22 @@ public class MatchingService {
     public void findAndInviteHelpers(Long postId) {
         log.info("Bắt đầu matching cho Job Post ID: {}", postId);
 
-        // --- Bước 0: Hủy các lời mời cũ chưa được phản hồi thay vì xóa (Để thợ biết lý do) ---
+        // --- Bước 0: Hủy các lời mời cũ chưa được phản hồi thay vì xóa (Để thợ biết lý
+        // do) ---
         List<JobApplication> pendingInvites = jobApplicationRepository.findByPostId(postId).stream()
                 .filter(app -> "INVITED".equals(app.getType()) && "PENDING".equals(app.getStatus()))
                 .collect(Collectors.toList());
-        
+
         for (JobApplication inv : pendingInvites) {
-inv.setStatus("CANCELLED");
+            inv.setStatus("CANCELLED");
             jobApplicationRepository.save(inv);
             notificationService.createNotification(
-                inv.getHelperId(),
-                "Lời mời đã hủy",
-                String.format("Lời mời cho công việc #%d đã bị hủy do khách hàng thay đổi thông tin (quận/giờ) không còn phù hợp.", postId),
-                "INVITATION_CANCELLED"
-            );
+                    inv.getHelperId(),
+                    "Lời mời đã hủy",
+                    String.format(
+                            "Lời mời cho công việc #%d đã bị hủy do khách hàng thay đổi thông tin (quận/giờ) không còn phù hợp.",
+                            postId),
+                    "INVITATION_CANCELLED");
         }
         log.info("Đã hủy (có thông báo) {} lời mời PENDING cũ cho Job #{}", pendingInvites.size(), postId);
 
@@ -89,7 +90,6 @@ inv.setStatus("CANCELLED");
                     jobPost.getDurationHours(),
                     jobPost.getAddress() != null ? jobPost.getAddress().getAddressDetail() : "N/A");
 
-
             // 2. Lọc nền tảng ở DB: service + online + KYC + lịch rảnh
             long durationSecs = (long) jobPost.getDurationHours() * 3600;
             List<Long> eligibleHelperIds = helperProfileRepository.findEligibleHelperIdsWithSchedule(
@@ -97,7 +97,6 @@ inv.setStatus("CANCELLED");
                     jobPost.getWorkDate(),
                     jobPost.getStartTime(),
                     durationSecs);
-
 
             log.info("Kết quả lọc nền tảng (service + online + KYC + schedule): {} helper", eligibleHelperIds.size());
 
@@ -111,16 +110,16 @@ inv.setStatus("CANCELLED");
             // 3. Filter theo working districts ở service layer
             List<Long> districtMatchedHelperIds = filterHelpersByWorkingDistrict(
                     eligibleHelperIds,
-                    jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : null
-            );
+                    jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : null);
             log.info("Kết quả lọc working district: {} helper", districtMatchedHelperIds.size());
             if (districtMatchedHelperIds.isEmpty()) {
                 log.warn(
                         "Không tìm thấy helper theo working district cho Job Post ID: {}, district='{}', candidates={} ",
-                        postId, jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : "N/A", eligibleHelperIds);
+                        postId, jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : "N/A",
+                        eligibleHelperIds);
                 return;
             }
-// 4. Filter + ranking theo rating/reviews ở service layer
+            // 4. Filter + ranking theo rating/reviews ở service layer
             List<Long> rankedHelperIds = filterAndSortByRating(districtMatchedHelperIds);
             log.info("Kết quả lọc rating/reviews: {} helper", rankedHelperIds.size());
             if (rankedHelperIds.isEmpty()) {
@@ -135,7 +134,8 @@ inv.setStatus("CANCELLED");
             // 5. Kết quả cuối cùng (Sau khi tối ưu địa chỉ, ta chỉ dùng District matching)
             List<Long> finalHelperIds = rankedHelperIds;
 
-            // 6. Xử lý các ứng tuyển cũ (APPLIED): Hủy những người không còn phù hợp & báo Cập nhật cho những người vẫn phù hợp
+            // 6. Xử lý các ứng tuyển cũ (APPLIED): Hủy những người không còn phù hợp & báo
+            // Cập nhật cho những người vẫn phù hợp
             List<JobApplication> existingAppliedApps = jobApplicationRepository.findByPostId(postId).stream()
                     .filter(app -> "APPLIED".equals(app.getType()) && "PENDING".equals(app.getStatus()))
                     .collect(Collectors.toList());
@@ -146,21 +146,25 @@ inv.setStatus("CANCELLED");
                     oldApp.setStatus("CANCELLED");
                     jobApplicationRepository.save(oldApp);
                     notificationService.createNotification(
-                        oldApp.getHelperId(),
-                        "Ứng tuyển bị hủy",
-                        String.format("Công việc #%d đã thay đổi thông tin (quận/giờ/địa điểm) không còn phù hợp với khu vực làm việc của bạn.", postId),
-                        "JOB_UPDATED_UNFIT"
-                    );
-                    log.info("Đã tự động hủy ứng tuyển của thợ {} do không còn phù hợp với Job #{} sau cập nhật", oldApp.getHelperId(), postId);
+                            oldApp.getHelperId(),
+                            "Ứng tuyển bị hủy",
+                            String.format(
+                                    "Công việc #%d đã thay đổi thông tin (quận/giờ/địa điểm) không còn phù hợp với khu vực làm việc của bạn.",
+                                    postId),
+                            "JOB_UPDATED_UNFIT");
+                    log.info("Đã tự động hủy ứng tuyển của thợ {} do không còn phù hợp với Job #{} sau cập nhật",
+                            oldApp.getHelperId(), postId);
                 } else {
-// Thợ cũ VẪN phù hợp với yêu cầu mới -> Gửi thông báo cập nhật thông tin
+                    // Thợ cũ VẪN phù hợp với yêu cầu mới -> Gửi thông báo cập nhật thông tin
                     notificationService.createNotification(
-                        oldApp.getHelperId(),
-                        "Công việc đã cập nhật",
-                        String.format("Công việc #%d (%s) bạn ứng tuyển đã được khách hàng chỉnh sửa thông tin. Vui lòng kiểm tra lại.", postId, jobPost.getTitle()),
-                        "JOB_UPDATED"
-                    );
-                    log.info("Đã gửi thông báo cập nhật cho thợ {} (vẫn phù hợp) của Job #{}", oldApp.getHelperId(), postId);
+                            oldApp.getHelperId(),
+                            "Công việc đã cập nhật",
+                            String.format(
+                                    "Công việc #%d (%s) bạn ứng tuyển đã được khách hàng chỉnh sửa thông tin. Vui lòng kiểm tra lại.",
+                                    postId, jobPost.getTitle()),
+                            "JOB_UPDATED");
+                    log.info("Đã gửi thông báo cập nhật cho thợ {} (vẫn phù hợp) của Job #{}", oldApp.getHelperId(),
+                            postId);
                 }
             }
 
@@ -175,14 +179,16 @@ inv.setStatus("CANCELLED");
             int inviteCount = 0;
             for (Long helperId : finalHelperIds) {
                 // 7.1. Kiểm tra xem đã có application chưa
-                Optional<JobApplication> existingApp = jobApplicationRepository.findByPostIdAndHelperId(postId, helperId);
-                
+                Optional<JobApplication> existingApp = jobApplicationRepository.findByPostIdAndHelperId(postId,
+                        helperId);
+
                 if (existingApp.isPresent()) {
                     JobApplication app = existingApp.get();
                     String currentStatus = app.getStatus();
 
                     // Cho phép mời lại khi record cũ đã bị hủy/từ chối.
-                    // Các trạng thái còn hiệu lực (PENDING/ACCEPTED/ASSIGNED/...) thì bỏ qua để tránh duplicate.
+                    // Các trạng thái còn hiệu lực (PENDING/ACCEPTED/ASSIGNED/...) thì bỏ qua để
+                    // tránh duplicate.
                     if ("CANCELLED".equals(currentStatus) || "REJECTED".equals(currentStatus)) {
                         app.setType("INVITED");
                         app.setStatus("PENDING");
@@ -205,14 +211,14 @@ inv.setStatus("CANCELLED");
                         .build();
 
                 jobApplicationRepository.save(invitation);
-                
+
                 // Gửi notification mời việc mới
                 notificationService.createMatchingNotification(helperId, postId, jobPost);
 
                 inviteCount++;
 
                 // Gửi email thông báo
-sendJobInvitationEmail(helperId, postId, jobPost);
+                sendJobInvitationEmail(helperId, postId, jobPost);
                 log.debug("Đã mời Helper ID: {} cho Job Post ID: {}", helperId, postId);
             }
 
@@ -245,8 +251,7 @@ sendJobInvitationEmail(helperId, postId, jobPost);
         return helperIds.stream()
                 .filter(helperId -> districtMapByHelper.getOrDefault(helperId, List.of()).stream()
                         .map(this::normalizeLocationText)
-                        .anyMatch(district ->
-                                !district.isBlank() && normalizedJobDistrict.equals(district)))
+                        .anyMatch(district -> !district.isBlank() && normalizedJobDistrict.equals(district)))
                 .toList();
     }
 
@@ -273,7 +278,7 @@ sendJobInvitationEmail(helperId, postId, jobPost);
                 })
                 .sorted(Comparator.comparing(
                         (Long helperId) -> {
-HelperProfile profile = profileByHelperId.get(helperId);
+                            HelperProfile profile = profileByHelperId.get(helperId);
                             return profile != null ? profile.getRatingAverage() : null;
                         },
                         Comparator.nullsLast(Comparator.reverseOrder()))
@@ -299,7 +304,6 @@ HelperProfile profile = profileByHelperId.get(helperId);
                 .replaceAll("\\s+", " ")
                 .trim();
     }
-
 
     // Gửi email mời việc cho helper
     private void sendJobInvitationEmail(Long helperId, Long postId, JobPost jobPost) {
@@ -327,7 +331,7 @@ HelperProfile profile = profileByHelperId.get(helperId);
         // Resolve service names
         String categoryName = jobPost.getCategory() != null ? jobPost.getCategory().getName() : "N/A";
         StringBuilder serviceDetails = new StringBuilder(categoryName);
-        
+
         List<Integer> childServiceIds = parseServiceIds(jobPost.getServiceId());
         if (!childServiceIds.isEmpty()) {
             serviceDetails.append(" (Bao gồm: ");
@@ -340,21 +344,21 @@ HelperProfile profile = profileByHelperId.get(helperId);
 
         return String.format("""
                 Xin chào %s,
- 
+
                 Bạn có một cơ hội việc mới phù hợp với kỹ năng và lịch rảnh của bạn!
- 
+
                 Chi tiết việc:
                 • Dịch vụ: %s
                 • Ngày: %s
- 
+
                 • Giờ: %s (%d giờ)
                 • Địa điểm: %s
                 • Giá: %,d VNĐ
- 
+
                 Vui lòng mở ứng dụng để xem chi tiết và phản hồi lời mời.
- 
+
                 Hãy nhanh chóng - các helper khác cũng có thể nhận việc này!
- 
+
                 Trân trọng,
                 HomeConnect Team
                 """,
@@ -363,10 +367,9 @@ HelperProfile profile = profileByHelperId.get(helperId);
                 jobPost.getWorkDate(),
                 jobPost.getStartTime(),
                 jobPost.getDurationHours(),
-                jobPost.getAddress() != null ? 
-                    String.format("%s, %s, %s", 
+                jobPost.getAddress() != null ? String.format("%s, %s, %s",
                         jobPost.getAddress().getWardName(),
-jobPost.getAddress().getDistrictName(), 
+                        jobPost.getAddress().getDistrictName(),
                         jobPost.getAddress().getProvinceName()) : "N/A",
                 jobPost.getOfferPrice().longValue());
     }
@@ -378,7 +381,8 @@ jobPost.getAddress().getDistrictName(),
             for (String idStr : split) {
                 try {
                     sIds.add(Integer.parseInt(idStr.trim()));
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) {
+                }
             }
         }
         return sIds;

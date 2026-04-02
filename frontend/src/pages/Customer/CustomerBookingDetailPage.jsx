@@ -24,8 +24,11 @@ const getBookingStatusUI = (status) => {
         case 'PENDING_ACCEPTANCE':
             return { label: 'Chờ xác nhận', tone: 'warning' };
         case 'CONFIRMED':
-        case 'IN_PROGRESS':
             return { label: 'Đã xác nhận', tone: 'success' };
+        case 'ARRIVED':
+            return { label: 'Helper đã đến nhà', tone: 'success' };
+        case 'IN_PROGRESS':
+            return { label: 'Đang thực hiện công việc', tone: 'success' };
         case 'COMPLETED':
             return { label: 'Hoàn thành', tone: 'success' };
         case 'CANCELLED':
@@ -58,6 +61,7 @@ const CustomerBookingDetailPage = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [booking, setBooking] = useState(null);
+    const [confirmingArrival, setConfirmingArrival] = useState(false);
 
     useEffect(() => {
         const loadBooking = async () => {
@@ -81,6 +85,21 @@ const CustomerBookingDetailPage = () => {
 
     const statusUI = getBookingStatusUI(booking?.status);
     const paymentUI = getPaymentStatusUI(booking?.paymentStatus);
+
+    const handleConfirmArrival = async () => {
+        if (!booking?.bookingId || confirmingArrival) return;
+        setConfirmingArrival(true);
+        setError('');
+        try {
+            const res = await BookingService.confirmArrival(booking.bookingId);
+            const data = res?.data ?? res;
+            setBooking(data || booking);
+        } catch (err) {
+            setError(err?.message || 'Không thể xác nhận helper đã đến.');
+        } finally {
+            setConfirmingArrival(false);
+        }
+    };
 
     return (
         <CustomerLayout>
@@ -142,10 +161,25 @@ const CustomerBookingDetailPage = () => {
                                     <div className="cbd-v">{formatDateTime(booking?.scheduledEndTime)}</div>
                                 </div>
                                 <div className="cbd-kv">
+                                    <div className="cbd-k">Thời điểm đã đến</div>
+                                    <div className="cbd-v">{formatDateTime(booking?.arrivedAt)}</div>
+                                </div>
+                                <div className="cbd-kv">
                                     <div className="cbd-k">Địa chỉ</div>
                                     <div className="cbd-v">{booking?.address || '---'}</div>
                                 </div>
                             </div>
+
+                            {booking?.arrivalProofImage && (
+                                <div className="cbd-card">
+                                    <div className="cbd-section-title">Ảnh helper check-in tại địa điểm</div>
+                                    <img
+                                        src={booking.arrivalProofImage}
+                                        alt="Arrival proof"
+                                        style={{ width: '100%', borderRadius: 12, border: '1px solid #e2e8f0' }}
+                                    />
+                                </div>
+                            )}
 
                             <div className="cbd-card">
                                 <div className="cbd-section-title">Người thực hiện</div>
@@ -163,8 +197,27 @@ const CustomerBookingDetailPage = () => {
                                         <span className={`cbd-pill cbd-pill--${paymentUI.tone}`}>{paymentUI.label}</span>
                                     </div>
                                 </div>
+                                <div className="cbd-kv">
+                                    <div className="cbd-k">Xác nhận địa điểm</div>
+                                    <div className="cbd-v">
+                                        {booking?.customerArrivalConfirmed ? 'Đã xác nhận đúng nhà' : 'Chưa xác nhận'}
+                                    </div>
+                                </div>
                             </div>
                         </div>
+
+                        {booking?.status === 'ARRIVED' && booking?.arrivalProofImage && !booking?.customerArrivalConfirmed && (
+                            <div className="cbd-actions" style={{ marginTop: 8 }}>
+                                <button
+                                    className="cbd-btn cbd-btn--primary"
+                                    type="button"
+                                    onClick={handleConfirmArrival}
+                                    disabled={confirmingArrival}
+                                >
+                                    {confirmingArrival ? 'Đang xác nhận...' : 'Xác nhận helper đã đến đúng nhà'}
+                                </button>
+                            </div>
+                        )}
 
                         <div className="cbd-actions">
                             <button className="cbd-btn" type="button" onClick={() => navigate('/customer/manage-posts')}>

@@ -33,6 +33,11 @@ public class JobPostResponse {
     private String status;
     private LocalDateTime createdAt;
 
+    private Long bookingId;
+    private String bookingStatus;
+    private Boolean canCheckin;
+    private Boolean customerArrivalConfirmed;
+
     private Double workSize;
     private Boolean isPremium;
     private Boolean hasPets;
@@ -41,7 +46,8 @@ public class JobPostResponse {
     private Integer categoryId;
     private String categoryName;
 
-    // --- Thông tin chi tiết địa chỉ (Chỉ hiển thị cho Customer hoặc Helper đã được accept) ---
+    // --- Thông tin chi tiết địa chỉ (Chỉ hiển thị cho Customer hoặc Helper đã được
+    // accept) ---
     private String addressDetail;
     private BigDecimal latitude;
     private BigDecimal longitude;

@@ -53,6 +53,20 @@ public class Booking {
     @Column(name = "scheduled_end_time", nullable = false)
     private LocalDateTime scheduledEndTime;
 
+    @Column(name = "arrived_at")
+    private LocalDateTime arrivedAt;
+
+    @Lob
+    @Column(name = "arrival_proof_image", columnDefinition = "LONGTEXT")
+    private String arrivalProofImage;
+
+    @Column(name = "customer_arrival_confirmed", nullable = false)
+    @Builder.Default
+    private Boolean customerArrivalConfirmed = false;
+
+    @Column(name = "customer_arrival_confirmed_at")
+    private LocalDateTime customerArrivalConfirmedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 30)
     @Builder.Default
