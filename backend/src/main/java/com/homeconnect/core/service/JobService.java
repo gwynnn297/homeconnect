@@ -68,6 +68,8 @@ public class JobService {
     public EstimatePriceResponse estimatePrice(EstimatePriceRequest request) {
         log.info("Estimating price for category {}, duration {} hours",
                 request.getCategoryId(), request.getDurationHours());
+        
+        validateWorkSizeAndDuration(request.getCategoryId(), request.getDurationHours(), request.getWorkSize());
 
         ServiceCategory category = serviceCategoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -133,6 +135,8 @@ public class JobService {
             throw new IllegalArgumentException("Danh mục này hiện không khả dụng: " + category.getName());
         }
 
+        validateWorkSizeAndDuration(request.getCategoryId(), request.getDurationHours(), request.getWorkSize());
+
         // Giá = (Giá Cha * Số giờ) + Phí Premium + Tổng Giá Con
         BigDecimal finalPrice = category.getBasePrice().multiply(BigDecimal.valueOf(request.getDurationHours()));
 
@@ -181,7 +185,7 @@ public class JobService {
                 .workSize(request.getWorkSize())
                 .isPremium(Boolean.TRUE.equals(request.getIsPremium()))
                 .hasPets(Boolean.TRUE.equals(request.getHasPets()))
-                .bringTools(Boolean.TRUE.equals(request.getIsPremium()))
+                .bringTools(Boolean.TRUE.equals(request.getBringTools()) || Boolean.TRUE.equals(request.getIsPremium()))
                 .build();
 
         jobPost = jobPostRepository.save(jobPost);
@@ -238,8 +242,8 @@ public class JobService {
     }
 
     public List<JobPostResponse> getAllPublishedJobs(Long helperId) {
-        // Lấy tất cả các việc đang mở (PUBLISHED)
-        // Chỉ lọc bỏ các việc thợ đã ứng tuyển rồi
+        // Lấy tất cả các việc đang OPEN (PUBLISHED)
+        // Chỉ lọc bỏ các việc thợ đã ứng tuyển rồi (Không lọc theo Quận/Huyện)
         return jobPostRepository.findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalDateTime.now()).stream()
                 .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(), helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
                 .map(jp -> mapToJobPostResponse(jp, false))
@@ -322,6 +326,12 @@ public class JobService {
 
         // --- Ràng buộc mới: Phải có lịch rảnh (AVAILABLE) mới được ứng tuyển ---
         validateHelperAvailability(jobPost, helperId);
+
+        // --- Ràng buộc: Phải làm việc tại Quận/Huyện của công việc ---
+        validateJobDistrict(jobPost, helperId);
+
+        // --- Ràng buộc: Phải có kỹ năng phù hợp với danh mục công việc ---
+        validateHelperService(jobPost, helperId);
 
         // Tạo application mới nếu chưa tồn tại bất kỳ loại nào
 
@@ -508,6 +518,8 @@ public class JobService {
         if (request.getHasPets() != null) jobPost.setHasPets(request.getHasPets());
         if (request.getBringTools() != null) jobPost.setBringTools(request.getBringTools());
 
+        validateWorkSizeAndDuration(jobPost.getCategory().getCategoryId(), jobPost.getDurationHours(), jobPost.getWorkSize());
+
         if (request.getAddressId() != null) {
             Address address = addressRepository.findById(request.getAddressId())
                     .orElseThrow(() -> new ApiException("Địa chỉ không tồn tại", HttpStatus.NOT_FOUND));
@@ -630,6 +642,32 @@ public class JobService {
             }
         }
         return totalPrice;
+    }
+
+    private void validateHelperService(JobPost jobPost, Long helperId) {
+        if (jobPost.getCategory() == null) return;
+        
+        Integer requiredCategoryId = jobPost.getCategory().getCategoryId();
+        boolean hasSkill = helperServiceRepository.findByHelper_Id(helperId).stream()
+                .anyMatch(hs -> hs.getCategory() != null && hs.getCategory().getCategoryId().equals(requiredCategoryId));
+
+        if (!hasSkill) {
+            throw new ApiException("Bạn chưa đăng ký kỹ năng cho dịch vụ '" + jobPost.getCategory().getName() + "'.", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private void validateJobDistrict(JobPost jobPost, Long helperId) {
+        String jobDistrict = jobPost.getAddress() != null ? normalizeLocationText(jobPost.getAddress().getDistrictName()) : "";
+        
+        List<String> helperDistricts = helperWorkingDistrictRepository.findByHelper_Id(helperId).stream()
+                .map(com.homeconnect.core.entity.HelperWorkingDistrict::getDistrictName)
+                .map(this::normalizeLocationText)
+                .collect(Collectors.toList());
+
+        if (!helperDistricts.contains(jobDistrict)) {
+            throw new ApiException("Công việc này ở " + (jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : "Quận khác") 
+                    + ", không thuộc các khu vực bạn đăng ký làm việc.", HttpStatus.BAD_REQUEST);
+        }
     }
 
     private void validateHelperAvailability(JobPost jobPost, Long helperId) {
@@ -828,6 +866,39 @@ public class JobService {
 
         log.info("[Auto-Expiry] Bài đăng #{} đã hết hạn. Đã hủy {} đơn ứng tuyển PENDING và gửi thông báo.",
                 postId, pendingApps.size());
+    }
+
+    private void validateWorkSizeAndDuration(Integer categoryId, Integer hours, Double workSize) {
+        if (workSize == null || workSize <= 0 || hours == null) return;
+
+        switch (categoryId) {
+            case 1: // Dọn dẹp nhà (m2)
+                if (workSize > 100 && hours < 4) throw new ApiException("Diện tích trên 100m2 cần tối thiểu 4 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 80 && hours < 3) throw new ApiException("Diện tích trên 80m2 cần tối thiểu 3 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 60 && hours < 2) throw new ApiException("Diện tích trên 60m2 cần tối thiểu 2 giờ", HttpStatus.BAD_REQUEST);
+                break;
+            case 2: // Nấu ăn (số món)
+                if (workSize > 5 && hours < 4) throw new ApiException("Trên 5 món ăn cần tối thiểu 4 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 3 && hours < 3) throw new ApiException("Trên 3 món ăn cần tối thiểu 3 giờ", HttpStatus.BAD_REQUEST);
+                break;
+            case 4: // Vệ sinh văn phòng (m2 sàn)
+                if (workSize > 150 && hours < 4) throw new ApiException("Diện tích trên 150m2 cần tối thiểu 4 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 100 && hours < 3) throw new ApiException("Diện tích trên 100m2 cần tối thiểu 3 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 60 && hours < 2) throw new ApiException("Diện tích trên 60m2 cần tối thiểu 2 giờ", HttpStatus.BAD_REQUEST);
+                break;
+            case 6: // Làm vườn (m2)
+                if (workSize > 80 && hours < 4) throw new ApiException("Diện tích trên 80m2 cần tối thiểu 4 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 50 && hours < 3) throw new ApiException("Diện tích trên 50m2 cần tối thiểu 3 giờ", HttpStatus.BAD_REQUEST);
+                break;
+            case 7: // Sơn sửa (hạng mục)
+                if (workSize > 4 && hours < 4) throw new ApiException("Trên 4 hạng mục cần tối thiểu 4 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 2 && hours < 3) throw new ApiException("Trên 2 hạng mục cần tối thiểu 3 giờ", HttpStatus.BAD_REQUEST);
+                break;
+        }
+
+        if (hours > 12) {
+            throw new ApiException("Thời lượng làm việc tối đa là 12 giờ", HttpStatus.BAD_REQUEST);
+        }
     }
 }
 
