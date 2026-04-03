@@ -45,6 +45,7 @@ const AuthRouter = () => {
         <Route path="/customer/wallet" element={<CustomerWalletPage />} />
         <Route path="/helper/dashboard" element={<HelperDashboardPage />} />
         <Route path="/helper/profile" element={<HelperProfilePage />} />
+        <Route path="/helper/checkin" element={<Navigate to="/helper/new-jobs" replace />} />
         <Route path="/helper/schedule" element={<HelperSchedulePage />} />
         <Route path="/helper/new-jobs" element={<HelperNewJobPage />} />
         <Route path="/helper/wallet" element={<HelperWalletPage />} />

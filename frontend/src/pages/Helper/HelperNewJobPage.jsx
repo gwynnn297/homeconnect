@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import HelperLayout from '../../layouts/HelperLayout';
 import NotificationModal from '../../components/NotificationModal';
+import SmartCheckinModal from '../../components/SmartCheckinModal';
 import HelperJobService from '../../services/HelperJobService';
 import './HelperNewJobPage.css';
 
@@ -82,6 +83,27 @@ const getDisplayStatus = (tabId, jobStatus) => {
     return fallback;
 };
 
+const getCheckinBadgeMeta = (tabId, job) => {
+    const bookingStatus = String(job?.bookingStatus || '').toUpperCase();
+    if (tabId === 'CONFIRMED' && bookingStatus === 'ARRIVED') {
+        return {
+            badgeLabel: 'Đã đến nhà',
+            badgeClass: 'arrived',
+            icon: 'check'
+        };
+    }
+
+    if (tabId === 'CONFIRMED' && bookingStatus === 'IN_PROGRESS' && job?.customerArrivalConfirmed) {
+        return {
+            badgeLabel: 'Khách đã xác minh địa điểm',
+            badgeClass: 'verified',
+            icon: 'check'
+        };
+    }
+
+    return getDisplayStatus(tabId, job?.status);
+};
+
 const StatusIcon = ({ type }) => {
     if (type === 'clock') {
         return (
@@ -122,6 +144,8 @@ const HelperNewJobPage = () => {
     const [jobs, setJobs] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
     const [toast, setToast] = useState(null);
+    const [openCheckinModal, setOpenCheckinModal] = useState(false);
+    const [selectedBookingId, setSelectedBookingId] = useState(null);
     const [loadingApply, setLoadingApply] = useState(false);
     const [loadingJobs, setLoadingJobs] = useState(false);
     const [jobsError, setJobsError] = useState('');
@@ -157,6 +181,20 @@ const HelperNewJobPage = () => {
                 setToast({ message: typeof msg === 'string' ? msg : 'Ứng tuyển thất bại. Vui lòng thử lại.', type: 'error' });
             })
             .finally(() => setLoadingApply(false));
+    };
+
+    const handleOpenCheckin = (job) => {
+        const bookingId = Number(job?.bookingId);
+        if (!bookingId) {
+            setToast({
+                type: 'warning',
+                message: 'Công việc này chưa có booking để check-in.'
+            });
+            return;
+        }
+
+        setSelectedBookingId(bookingId);
+        setOpenCheckinModal(true);
     };
 
     useEffect(() => {
@@ -319,7 +357,7 @@ const HelperNewJobPage = () => {
                     )}
 
                     {!loadingJobs && !jobsError && jobs.map((job) => (
-                        <div key={job.postId} className={`hnj-card hnj-card--${getDisplayStatus(activeTab, job.status).badgeClass}`} onClick={() => handleViewJob(job)}>
+                        <div key={job.postId} className={`hnj-card hnj-card--${getCheckinBadgeMeta(activeTab, job).badgeClass}`} onClick={() => handleViewJob(job)}>
                             <div className="hnj-card-top">
                                 <div className="hnj-customer-info">
                                     <div className="hnj-avatar" aria-hidden="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#0f172a', fontWeight: 700 }}>
@@ -335,9 +373,9 @@ const HelperNewJobPage = () => {
                                 <div className="hnj-price-badge">{formatCurrencyVnd(job.offerPrice)}</div>
                             </div>
                             <div className="hnj-card-status-row">
-                                <span className={`hnj-state-pill hnj-state-pill--${getDisplayStatus(activeTab, job.status).badgeClass}`}>
-                                    <StatusIcon type={getDisplayStatus(activeTab, job.status).icon} />
-                                    {getDisplayStatus(activeTab, job.status).badgeLabel}
+                                <span className={`hnj-state-pill hnj-state-pill--${getCheckinBadgeMeta(activeTab, job).badgeClass}`}>
+                                    <StatusIcon type={getCheckinBadgeMeta(activeTab, job).icon} />
+                                    {getCheckinBadgeMeta(activeTab, job).badgeLabel}
                                 </span>
                             </div>
 
@@ -376,6 +414,18 @@ const HelperNewJobPage = () => {
                                     </svg>
                                     Mã trạng thái: {job.status || 'PUBLISHED'}
                                 </div>
+                                {activeTab === 'CONFIRMED' && Number(job?.bookingId) > 0 && Boolean(job?.canCheckin) && (
+                                    <button
+                                        type="button"
+                                        className="hnj-checkin-btn"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenCheckin(job);
+                                        }}
+                                    >
+                                        Check-in ngay
+                                    </button>
+                                )}
                                 <button className="hnj-view-btn">
                                     Xem chi tiết
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -422,9 +472,9 @@ const HelperNewJobPage = () => {
                                         {formatCurrencyVnd(selectedJob.offerPrice)}
                                     </div>
                                 </div>
-                                <div className={`hnj-state-pill hnj-state-pill--${getDisplayStatus(activeTab, selectedJob.status).badgeClass}`}>
-                                    <StatusIcon type={getDisplayStatus(activeTab, selectedJob.status).icon} />
-                                    {getDisplayStatus(activeTab, selectedJob.status).badgeLabel}
+                                <div className={`hnj-state-pill hnj-state-pill--${getCheckinBadgeMeta(activeTab, selectedJob).badgeClass}`}>
+                                    <StatusIcon type={getCheckinBadgeMeta(activeTab, selectedJob).icon} />
+                                    {getCheckinBadgeMeta(activeTab, selectedJob).badgeLabel}
                                 </div>
 
                                 <div className="hnj-detail-section">
@@ -477,10 +527,47 @@ const HelperNewJobPage = () => {
                                         )}
                                     </button>
                                 )}
+                                {activeTab === 'CONFIRMED' && Number(selectedJob?.bookingId) > 0 && Boolean(selectedJob?.canCheckin) && (
+                                    <button
+                                        type="button"
+                                        className="hnj-btn-checkin"
+                                        onClick={() => handleOpenCheckin(selectedJob)}
+                                    >
+                                        Check-in booking #{selectedJob.bookingId}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
                 )}
+
+                <SmartCheckinModal
+                    isOpen={openCheckinModal}
+                    bookingId={selectedBookingId}
+                    onClose={() => {
+                        setOpenCheckinModal(false);
+                        setSelectedBookingId(null);
+                    }}
+                    onSuccess={() => {
+                        setJobs((prev) => prev.map((job) => (
+                            Number(job?.bookingId) === Number(selectedBookingId)
+                                ? { ...job, bookingStatus: 'ARRIVED', canCheckin: false, customerArrivalConfirmed: false }
+                                : job
+                        )));
+                        setSelectedJob((prev) => {
+                            if (!prev) return prev;
+                            return Number(prev?.bookingId) === Number(selectedBookingId)
+                                ? { ...prev, bookingStatus: 'ARRIVED', canCheckin: false, customerArrivalConfirmed: false }
+                                : prev;
+                        });
+                        setToast({
+                            type: 'success',
+                            message: `Check-in thành công cho booking #${selectedBookingId}.`
+                        });
+                        setOpenCheckinModal(false);
+                        setSelectedBookingId(null);
+                    }}
+                />
             </div>
         </HelperLayout>
     );

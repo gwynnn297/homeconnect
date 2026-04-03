@@ -218,6 +218,14 @@
     border-left: 4px solid #22c55e;
 }
 
+.hnj-card--arrived {
+    border-left: 4px solid #0ea5e9;
+}
+
+.hnj-card--verified {
+    border-left: 4px solid #14b8a6;
+}
+
 .hnj-card-top {
     display: flex;
     justify-content: space-between;
@@ -322,6 +330,18 @@
     border-color: #bbf7d0;
 }
 
+.hnj-state-pill--arrived {
+    color: #0c4a6e;
+    background: #e0f2fe;
+    border-color: #bae6fd;
+}
+
+.hnj-state-pill--verified {
+    color: #115e59;
+    background: #ccfbf1;
+    border-color: #99f6e4;
+}
+
 .hnj-info-row {
     display: flex;
     align-items: flex-start;
@@ -382,6 +402,23 @@
 
 .hnj-view-btn:hover {
     color: #2563eb;
+}
+
+.hnj-checkin-btn {
+    border: 1px solid #10b981;
+    background: #ecfdf5;
+    color: #047857;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.hnj-checkin-btn:hover {
+    background: #d1fae5;
+    border-color: #059669;
 }
 
 /* Modal Overlay */
@@ -627,6 +664,23 @@
     box-shadow: none;
     cursor: not-allowed;
     transform: none;
+}
+
+.hnj-btn-checkin {
+    flex: 1;
+    padding: 14px 20px;
+    border-radius: 12px;
+    border: none;
+    background-color: #10b981;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.hnj-btn-checkin:hover {
+    background-color: #059669;
 }
 
 .hnj-spinner {

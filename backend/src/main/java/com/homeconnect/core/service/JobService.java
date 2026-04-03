@@ -8,9 +8,11 @@ import com.homeconnect.core.dto.request.UpdateJobPostRequest;
 import com.homeconnect.core.dto.response.JobApplicationStatusResponse;
 import com.homeconnect.core.dto.response.JobPostResponse;
 import com.homeconnect.core.entity.Address;
+import com.homeconnect.core.entity.Booking;
 import com.homeconnect.core.entity.JobPost;
 import com.homeconnect.core.event.JobPostCreatedEvent;
 import com.homeconnect.core.repository.JobPostRepository;
+import com.homeconnect.core.repository.BookingRepository;
 import com.homeconnect.core.repository.ServiceRepository;
 import com.homeconnect.core.repository.JobApplicationRepository;
 import com.homeconnect.core.repository.HelperScheduleRepository;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 import java.util.Optional;
 
 import com.homeconnect.core.exception.ApiException;
+import com.homeconnect.core.enums.BookingStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -64,6 +67,7 @@ public class JobService {
     private final ApplicationEventPublisher eventPublisher;
     private final NotificationService notificationService;
     private final HelperScheduleRepository helperScheduleRepository;
+    private final BookingRepository bookingRepository;
 
     public EstimatePriceResponse estimatePrice(EstimatePriceRequest request) {
         log.info("Estimating price for category {}, duration {} hours",
@@ -82,17 +86,18 @@ public class JobService {
         BigDecimal categoryPrice = category.getBasePrice();
         BigDecimal durationHours = BigDecimal.valueOf(request.getDurationHours());
         BigDecimal estimatedPrice = categoryPrice.multiply(durationHours);
-    
-    // Cộng phí Premium nếu khách yêu cầu trong bản tính thử
-    if (Boolean.TRUE.equals(request.getIsPremium())) {
-        estimatedPrice = estimatedPrice.add(BigDecimal.valueOf(50000));
-        log.info("Included 50,000 VND Premium surcharge in estimate");
-    }
 
-    if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
+        // Cộng phí Premium nếu khách yêu cầu trong bản tính thử
+        if (Boolean.TRUE.equals(request.getIsPremium())) {
+            estimatedPrice = estimatedPrice.add(BigDecimal.valueOf(50000));
+            log.info("Included 50,000 VND Premium surcharge in estimate");
+        }
+
+        if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
             for (Integer sId : request.getServiceIds()) {
                 com.homeconnect.core.entity.Service service = serviceRepository.findById(sId)
-                        .orElseThrow(() -> new ApiException("Dịch vụ con " + sId + " không tồn tại", HttpStatus.BAD_REQUEST));
+                        .orElseThrow(() -> new ApiException("Dịch vụ con " + sId + " không tồn tại",
+                                HttpStatus.BAD_REQUEST));
                 if (service.getBasePrice() != null) {
                     estimatedPrice = estimatedPrice.add(service.getBasePrice());
                 }
@@ -115,7 +120,8 @@ public class JobService {
         LocalDateTime requestedWorkDateTime = request.getWorkDate().atTime(request.getStartTime());
         LocalDateTime minAllowedDateTime = LocalDateTime.now().plusHours(MIN_LEAD_TIME_HOURS);
         if (requestedWorkDateTime.isBefore(minAllowedDateTime)) {
-            throw new IllegalArgumentException("Thời gian làm việc phải đặt trước tối thiểu " + MIN_LEAD_TIME_HOURS + " tiếng");
+            throw new IllegalArgumentException(
+                    "Thời gian làm việc phải đặt trước tối thiểu " + MIN_LEAD_TIME_HOURS + " tiếng");
         }
 
         // --- 1. Xử lý Địa chỉ (Bắt buộc chọn từ danh sách đã lưu) ---
@@ -153,16 +159,21 @@ public class JobService {
             serviceIdStr = sIds.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
             for (Integer sId : sIds) {
                 com.homeconnect.core.entity.Service service = serviceRepository.findById(sId)
-                        .orElseThrow(() -> new ApiException("Dịch vụ con " + sId + " không tồn tại", HttpStatus.BAD_REQUEST));
+                        .orElseThrow(() -> new ApiException("Dịch vụ con " + sId + " không tồn tại",
+                                HttpStatus.BAD_REQUEST));
 
-                if (service.getCategory() == null || !service.getCategory().getCategoryId().equals(category.getCategoryId())) {
-                    throw new ApiException("Dịch vụ con " + service.getName() + " không thuộc về danh mục " + category.getName(), HttpStatus.BAD_REQUEST);
+                if (service.getCategory() == null
+                        || !service.getCategory().getCategoryId().equals(category.getCategoryId())) {
+                    throw new ApiException(
+                            "Dịch vụ con " + service.getName() + " không thuộc về danh mục " + category.getName(),
+                            HttpStatus.BAD_REQUEST);
                 }
 
                 if (service.getBasePrice() != null) {
                     finalPrice = finalPrice.add(service.getBasePrice());
                 }
-                if (serviceNames.length() > 0) serviceNames.append(", ");
+                if (serviceNames.length() > 0)
+                    serviceNames.append(", ");
                 serviceNames.append(service.getName());
             }
         }
@@ -173,7 +184,8 @@ public class JobService {
                 .serviceId(serviceIdStr)
                 .category(category)
                 .title(request.getTitle() != null ? request.getTitle()
-                        : "Cần " + (serviceNames.length() > 0 ? serviceNames.toString() : category.getName()) + " - " + request.getDurationHours() + " giờ")
+                        : "Cần " + (serviceNames.length() > 0 ? serviceNames.toString() : category.getName()) + " - "
+                                + request.getDurationHours() + " giờ")
                 .description(request.getDescription())
                 .address(savedAddress)
                 .workDate(request.getWorkDate())
@@ -190,7 +202,8 @@ public class JobService {
 
         jobPost = jobPostRepository.save(jobPost);
 
-        // --- 4. Giữ tiền (nằm trong @Transactional, nếu lỗi sẽ tự rollback cả bước lưu JobPost) ---
+        // --- 4. Giữ tiền (nằm trong @Transactional, nếu lỗi sẽ tự rollback cả bước lưu
+        // JobPost) ---
         walletService.holdMoney(customerId, finalPrice, jobPost.getPostId());
 
         // --- 5. Publish event thông báo ---
@@ -215,17 +228,22 @@ public class JobService {
             return Collections.emptyList();
         }
 
-        List<JobPost> activeJobs = jobPostRepository.findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalDateTime.now()).stream()
+        List<JobPost> activeJobs = jobPostRepository
+                .findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalDateTime.now()).stream()
                 .filter(jp -> jp.getCategory() != null && categoryIds.contains(jp.getCategory().getCategoryId()))
-                .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(), helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
+                .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(),
+                        helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
                 .collect(Collectors.toList());
 
         return activeJobs.stream()
                 .filter(jp -> {
                     // 1. Lọc theo Quận (Sử dụng equals để tránh nhầm Quận 1/12)
-                    String jobDistrict = jp.getAddress() != null ? normalizeLocationText(jp.getAddress().getDistrictName()) : "";
+                    String jobDistrict = jp.getAddress() != null
+                            ? normalizeLocationText(jp.getAddress().getDistrictName())
+                            : "";
                     boolean districtMatch = helperDistricts.stream().anyMatch(hd -> jobDistrict.equals(hd));
-                    if (!districtMatch) return false;
+                    if (!districtMatch)
+                        return false;
 
                     // 2. Lọc theo Lịch rảnh (Phải có slot AVAILABLE bao trùm Job)
                     java.time.LocalTime endTime = jp.getStartTime().plusHours(jp.getDurationHours());
@@ -233,8 +251,7 @@ public class JobService {
                             helperId,
                             jp.getWorkDate(),
                             jp.getStartTime(),
-                            endTime
-                    );
+                            endTime);
                     return availableCount > 0;
                 })
                 .map(jp -> mapToJobPostResponse(jp, false))
@@ -245,7 +262,8 @@ public class JobService {
         // Lấy tất cả các việc đang OPEN (PUBLISHED)
         // Chỉ lọc bỏ các việc thợ đã ứng tuyển rồi (Không lọc theo Quận/Huyện)
         return jobPostRepository.findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalDateTime.now()).stream()
-                .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(), helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
+                .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(),
+                        helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
                 .map(jp -> mapToJobPostResponse(jp, false))
                 .collect(Collectors.toList());
     }
@@ -286,10 +304,29 @@ public class JobService {
             postById.put(post.getPostId(), post);
         }
 
+        Map<Long, Booking> bookingByPostIdMutable = Collections.emptyMap();
+        if ("CONFIRMED".equals(normalizedTab)) {
+            List<Booking> bookings = bookingRepository.findByHelper_IdAndJobPostIdInAndStatusInOrderByCreatedAtDesc(
+                    helperId,
+                    new ArrayList<>(orderedPostIds),
+                    List.of(BookingStatus.CONFIRMED, BookingStatus.ARRIVED, BookingStatus.IN_PROGRESS,
+                            BookingStatus.COMPLETED));
+
+            Map<Long, Booking> map = new HashMap<>();
+            for (Booking booking : bookings) {
+                if (booking.getJobPostId() != null && !map.containsKey(booking.getJobPostId())) {
+                    map.put(booking.getJobPostId(), booking);
+                }
+            }
+            bookingByPostIdMutable = map;
+        }
+
+        final Map<Long, Booking> bookingByPostId = bookingByPostIdMutable;
+
         return orderedPostIds.stream()
                 .map(postById::get)
                 .filter(Objects::nonNull)
-                .map(jp -> mapToJobPostResponse(jp, false))
+                .map(jp -> mapToJobPostResponse(jp, false, bookingByPostId.get(jp.getPostId())))
                 .collect(Collectors.toList());
     }
 
@@ -302,15 +339,16 @@ public class JobService {
             throw new IllegalStateException("Tin này hiện không cho phép ứng tuyển");
         }
 
-        Optional<com.homeconnect.core.entity.JobApplication> existingApp = jobApplicationRepository.findByPostIdAndHelperId(jobId, helperId);
+        Optional<com.homeconnect.core.entity.JobApplication> existingApp = jobApplicationRepository
+                .findByPostIdAndHelperId(jobId, helperId);
         if (existingApp.isPresent()) {
             com.homeconnect.core.entity.JobApplication app = existingApp.get();
-            
+
             // Nếu đã ứng tuyển rồi (loại APPLIED)
             if ("APPLIED".equals(app.getType())) {
                 throw new IllegalStateException("Bạn đã ứng tuyển công việc này rồi");
             }
-            
+
             // Nếu là lời mời (loại INVITED)
             if ("INVITED".equals(app.getType())) {
                 // Kiểm tra lịch rảnh TRỰC TIẾP trước khi chấp nhận lời mời (Chắc ăn hơn)
@@ -318,7 +356,7 @@ public class JobService {
 
                 // Chuyển thành APPLIED (Chấp nhận lời mời)
                 app.setType("APPLIED");
-                app.setStatus("PENDING"); 
+                app.setStatus("PENDING");
                 jobApplicationRepository.save(app);
                 return;
             }
@@ -345,11 +383,16 @@ public class JobService {
     }
 
     private JobPostResponse mapToJobPostResponse(JobPost jobPost, boolean showAddressDetail) {
+        return mapToJobPostResponse(jobPost, showAddressDetail, null);
+    }
+
+    private JobPostResponse mapToJobPostResponse(JobPost jobPost, boolean showAddressDetail, Booking booking) {
         List<Integer> sIds = parseServiceIds(jobPost.getServiceId());
         StringBuilder sNames = new StringBuilder();
         for (Integer id : sIds) {
             serviceRepository.findById(id).ifPresent(s -> {
-                if (sNames.length() > 0) sNames.append(", ");
+                if (sNames.length() > 0)
+                    sNames.append(", ");
                 sNames.append(s.getName());
             });
         }
@@ -372,33 +415,39 @@ public class JobService {
                 .offerPrice(jobPost.getOfferPrice())
                 .currency("VND")
                 .status(jobPost.getStatus())
+                .bookingId(booking != null ? booking.getId() : null)
+                .bookingStatus(booking != null && booking.getStatus() != null ? booking.getStatus().name() : null)
+                .canCheckin(booking != null && booking.getStatus() == BookingStatus.CONFIRMED)
+                .customerArrivalConfirmed(booking != null && Boolean.TRUE.equals(booking.getCustomerArrivalConfirmed()))
                 .createdAt(jobPost.getCreatedAt())
                 .workSize(jobPost.getWorkSize())
                 .isPremium(jobPost.getIsPremium())
                 .hasPets(jobPost.getHasPets())
                 .bringTools(jobPost.getBringTools());
 
-        // Nếu được yêu cầu hiển thị địa chỉ chi tiết (Dành cho Customer hoặc View riêng biệt)
+        // Nếu được yêu cầu hiển thị địa chỉ chi tiết (Dành cho Customer hoặc View riêng
+        // biệt)
         if (showAddressDetail && jobPost.getAddress() != null) {
             com.homeconnect.core.entity.Address addr = jobPost.getAddress();
             String fullAddress = String.join(", ",
                     addr.getAddressDetail() != null ? addr.getAddressDetail() : "",
                     addr.getWardName() != null ? addr.getWardName() : "",
                     addr.getDistrictName() != null ? addr.getDistrictName() : "",
-                    addr.getProvinceName() != null ? addr.getProvinceName() : ""
-            ).replaceAll(", $", "").replaceAll("^, ", "");
+                    addr.getProvinceName() != null ? addr.getProvinceName() : "").replaceAll(", $", "")
+                    .replaceAll("^, ", "");
 
             builder.addressDetail(addr.getAddressDetail())
-                   .latitude(addr.getLatitude())
-                   .longitude(addr.getLongitude())
-                   .fullAddress(fullAddress);
+                    .latitude(addr.getLatitude())
+                    .longitude(addr.getLongitude())
+                    .fullAddress(fullAddress);
         }
 
         return builder.build();
     }
 
     private String normalizeLocationText(String text) {
-        if (text == null) return "";
+        if (text == null)
+            return "";
         return java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "")
                 .toLowerCase()
@@ -409,7 +458,8 @@ public class JobService {
     }
 
     /**
-     * [BE-Post-08] Helper hủy đơn sau khi đã nhận (Áp dụng mức phạt linh hoạt PB-24)
+     * [BE-Post-08] Helper hủy đơn sau khi đã nhận (Áp dụng mức phạt linh hoạt
+     * PB-24)
      */
     @Transactional
     public void cancelJobByHelper(Long postId, Long helperId) {
@@ -442,17 +492,17 @@ public class JobService {
         // 3. Thực hiện phạt và bồi thường
         if (penaltyAmount.compareTo(BigDecimal.ZERO) > 0) {
             walletService.deductPenalty(helperId, penaltyAmount, postId, penaltyReason);
-            
+
             // Trích 50% bồi thường cho khách hàng
             BigDecimal compensation = penaltyAmount.multiply(new BigDecimal("0.5"));
             walletService.compensateCustomer(jobPost.getCustomerId(), compensation, postId);
-            
-            log.info("⚠ Đã phạt Helper {} số tiền {} VNĐ và bồi thường Khách {} số tiền {} VNĐ", 
+
+            log.info("⚠ Đã phạt Helper {} số tiền {} VNĐ và bồi thường Khách {} số tiền {} VNĐ",
                     helperId, penaltyAmount, jobPost.getCustomerId(), compensation);
         }
 
         // 4. Reset trạng thái Job để gom Helper khác
-        jobPost.setStatus("PUBLISHED"); 
+        jobPost.setStatus("PUBLISHED");
         jobPostRepository.save(jobPost);
 
         // 5. Cập nhật Application của Helper này thành CANCELLED
@@ -501,22 +551,32 @@ public class JobService {
         }
 
         if (!"PUBLISHED".equals(jobPost.getStatus())) {
-            throw new ApiException("Chỉ có thể chỉnh sửa bài đăng khi đang ở trạng thái Đang tìm thợ", HttpStatus.BAD_REQUEST);
+            throw new ApiException("Chỉ có thể chỉnh sửa bài đăng khi đang ở trạng thái Đang tìm thợ",
+                    HttpStatus.BAD_REQUEST);
         }
 
         // Lưu giá cũ để so sánh
         BigDecimal oldPrice = jobPost.getOfferPrice();
 
         // Cập nhật các trường
-        if (request.getTitle() != null) jobPost.setTitle(request.getTitle());
-        if (request.getDescription() != null) jobPost.setDescription(request.getDescription());
-        if (request.getWorkDate() != null) jobPost.setWorkDate(request.getWorkDate());
-        if (request.getStartTime() != null) jobPost.setStartTime(request.getStartTime());
-        if (request.getDurationHours() != null) jobPost.setDurationHours(request.getDurationHours());
-        if (request.getWorkSize() != null) jobPost.setWorkSize(request.getWorkSize());
-        if (request.getIsPremium() != null) jobPost.setIsPremium(request.getIsPremium());
-        if (request.getHasPets() != null) jobPost.setHasPets(request.getHasPets());
-        if (request.getBringTools() != null) jobPost.setBringTools(request.getBringTools());
+        if (request.getTitle() != null)
+            jobPost.setTitle(request.getTitle());
+        if (request.getDescription() != null)
+            jobPost.setDescription(request.getDescription());
+        if (request.getWorkDate() != null)
+            jobPost.setWorkDate(request.getWorkDate());
+        if (request.getStartTime() != null)
+            jobPost.setStartTime(request.getStartTime());
+        if (request.getDurationHours() != null)
+            jobPost.setDurationHours(request.getDurationHours());
+        if (request.getWorkSize() != null)
+            jobPost.setWorkSize(request.getWorkSize());
+        if (request.getIsPremium() != null)
+            jobPost.setIsPremium(request.getIsPremium());
+        if (request.getHasPets() != null)
+            jobPost.setHasPets(request.getHasPets());
+        if (request.getBringTools() != null)
+            jobPost.setBringTools(request.getBringTools());
 
         validateWorkSizeAndDuration(jobPost.getCategory().getCategoryId(), jobPost.getDurationHours(), jobPost.getWorkSize());
 
@@ -533,24 +593,29 @@ public class JobService {
         LocalDateTime requestedWorkDateTime = jobPost.getWorkDate().atTime(jobPost.getStartTime());
         LocalDateTime minAllowedDateTime = LocalDateTime.now().plusHours(MIN_LEAD_TIME_HOURS);
         if (requestedWorkDateTime.isBefore(minAllowedDateTime)) {
-            throw new ApiException("Thời gian làm việc mới phải đặt trước tối thiểu " + MIN_LEAD_TIME_HOURS + " tiếng kể từ bây giờ", HttpStatus.BAD_REQUEST);
+            throw new ApiException(
+                    "Thời gian làm việc mới phải đặt trước tối thiểu " + MIN_LEAD_TIME_HOURS + " tiếng kể từ bây giờ",
+                    HttpStatus.BAD_REQUEST);
         }
 
         // Kiểm tra xem các trường ảnh hưởng đến Matching có thay đổi không
-        boolean isMatchingCriticalChanged = request.getWorkDate() != null || 
-                                          request.getStartTime() != null || 
-                                          request.getDurationHours() != null || 
-                                          request.getAddressId() != null || 
-                                          request.getServiceIds() != null;
+        boolean isMatchingCriticalChanged = request.getWorkDate() != null ||
+                request.getStartTime() != null ||
+                request.getDurationHours() != null ||
+                request.getAddressId() != null ||
+                request.getServiceIds() != null;
 
         if (request.getServiceIds() != null) {
             // Kiểm tra tính hợp lệ của các dịch vụ con mới
             for (Integer sId : request.getServiceIds()) {
                 com.homeconnect.core.entity.Service service = serviceRepository.findById(sId)
-                        .orElseThrow(() -> new ApiException("Dịch vụ con " + sId + " không tồn tại", HttpStatus.BAD_REQUEST));
-                
-                if (service.getCategory() == null || !service.getCategory().getCategoryId().equals(jobPost.getCategory().getCategoryId())) {
-                    throw new ApiException("Dịch vụ con " + service.getName() + " không thuộc về danh mục " + jobPost.getCategory().getName(), HttpStatus.BAD_REQUEST);
+                        .orElseThrow(() -> new ApiException("Dịch vụ con " + sId + " không tồn tại",
+                                HttpStatus.BAD_REQUEST));
+
+                if (service.getCategory() == null
+                        || !service.getCategory().getCategoryId().equals(jobPost.getCategory().getCategoryId())) {
+                    throw new ApiException("Dịch vụ con " + service.getName() + " không thuộc về danh mục "
+                            + jobPost.getCategory().getName(), HttpStatus.BAD_REQUEST);
                 }
             }
 
@@ -571,13 +636,15 @@ public class JobService {
         }
 
         JobPost saved = jobPostRepository.save(jobPost);
-        
-        // --- QUAN TRỌNG: Chỉ kích hoạt lại Matching nếu các tiêu chí tìm thợ thay đổi ---
+
+        // --- QUAN TRỌNG: Chỉ kích hoạt lại Matching nếu các tiêu chí tìm thợ thay đổi
+        // ---
         if (isMatchingCriticalChanged) {
             log.info("Phát sự kiện cập nhật để tìm thợ mới cho Job #{} (Do thay đổi tiêu chí Matching)", jobId);
             eventPublisher.publishEvent(new JobPostCreatedEvent(jobId));
         } else {
-            log.info("Cập nhật bài đăng Job #{} thành công (Không thay đổi tiêu chí Matching, giữ nguyên thợ cũ)", jobId);
+            log.info("Cập nhật bài đăng Job #{} thành công (Không thay đổi tiêu chí Matching, giữ nguyên thợ cũ)",
+                    jobId);
         }
 
         return mapToJobPostResponse(saved, true);
@@ -596,7 +663,8 @@ public class JobService {
         }
 
         if (!"PUBLISHED".equals(jobPost.getStatus())) {
-            throw new ApiException("Chỉ có thể hủy bài đăng khi đang ở trạng thái Đang tìm thợ", HttpStatus.BAD_REQUEST);
+            throw new ApiException("Chỉ có thể hủy bài đăng khi đang ở trạng thái Đang tìm thợ",
+                    HttpStatus.BAD_REQUEST);
         }
 
         // 1. Gửi thông báo đến các thợ đã ứng tuyển/mời (PENDING)
@@ -604,11 +672,10 @@ public class JobService {
         for (JobApplication app : apps) {
             if ("PENDING".equals(app.getStatus())) {
                 notificationService.createNotification(
-                    app.getHelperId(),
-                    "Công việc bị hủy",
-                    String.format("Công việc #%d (%s) đã bị khách hàng hủy.", jobId, jobPost.getTitle()),
-                    "JOB_CANCELLED"
-                );
+                        app.getHelperId(),
+                        "Công việc bị hủy",
+                        String.format("Công việc #%d (%s) đã bị khách hàng hủy.", jobId, jobPost.getTitle()),
+                        "JOB_CANCELLED");
             }
         }
 
@@ -616,13 +683,16 @@ public class JobService {
         walletService.refundHold(customerId, jobPost.getOfferPrice(), jobId, "Khách hàng hủy bài đăng");
 
         // 2. Hủy các lời mời/ứng tuyển đang chờ (PENDING)
-        jobApplicationRepository.updateStatusByPostIdAndStatusIn(jobId, "CANCELLED", java.util.Arrays.asList("PENDING"));
+        jobApplicationRepository.updateStatusByPostIdAndStatusIn(jobId, "CANCELLED",
+                java.util.Arrays.asList("PENDING"));
 
         // Cập nhật trạng thái bài đăng
         jobPost.setStatus("CANCELLED");
         jobPostRepository.save(jobPost);
-        
-        log.info("Khách hàng {} đã hủy Job Post #{} thành công. Tiền đã hoàn, các lời mời đã hủy và gửi thông báo cho thợ.", customerId, jobId);
+
+        log.info(
+                "Khách hàng {} đã hủy Job Post #{} thành công. Tiền đã hoàn, các lời mời đã hủy và gửi thông báo cho thợ.",
+                customerId, jobId);
     }
 
     private BigDecimal calculatePrice(JobPost jobPost) {
@@ -676,11 +746,12 @@ public class JobService {
                 helperId,
                 jobPost.getWorkDate(),
                 jobPost.getStartTime(),
-                endTime
-        );
+                endTime);
 
         if (availableCount == 0) {
-            throw new ApiException("Bạn chưa cài đặt lịch trống (AVAILABLE) vào khung giờ này hoặc đã bận việc khác. Vui lòng kiểm tra lại lịch làm việc của mình.", HttpStatus.BAD_REQUEST);
+            throw new ApiException(
+                    "Bạn chưa cài đặt lịch trống (AVAILABLE) vào khung giờ này hoặc đã bận việc khác. Vui lòng kiểm tra lại lịch làm việc của mình.",
+                    HttpStatus.BAD_REQUEST);
         }
     }
 
@@ -691,7 +762,8 @@ public class JobService {
             for (String idStr : split) {
                 try {
                     sIds.add(Integer.parseInt(idStr.trim()));
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) {
+                }
             }
         }
         return sIds;
@@ -727,7 +799,8 @@ public class JobService {
         boolean isAccepted = "ACCEPTED".equals(app.getStatus());
 
         // Xây dựng builder với thông tin cơ bản & bài đăng
-        JobApplicationStatusResponse.JobApplicationStatusResponseBuilder builder = JobApplicationStatusResponse.builder()
+        JobApplicationStatusResponse.JobApplicationStatusResponseBuilder builder = JobApplicationStatusResponse
+                .builder()
                 .applicationId(app.getApplicationId())
                 .type(app.getType())
                 .status(app.getStatus())
@@ -752,16 +825,16 @@ public class JobService {
                     addr.getAddressDetail() != null ? addr.getAddressDetail() : "",
                     addr.getWardName() != null ? addr.getWardName() : "",
                     addr.getDistrictName() != null ? addr.getDistrictName() : "",
-                    addr.getProvinceName() != null ? addr.getProvinceName() : ""
-            ).replaceAll(", $", "").replaceAll("^, ", "");
+                    addr.getProvinceName() != null ? addr.getProvinceName() : "").replaceAll(", $", "")
+                    .replaceAll("^, ", "");
 
             builder.addressDetail(addr.getAddressDetail())
-                   .wardName(addr.getWardName())
-                   .districtName(addr.getDistrictName())
-                   .provinceName(addr.getProvinceName())
-                   .latitude(addr.getLatitude())
-                   .longitude(addr.getLongitude())
-                   .fullAddress(fullAddress);
+                    .wardName(addr.getWardName())
+                    .districtName(addr.getDistrictName())
+                    .provinceName(addr.getProvinceName())
+                    .latitude(addr.getLatitude())
+                    .longitude(addr.getLongitude())
+                    .fullAddress(fullAddress);
 
             log.info("Thợ #{} đã ACCEPTED bài #{} → Trả về địa chỉ khách hàng: {}", helperId, jobId, fullAddress);
         } else if (isAccepted) {
@@ -775,11 +848,11 @@ public class JobService {
      * [BE-Auto-01] Tự động hết hạn bài đăng khi qua giờ bắt đầu công việc.
      * Chạy bởi JobAutomationTask định kỳ.
      * Logic:
-     *   1. Tìm các bài đăng PUBLISHED đã qua giờ bắt đầu.
-     *   2. Chuyển trạng thái sang EXPIRED.
-     *   3. Hoàn tiền ký quỹ về ví khách hàng.
-     *   4. Hủy các đơn ứng tuyển/lời mời PENDING.
-     *   5. Gửi thông báo cho khách hàng và thợ.
+     * 1. Tìm các bài đăng PUBLISHED đã qua giờ bắt đầu.
+     * 2. Chuyển trạng thái sang EXPIRED.
+     * 3. Hoàn tiền ký quỹ về ví khách hàng.
+     * 4. Hủy các đơn ứng tuyển/lời mời PENDING.
+     * 5. Gửi thông báo cho khách hàng và thợ.
      */
     @Transactional
     public void cleanupExpiredJobs() {
@@ -823,11 +896,10 @@ public class JobService {
         // 2. Hoàn tiền ký quỹ về ví khách hàng
         try {
             walletService.refundHold(
-                customerId,
-                jobPost.getOfferPrice(),
-                postId,
-                "Bài đăng tự động hết hạn do quá giờ làm việc"
-            );
+                    customerId,
+                    jobPost.getOfferPrice(),
+                    postId,
+                    "Bài đăng tự động hết hạn do quá giờ làm việc");
             log.info("[Auto-Expiry] Đã hoàn {} VNĐ về ví khách hàng #{} cho bài đăng #{}.",
                     jobPost.getOfferPrice(), customerId, postId);
         } catch (Exception e) {
@@ -846,23 +918,23 @@ public class JobService {
 
             // 4. Thông báo cho từng thợ đã ứng tuyển/được mời
             notificationService.createNotification(
-                app.getHelperId(),
-                "Công việc đã hết hạn",
-                String.format("Công việc '%s' (vào lúc %s ngày %s) đã hết hạn vì khách hàng chưa xác nhận. Bạn có thể tìm thêm việc mới!",
-                    jobPost.getTitle(), jobPost.getStartTime(), jobPost.getWorkDate()),
-                "JOB_EXPIRED"
-            );
+                    app.getHelperId(),
+                    "Công việc đã hết hạn",
+                    String.format(
+                            "Công việc '%s' (vào lúc %s ngày %s) đã hết hạn vì khách hàng chưa xác nhận. Bạn có thể tìm thêm việc mới!",
+                            jobPost.getTitle(), jobPost.getStartTime(), jobPost.getWorkDate()),
+                    "JOB_EXPIRED");
             log.debug("[Auto-Expiry] Đã báo hủy cho thợ #{} (bài #{}).", app.getHelperId(), postId);
         }
 
         // 5. Thông báo cho khách hàng
         notificationService.createNotification(
-            customerId,
-            "Bài đăng đã tự động hết hạn",
-            String.format("Bài đăng '%s' (lúc %s ngày %s) đã hết hạn vì chưa có thợ được chốt. Tiền giữ chỗ đã được hoàn lại vào ví của bạn.",
-                jobPost.getTitle(), jobPost.getStartTime(), jobPost.getWorkDate()),
-            "JOB_POST_EXPIRED"
-        );
+                customerId,
+                "Bài đăng đã tự động hết hạn",
+                String.format(
+                        "Bài đăng '%s' (lúc %s ngày %s) đã hết hạn vì chưa có thợ được chốt. Tiền giữ chỗ đã được hoàn lại vào ví của bạn.",
+                        jobPost.getTitle(), jobPost.getStartTime(), jobPost.getWorkDate()),
+                "JOB_POST_EXPIRED");
 
         log.info("[Auto-Expiry] Bài đăng #{} đã hết hạn. Đã hủy {} đơn ứng tuyển PENDING và gửi thông báo.",
                 postId, pendingApps.size());
@@ -901,5 +973,3 @@ public class JobService {
         }
     }
 }
-
-
