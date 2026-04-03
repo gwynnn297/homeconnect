@@ -2,15 +2,10 @@ package com.homeconnect.core.dto.request;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
-public class CreateReviewRequest {
-    @NotNull(message = "Booking ID không được để trống")
-    private Long bookingId;
-
-    @NotNull(message = "Rating không được để trống")
+public class UpdateReviewRequest {
     @Min(value = 1, message = "Rating tối thiểu là 1")
     @Max(value = 5, message = "Rating tối đa là 5")
     private Integer rating;

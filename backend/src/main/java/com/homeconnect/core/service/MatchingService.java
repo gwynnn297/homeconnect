@@ -28,7 +28,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 // BE-Match-01: Matching Engine Service
-// Tự động tìm và mời helper phù hợp cho job post
+// Tự động tìm helper phù hợp và chỉ gửi email + thông báo (không tạo JobApplication).
+// Thợ xem bài trên feed và chủ động ứng tuyển → mới có bản ghi type=APPLIED.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -50,47 +51,28 @@ public class MatchingService {
     @Value("${matching.min-reviews:0}")
     private Integer MIN_REVIEWS;
 
-    // BE-Match-01: Tìm và mời helper phù hợp
-    // Chạy async để không block API response
-    // Criteria: Dịch vụ + Online + KYC + Lịch rảnh + Rating tối thiểu
+
+    // BE-Match-01: Tìm helper phù hợp — chỉ notify (email + in-app), không tạo INVITED.
+    // Dùng cho cả tạo mới lẫn cập nhật bài đăng.
+    // Khi cập nhật (các đơn PENDING đã có — chủ yếu do thợ đã APPLIED):
+    //   - Thợ VẪN phù hợp  → Thông báo cập nhật tin
+    //   - Thợ KHÔNG còn phù hợp → Hủy application + thông báo
+    // Thợ mới phù hợp → Chỉ gửi email + thông báo; họ vào feed và bấm ứng tuyển nếu muốn.
     @Async
     @Transactional
     public void findAndInviteHelpers(Long postId) {
-        log.info("Bắt đầu matching cho Job Post ID: {}", postId);
-
-        // --- Bước 0: Hủy các lời mời cũ chưa được phản hồi thay vì xóa (Để thợ biết lý
-        // do) ---
-        List<JobApplication> pendingInvites = jobApplicationRepository.findByPostId(postId).stream()
-                .filter(app -> "INVITED".equals(app.getType()) && "PENDING".equals(app.getStatus()))
-                .collect(Collectors.toList());
-
-        for (JobApplication inv : pendingInvites) {
-            inv.setStatus("CANCELLED");
-            jobApplicationRepository.save(inv);
-            notificationService.createNotification(
-                    inv.getHelperId(),
-                    "Lời mời đã hủy",
-                    String.format(
-                            "Lời mời cho công việc #%d đã bị hủy do khách hàng thay đổi thông tin (quận/giờ) không còn phù hợp.",
-                            postId),
-                    "INVITATION_CANCELLED");
-        }
-        log.info("Đã hủy (có thông báo) {} lời mời PENDING cũ cho Job #{}", pendingInvites.size(), postId);
+        log.info("[Matching] Bắt đầu matching cho Job Post ID: {}", postId);
 
         try {
-            // 1. Lấy thông tin job post
+            // ===== BƯỚC 1: Lấy thông tin job post =====
             JobPost jobPost = jobPostRepository.findById(postId)
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy job post với ID: " + postId));
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy job post: " + postId));
 
-            log.info("Chi tiết Job Post: Category ID={}, Service IDs={}, Ngày={}, Giờ={}, Thời lượng={}h, Địa điểm={}",
-                    jobPost.getCategory().getCategoryId(),
-                    jobPost.getServiceId() != null ? jobPost.getServiceId() : "N/A",
-                    jobPost.getWorkDate(),
-                    jobPost.getStartTime(),
-                    jobPost.getDurationHours(),
-                    jobPost.getAddress() != null ? jobPost.getAddress().getAddressDetail() : "N/A");
+            String jobDistrict = jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : null;
+            log.info("[Matching] Job #{}: Quận='{}', Ngày={}, Giờ={}, {}h",
+                    postId, jobDistrict, jobPost.getWorkDate(), jobPost.getStartTime(), jobPost.getDurationHours());
 
-            // 2. Lọc nền tảng ở DB: service + online + KYC + lịch rảnh
+            // ===== BƯỚC 2: Tìm thợ đủ điều kiện (KYC + Online + Lịch rảnh + Kỹ năng) =====
             long durationSecs = (long) jobPost.getDurationHours() * 3600;
             List<Long> eligibleHelperIds = helperProfileRepository.findEligibleHelperIdsWithSchedule(
                     jobPost.getCategory().getCategoryId(),
@@ -98,136 +80,102 @@ public class MatchingService {
                     jobPost.getStartTime(),
                     durationSecs);
 
-            log.info("Kết quả lọc nền tảng (service + online + KYC + schedule): {} helper", eligibleHelperIds.size());
+            log.info("[Matching] Job #{}: {} thợ đủ điều kiện nền tảng", postId, eligibleHelperIds.size());
 
-            if (eligibleHelperIds.isEmpty()) {
-                log.warn("Không tìm thấy helper ở bước lọc nền tảng cho Category ID: {}, Ngày: {}, Giờ: {}",
-                        jobPost.getCategory().getCategoryId(), jobPost.getWorkDate(), jobPost.getStartTime());
+            // ===== BƯỚC 3: Lọc theo quận làm việc =====
+            List<Long> districtMatchedIds = filterHelpersByWorkingDistrict(eligibleHelperIds, jobDistrict);
+            log.info("[Matching] Job #{}: {} thợ phù hợp quận '{}'", postId, districtMatchedIds.size(), jobDistrict);
 
-                return;
-            }
+            // ===== BƯỚC 4: Lọc + xếp hạng theo rating =====
+            List<Long> finalHelperIds = districtMatchedIds.isEmpty()
+                    ? List.of()
+                    : filterAndSortByRating(districtMatchedIds);
 
-            // 3. Filter theo working districts ở service layer
-            List<Long> districtMatchedHelperIds = filterHelpersByWorkingDistrict(
-                    eligibleHelperIds,
-                    jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : null);
-            log.info("Kết quả lọc working district: {} helper", districtMatchedHelperIds.size());
-            if (districtMatchedHelperIds.isEmpty()) {
-                log.warn(
-                        "Không tìm thấy helper theo working district cho Job Post ID: {}, district='{}', candidates={} ",
-                        postId, jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : "N/A",
-                        eligibleHelperIds);
-                return;
-            }
-            // 4. Filter + ranking theo rating/reviews ở service layer
-            List<Long> rankedHelperIds = filterAndSortByRating(districtMatchedHelperIds);
-            log.info("Kết quả lọc rating/reviews: {} helper", rankedHelperIds.size());
-            if (rankedHelperIds.isEmpty()) {
-                log.warn(
-                        "Không tìm thấy helper đạt ngưỡng rating/review cho Job Post ID: {}, minRating={}, minReviews={}, candidates={} ",
-                        postId, MIN_RATING, MIN_REVIEWS, districtMatchedHelperIds);
-                return;
-            }
+            log.info("[Matching] Job #{}: {} thợ sau lọc rating", postId, finalHelperIds.size());
 
-            log.info("Tìm thấy {} helper phù hợp sau district + rating: {}", rankedHelperIds.size(), rankedHelperIds);
-
-            // 5. Kết quả cuối cùng (Sau khi tối ưu địa chỉ, ta chỉ dùng District matching)
-            List<Long> finalHelperIds = rankedHelperIds;
-
-            // 6. Xử lý các ứng tuyển cũ (APPLIED): Hủy những người không còn phù hợp & báo
-            // Cập nhật cho những người vẫn phù hợp
-            List<JobApplication> existingAppliedApps = jobApplicationRepository.findByPostId(postId).stream()
-                    .filter(app -> "APPLIED".equals(app.getType()) && "PENDING".equals(app.getStatus()))
+            // ===== BƯỚC 5: Xử lý tất cả application PENDING hiện tại =====
+            // Phân loại: thợ VẪN phù hợp → thông báo cập nhật; thợ KHÔNG còn phù hợp → hủy + thông báo hủy
+            List<JobApplication> existingPendingApps = jobApplicationRepository.findByPostId(postId).stream()
+                    .filter(app -> "PENDING".equals(app.getStatus()))
                     .collect(Collectors.toList());
 
-            for (JobApplication oldApp : existingAppliedApps) {
-                if (!finalHelperIds.contains(oldApp.getHelperId())) {
-                    // Thợ cũ không còn phù hợp với yêu cầu mới (Khác Quận, quá xa GPS, v.v.)
-                    oldApp.setStatus("CANCELLED");
-                    jobApplicationRepository.save(oldApp);
+            for (JobApplication app : existingPendingApps) {
+                if (finalHelperIds.contains(app.getHelperId())) {
+                    // Thợ VẪN phù hợp → Thông báo bài đăng đã cập nhật
                     notificationService.createNotification(
-                            oldApp.getHelperId(),
-                            "Ứng tuyển bị hủy",
-                            String.format(
-                                    "Công việc #%d đã thay đổi thông tin (quận/giờ/địa điểm) không còn phù hợp với khu vực làm việc của bạn.",
-                                    postId),
-                            "JOB_UPDATED_UNFIT");
-                    log.info("Đã tự động hủy ứng tuyển của thợ {} do không còn phù hợp với Job #{} sau cập nhật",
-                            oldApp.getHelperId(), postId);
+                        app.getHelperId(),
+                        "Công việc đã cập nhật thông tin",
+                        String.format("Công việc '%s' (#%d) bạn đang quan tâm vừa được khách hàng chỉnh sửa thông tin. " +
+                                      "Bạn vẫn phù hợp với khu vực làm việc. Vui lòng kiểm tra lại.",
+                                      jobPost.getTitle(), postId),
+                        "JOB_UPDATED"
+                    );
+                    log.info("[Matching] Job #{}: Thợ #{} ({}) vẫn phù hợp → Báo cập nhật",
+                            postId, app.getHelperId(), app.getType());
                 } else {
-                    // Thợ cũ VẪN phù hợp với yêu cầu mới -> Gửi thông báo cập nhật thông tin
+                    // Thợ KHÔNG còn phù hợp → Hủy application + thông báo hủy
+                    app.setStatus("CANCELLED");
+                    jobApplicationRepository.save(app);
+
+                    String msg = "INVITED".equals(app.getType())
+                        ? String.format("Lời mời công việc '%s' (#%d) của bạn đã bị hủy do khách hàng đổi sang khu vực làm việc mới không phù hợp với bạn.",
+                                        jobPost.getTitle(), postId)
+                        : String.format("Đơn ứng tuyển công việc '%s' (#%d) của bạn đã bị hủy tự động do khách hàng thay đổi khu vực làm việc.",
+                                        jobPost.getTitle(), postId);
+
                     notificationService.createNotification(
-                            oldApp.getHelperId(),
-                            "Công việc đã cập nhật",
-                            String.format(
-                                    "Công việc #%d (%s) bạn ứng tuyển đã được khách hàng chỉnh sửa thông tin. Vui lòng kiểm tra lại.",
-                                    postId, jobPost.getTitle()),
-                            "JOB_UPDATED");
-                    log.info("Đã gửi thông báo cập nhật cho thợ {} (vẫn phù hợp) của Job #{}", oldApp.getHelperId(),
-                            postId);
+                        app.getHelperId(),
+                        "Lời mời bị hủy do thay đổi khu vực",
+                        msg,
+                        "INVITATION_CANCELLED"
+                    );
+                    log.info("[Matching] Job #{}: Thợ #{} ({}) không còn phù hợp → Hủy + thông báo",
+                            postId, app.getHelperId(), app.getType());
                 }
             }
 
+            // ===== BƯỚC 6: Gửi lời mời cho thợ phù hợp mới =====
             if (finalHelperIds.isEmpty()) {
-                log.warn(
-                        "Không tìm thấy helper mới sau khi filter cho Job Post ID: {}, candidates={}",
-                        postId, rankedHelperIds);
+                log.warn("[Matching] Job #{}: Không tìm được thợ phù hợp. Thông báo cho khách hàng.", postId);
+                notificationService.createNotification(
+                    jobPost.getCustomerId(),
+                    "Chưa tìm được thợ phù hợp",
+                    String.format("Hệ thống chưa tìm được thợ phù hợp cho công việc '%s' tại '%s'. " +
+                                  "Bạn có thể thử điều chỉnh khu vực hoặc thời gian.", jobPost.getTitle(), jobDistrict),
+                    "NO_HELPER_FOUND"
+                );
                 return;
             }
 
-            // 7. Gửi lời mời cho thợ mới (Những người chưa từng ứng tuyển hay được mời)
-            int inviteCount = 0;
+            int notifyCount = 0;
             for (Long helperId : finalHelperIds) {
-                // 7.1. Kiểm tra xem đã có application chưa
-                Optional<JobApplication> existingApp = jobApplicationRepository.findByPostIdAndHelperId(postId,
-                        helperId);
+                Optional<JobApplication> existingApp = jobApplicationRepository.findByPostIdAndHelperId(postId, helperId);
 
                 if (existingApp.isPresent()) {
-                    JobApplication app = existingApp.get();
-                    String currentStatus = app.getStatus();
-
-                    // Cho phép mời lại khi record cũ đã bị hủy/từ chối.
-                    // Các trạng thái còn hiệu lực (PENDING/ACCEPTED/ASSIGNED/...) thì bỏ qua để
-                    // tránh duplicate.
-                    if ("CANCELLED".equals(currentStatus) || "REJECTED".equals(currentStatus)) {
-                        app.setType("INVITED");
-                        app.setStatus("PENDING");
-                        jobApplicationRepository.save(app);
-
-                        notificationService.createMatchingNotification(helperId, postId, jobPost);
-                        inviteCount++;
-                        sendJobInvitationEmail(helperId, postId, jobPost);
-                        log.debug("Đã mời lại Helper ID: {} cho Job Post ID: {}", helperId, postId);
+                    String status = existingApp.get().getStatus();
+                    if ("PENDING".equals(status)) {
+                        // Đã có đơn chờ (thợ đã ứng tuyển hoặc bản ghi INVITED cũ) — không spam thêm
+                        continue;
                     }
-                    continue;
+                    if ("ACCEPTED".equals(status) || "ASSIGNED".equals(status)) {
+                        continue;
+                    }
+                    // CANCELLED / REJECTED / EXPIRED: có thể nhắc lại qua notify (thợ tự apply lại trên feed)
                 }
 
-                // 7.2. Tạo lời mời cho thợ mới (INVITED)
-                JobApplication invitation = JobApplication.builder()
-                        .postId(postId)
-                        .helperId(helperId)
-                        .type("INVITED")
-                        .status("PENDING")
-                        .build();
-
-                jobApplicationRepository.save(invitation);
-
-                // Gửi notification mời việc mới
                 notificationService.createMatchingNotification(helperId, postId, jobPost);
-
-                inviteCount++;
-
-                // Gửi email thông báo
                 sendJobInvitationEmail(helperId, postId, jobPost);
-                log.debug("Đã mời Helper ID: {} cho Job Post ID: {}", helperId, postId);
+                notifyCount++;
+                log.debug("[Matching] Job #{}: Đã gửi thông báo + email cho thợ #{} (không tạo JobApplication)", postId, helperId);
             }
 
-            log.info("Matching hoàn tất: Đã gửi thêm {} lời mời mới cho Job #{}", inviteCount, postId);
+            log.info("[Matching] Job #{}: Hoàn tất. Đã gửi {} thông báo (email + in-app), thợ ứng tuyển chủ động trên feed.", postId, notifyCount);
 
         } catch (Exception e) {
-            log.error("Lỗi khi thực hiện matching cho Job Post ID: {}", postId, e);
+            log.error("[Matching] Lỗi khi thực hiện matching cho Job Post ID: {}", postId, e);
         }
     }
+
 
     // Filter helper theo khu vực làm việc đã đăng ký
     private List<Long> filterHelpersByWorkingDistrict(List<Long> helperIds, String jobDistrictName) {
@@ -251,7 +199,8 @@ public class MatchingService {
         return helperIds.stream()
                 .filter(helperId -> districtMapByHelper.getOrDefault(helperId, List.of()).stream()
                         .map(this::normalizeLocationText)
-                        .anyMatch(district -> !district.isBlank() && normalizedJobDistrict.equals(district)))
+                        .anyMatch(district ->
+                                !district.isBlank() && normalizedJobDistrict.equals(district)))
                 .toList();
     }
 
@@ -278,7 +227,7 @@ public class MatchingService {
                 })
                 .sorted(Comparator.comparing(
                         (Long helperId) -> {
-                            HelperProfile profile = profileByHelperId.get(helperId);
+HelperProfile profile = profileByHelperId.get(helperId);
                             return profile != null ? profile.getRatingAverage() : null;
                         },
                         Comparator.nullsLast(Comparator.reverseOrder()))
@@ -304,6 +253,7 @@ public class MatchingService {
                 .replaceAll("\\s+", " ")
                 .trim();
     }
+
 
     // Gửi email mời việc cho helper
     private void sendJobInvitationEmail(Long helperId, Long postId, JobPost jobPost) {
@@ -331,7 +281,7 @@ public class MatchingService {
         // Resolve service names
         String categoryName = jobPost.getCategory() != null ? jobPost.getCategory().getName() : "N/A";
         StringBuilder serviceDetails = new StringBuilder(categoryName);
-
+        
         List<Integer> childServiceIds = parseServiceIds(jobPost.getServiceId());
         if (!childServiceIds.isEmpty()) {
             serviceDetails.append(" (Bao gồm: ");
@@ -344,21 +294,21 @@ public class MatchingService {
 
         return String.format("""
                 Xin chào %s,
-
+ 
                 Bạn có một cơ hội việc mới phù hợp với kỹ năng và lịch rảnh của bạn!
-
+ 
                 Chi tiết việc:
                 • Dịch vụ: %s
                 • Ngày: %s
-
+ 
                 • Giờ: %s (%d giờ)
                 • Địa điểm: %s
                 • Giá: %,d VNĐ
-
-                Vui lòng mở ứng dụng để xem chi tiết và phản hồi lời mời.
-
+ 
+                Vui lòng mở ứng dụng, xem việc trong danh sách và ứng tuyển nếu bạn muốn nhận việc.
+ 
                 Hãy nhanh chóng - các helper khác cũng có thể nhận việc này!
-
+ 
                 Trân trọng,
                 HomeConnect Team
                 """,
@@ -367,9 +317,10 @@ public class MatchingService {
                 jobPost.getWorkDate(),
                 jobPost.getStartTime(),
                 jobPost.getDurationHours(),
-                jobPost.getAddress() != null ? String.format("%s, %s, %s",
+                jobPost.getAddress() != null ? 
+                    String.format("%s, %s, %s", 
                         jobPost.getAddress().getWardName(),
-                        jobPost.getAddress().getDistrictName(),
+jobPost.getAddress().getDistrictName(), 
                         jobPost.getAddress().getProvinceName()) : "N/A",
                 jobPost.getOfferPrice().longValue());
     }
@@ -381,8 +332,7 @@ public class MatchingService {
             for (String idStr : split) {
                 try {
                     sIds.add(Integer.parseInt(idStr.trim()));
-                } catch (NumberFormatException ignored) {
-                }
+                } catch (NumberFormatException ignored) {}
             }
         }
         return sIds;

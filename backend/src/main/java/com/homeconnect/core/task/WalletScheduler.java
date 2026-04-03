@@ -77,8 +77,8 @@ public class WalletScheduler {
 
                 // 3. Push Notification cho Helper
                 String helperName = booking.getHelper().getFullName();
-                String serviceName = booking.getService() != null 
-                        ? booking.getService().getName() : "Dịch vụ";
+                String serviceName = booking.getCategory() != null
+                        ? booking.getCategory().getName() : "Dịch vụ";
 
                 notificationService.createNotification(
                         booking.getHelper().getId(),
@@ -102,5 +102,43 @@ public class WalletScheduler {
 
         log.info("[WalletScheduler] Hoàn tất: {} thành công, {} thất bại / {} tổng.",
                 successCount, failCount, eligibleBookings.size());
+    }
+
+    /**
+     * [PB-14 Conflict 2] Auto-Finish Timer: Chạy mỗi giờ.
+     * Nếu Khách im lặng 24h sau khi Thợ check-out -> Tự động COMPLETED.
+     */
+    @Scheduled(cron = "0 0 * * * *") // mỗi đầu giờ
+    public void autoConfirmComplete() {
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
+
+        List<Booking> pendingBookings = bookingRepository.findByStatusAndCheckedOutAtBefore(
+                BookingStatus.PENDING_COMPLETION, cutoff);
+
+        if (pendingBookings.isEmpty()) return;
+
+        log.info("[AutoConfirm] Tìm thấy {} booking PENDING_COMPLETION quá 24h, tự động COMPLETED.", pendingBookings.size());
+
+        for (Booking booking : pendingBookings) {
+            try {
+                booking.setStatus(BookingStatus.COMPLETED);
+                booking.setConfirmedDoneAt(LocalDateTime.now());
+                bookingRepository.save(booking);
+
+                notificationService.createNotification(booking.getCustomer().getId(),
+                        "Đơn hàng đã tự động hoàn thành",
+                        "Vì bạn không phản hồi trong 24h, đơn hàng #" + booking.getId() + " đã được tự động hoàn thành.",
+                        "AUTO_COMPLETED");
+
+                notificationService.createNotification(booking.getHelper().getId(),
+                        "Đơn hàng đã được duyệt tự động",
+                        "Khách im lặng 24h, đơn hàng #" + booking.getId() + " đã tự động COMPLETED. Lương sẽ sớm được giải ngân.",
+                        "AUTO_COMPLETED");
+
+                log.info("[AutoConfirm] Booking #{} → COMPLETED (auto).", booking.getId());
+            } catch (Exception e) {
+                log.error("[AutoConfirm] Lỗi tự động hoàn thành Booking #{}: {}", booking.getId(), e.getMessage());
+            }
+        }
     }
 }
