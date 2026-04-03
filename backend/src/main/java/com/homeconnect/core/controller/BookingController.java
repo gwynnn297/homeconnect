@@ -106,6 +106,22 @@ public class BookingController {
                 .build());
     }
 
+        @Operation(summary = "Khách hàng xác nhận helper đã đến", description = "Khách hàng xác nhận ảnh check-in helper tại địa điểm làm việc")
+        @PostMapping("/{bookingId}/arrival/confirm")
+        @PreAuthorize("hasRole('CUSTOMER')")
+        public ResponseEntity<ApiResponse<BookingResponse>> confirmArrival(
+                        @PathVariable Long bookingId,
+                        Authentication authentication) {
+
+                Long customerId = securityUtil.getCurrentUserId(authentication);
+                BookingResponse response = bookingService.confirmArrivalByCustomer(bookingId, customerId);
+
+                return ResponseEntity.ok(ApiResponse.<BookingResponse>builder()
+                                .message("Đã xác nhận helper đến đúng địa điểm")
+                                .data(response)
+                                .build());
+        }
+
     @Operation(summary = "Khách hàng xác nhận thợ đã đến (Tú)", description = "Khách hàng xác nhận thợ đã đến nhà và cho phép bắt đầu công việc")
     @PostMapping("/{bookingId}/confirm-start")
     @PreAuthorize("hasRole('CUSTOMER')")

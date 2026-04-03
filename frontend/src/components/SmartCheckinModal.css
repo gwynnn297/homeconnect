@@ -1,0 +1,147 @@
+.scm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.scm-modal {
+  width: min(92vw, 760px);
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.scm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.scm-close {
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.scm-body {
+  padding: 16px;
+}
+
+.scm-video-wrap {
+  position: relative;
+  width: 100%;
+  background: #0f172a;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.scm-video {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.scm-overlay-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.scm-hidden-canvas {
+  display: none;
+}
+
+.scm-actions {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.scm-status {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.scm-status.idle {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.scm-status.warning {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.scm-status.success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.scm-status.error,
+.scm-status.loading {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.scm-error {
+  margin-top: 8px;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.scm-result {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.scm-result--success {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.scm-result--error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.scm-actions-row {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.scm-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scm-btn--retry {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.scm-btn--close {
+  background: #346252;
+  color: #fff;
+}

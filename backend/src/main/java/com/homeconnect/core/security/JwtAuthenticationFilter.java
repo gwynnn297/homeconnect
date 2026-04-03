@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 // JWT Authentication Filter - Kiểm tra JWT token trong mỗi request
 @Component
@@ -36,15 +38,43 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (jwt != null && jwtUtil.validateToken(jwt)) {
                 String email = jwtUtil.getEmailFromToken(jwt);
+                Long userId = null;
+                try {
+                    userId = jwtUtil.extractUserId(jwt);
+                } catch (Exception ignored) {
+                    // Token cũ có thể chưa có userId claim.
+                }
 
-                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+                String role = null;
+                try {
+                    role = jwtUtil.extractRole(jwt);
+                } catch (Exception ignored) {
+                    // Token cũ có thể chưa có role claim.
+                }
+
+                UserDetails userDetails;
+                if (role != null && !role.isBlank()) {
+                    userDetails = org.springframework.security.core.userdetails.User.builder()
+                            .username(email)
+                            .password("")
+                            .authorities("ROLE_" + role)
+                            .build();
+                } else {
+                    // Fallback tương thích cho token cũ.
+                    userDetails = userDetailsService.loadUserByUsername(email);
+                }
 
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,
                         userDetails.getAuthorities());
 
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                Map<String, Object> authDetails = new HashMap<>();
+                authDetails.put("webDetails", new WebAuthenticationDetailsSource().buildDetails(request));
+                if (userId != null) {
+                    authDetails.put("userId", userId);
+                }
+                authentication.setDetails(authDetails);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
                 log.debug("JWT authentication successful for user: {}", email);

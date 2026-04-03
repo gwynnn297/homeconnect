@@ -27,6 +27,14 @@ const BookingService = {
     getBookingDetail: async (bookingId) => {
         return apiClient.get(`${BOOKING_BASE_URL}/${bookingId}`);
     },
+
+    /**
+     * Khách hàng xác nhận helper đã đến đúng địa điểm.
+     * Backend: POST /api/v1/bookings/{bookingId}/arrival/confirm
+     */
+    confirmArrival: async (bookingId) => {
+        return apiClient.post(`${BOOKING_BASE_URL}/${bookingId}/arrival/confirm`);
+    },
 };
 
 export default BookingService;

@@ -102,6 +102,18 @@ public class JwtUtil {
         }
     }
 
+    // Lấy role từ JWT token
+    public String extractRole(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        Object roleObj = claims.get("role");
+        return roleObj != null ? String.valueOf(roleObj) : null;
+    }
+
     // Validate JWT token
     public boolean validateToken(String token) {
         try {

@@ -20,6 +20,10 @@ public class BookingResponse {
     private String serviceName;
     private LocalDateTime scheduledStartTime;
     private LocalDateTime scheduledEndTime;
+    private LocalDateTime arrivedAt;
+    private String arrivalProofImage;
+    private Boolean customerArrivalConfirmed;
+    private LocalDateTime customerArrivalConfirmedAt;
     private BookingStatus status;
     private BigDecimal totalPrice;
     private String address;

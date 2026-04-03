@@ -55,16 +55,16 @@ public class BookingService {
 
         // 1. Tìm slot rảnh tương ứng của Helper
         List<HelperSchedule> schedules = helperScheduleRepository.findByHelperIdAndWorkDateAndStatusIn(
-                booking.getHelper().getId(), 
-                booking.getScheduledStartTime().toLocalDate(), 
+                booking.getHelper().getId(),
+                booking.getScheduledStartTime().toLocalDate(),
                 List.of(ScheduleStatus.AVAILABLE));
 
         HelperSchedule targetSchedule = null;
         for (HelperSchedule schedule : schedules) {
             if (conflictEngine.isOverlap(
-                    booking.getScheduledStartTime().toLocalTime(), 
-                    booking.getScheduledEndTime().toLocalTime(), 
-                    schedule.getStartTime(), 
+                    booking.getScheduledStartTime().toLocalTime(),
+                    booking.getScheduledEndTime().toLocalTime(),
+                    schedule.getStartTime(),
                     schedule.getEndTime())) {
                 targetSchedule = schedule;
                 break;
@@ -82,15 +82,16 @@ public class BookingService {
                 List.of(ScheduleStatus.BUSY));
 
         for (HelperSchedule busySlot : busySlotsOnDay) {
-            if (busySlot.getId().equals(targetSchedule.getId())) continue; // bỏ qua chính nó
+            if (busySlot.getId().equals(targetSchedule.getId()))
+                continue; // bỏ qua chính nó
             if (conflictEngine.checkConflictWithBuffer(
                     booking.getScheduledStartTime().toLocalTime(),
                     booking.getScheduledEndTime().toLocalTime(),
                     busySlot,
                     ConflictEngine.TRAVEL_BUFFER_MINUTES)) {
                 throw new ApiException(
-                    "Không thể xác nhận đơn hàng: Helper cần ít nhất 30 phút di chuyển giữa các đơn.",
-                    HttpStatus.CONFLICT);
+                        "Không thể xác nhận đơn hàng: Helper cần ít nhất 30 phút di chuyển giữa các đơn.",
+                        HttpStatus.CONFLICT);
             }
         }
 
@@ -110,15 +111,18 @@ public class BookingService {
         List<JobApplication> applications = jobApplicationRepository.findByPostId(jobId);
         return applications.stream().map(app -> {
             User helper = userRepository.findById(app.getHelperId()).orElse(null);
-            // Sử dụng findByUser_Id thay vì findByUser và khai báo rõ kiểu để tránh lỗi infer Object
+            // Sử dụng findByUser_Id thay vì findByUser và khai báo rõ kiểu để tránh lỗi
+            // infer Object
             HelperProfile profile = helperProfileRepository.findByUser_Id(app.getHelperId()).orElse(null);
-            
+
             return JobApplicantResponse.builder()
                     .applicationId(app.getApplicationId())
                     .helperId(app.getHelperId())
                     .fullName(helper != null ? helper.getFullName() : "N/A")
                     .avatarUrl(helper != null ? helper.getAvatarUrl() : null)
-                    .rating(profile != null && profile.getRatingAverage() != null ? profile.getRatingAverage().doubleValue() : 0.0)
+                    .rating(profile != null && profile.getRatingAverage() != null
+                            ? profile.getRatingAverage().doubleValue()
+                            : 0.0)
                     .reviewCount(profile != null && profile.getTotalReviews() != null ? profile.getTotalReviews() : 0)
                     .bio(profile != null ? profile.getBio() : "")
                     .status(app.getStatus())
@@ -137,11 +141,11 @@ public class BookingService {
         // 1. Validate JobPost và Quyền sở hữu
         JobPost jobPost = jobPostRepository.findById(jobId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy tin đăng", HttpStatus.NOT_FOUND));
-        
+
         if (!jobPost.getCustomerId().equals(customerId)) {
             throw new ApiException("Bạn không có quyền quản lý tin đăng này", HttpStatus.FORBIDDEN);
         }
-        
+
         if (!"PUBLISHED".equals(jobPost.getStatus())) {
             throw new ApiException("Tin đăng này đã được xử lý hoặc hết hạn", HttpStatus.BAD_REQUEST);
         }
@@ -149,7 +153,7 @@ public class BookingService {
         // 2. Validate JobApplication
         JobApplication application = jobApplicationRepository.findById(applicationId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn ứng tuyển", HttpStatus.NOT_FOUND));
-        
+
         if (!application.getPostId().equals(jobId)) {
             throw new ApiException("Đơn ứng tuyển này không thuộc về tin đăng hiện tại", HttpStatus.BAD_REQUEST);
         }
@@ -157,7 +161,7 @@ public class BookingService {
         // 3. Kiểm tra lịch của Helper tại thời điểm chốt
         LocalDateTime start = LocalDateTime.of(jobPost.getWorkDate(), jobPost.getStartTime());
         LocalDateTime end = start.plusHours(jobPost.getDurationHours());
-        
+
         List<HelperSchedule> schedules = helperScheduleRepository.findByHelperIdAndWorkDateAndStatusIn(
                 application.getHelperId(), jobPost.getWorkDate(), List.of(ScheduleStatus.AVAILABLE));
 
@@ -172,7 +176,6 @@ public class BookingService {
         if (targetSchedule == null) {
             throw new ApiException("Thợ này hiện tại không còn lịch trống cho khung giờ này.", HttpStatus.CONFLICT);
         }
-
         User customer = userRepository.findById(customerId).get();
         User helper = userRepository.findById(application.getHelperId()).get();
 
@@ -213,12 +216,12 @@ public class BookingService {
         log.info("Job {} assigned to helper {}. Booking {} created.", jobId, helper.getId(), booking.getId());
 
         // 7. Thông báo cho các bên
-        notificationService.createNotification(helper.getId(), "Chúc mừng! Bạn đã được chọn", 
+        notificationService.createNotification(helper.getId(), "Chúc mừng! Bạn đã được chọn",
                 "Bạn đã được chọn cho công việc: " + jobPost.getTitle(), "BOOKING_ACCEPTED");
 
         for (JobApplication other : others) {
             if (!other.getApplicationId().equals(applicationId)) {
-                notificationService.createNotification(other.getHelperId(), "Rất tiếc!", 
+                notificationService.createNotification(other.getHelperId(), "Rất tiếc!",
                         "Công việc " + jobPost.getTitle() + " đã có người khác nhận.", "BOOKING_REJECTED");
             }
         }
@@ -234,7 +237,7 @@ public class BookingService {
         // 1. Validate Helper và Category
         User helper = userRepository.findById(request.getHelperId())
                 .orElseThrow(() -> new ApiException("Thợ không tồn tại", HttpStatus.NOT_FOUND));
-        
+
         ServiceCategory category = serviceCategoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ApiException("Danh mục dịch vụ không tồn tại", HttpStatus.NOT_FOUND));
 
@@ -242,7 +245,8 @@ public class BookingService {
                 .orElseThrow(() -> new ApiException("Khách hàng không tồn tại", HttpStatus.NOT_FOUND));
 
         // 2. Kiểm tra kỹ năng của thợ
-        boolean hasSkill = helperServiceRepository.existsByHelper_IdAndCategory_CategoryId(request.getHelperId(), request.getCategoryId());
+        boolean hasSkill = helperServiceRepository.existsByHelper_IdAndCategory_CategoryId(request.getHelperId(),
+                request.getCategoryId());
         if (!hasSkill) {
             throw new ApiException("Thợ này không cung cấp dịch vụ bạn yêu cầu", HttpStatus.BAD_REQUEST);
         }
@@ -275,7 +279,6 @@ public class BookingService {
                 .type("OTHER")
                 .build();
         bookingAddress = addressRepository.save(bookingAddress);
-
         Booking booking = Booking.builder()
                 .customer(customer)
                 .helper(helper)
@@ -474,11 +477,53 @@ public class BookingService {
                 .serviceName(b.getCategory() != null ? b.getCategory().getName() : "Dịch vụ")
                 .scheduledStartTime(b.getScheduledStartTime())
                 .scheduledEndTime(b.getScheduledEndTime())
+                .arrivedAt(b.getArrivedAt())
+                .arrivalProofImage(b.getArrivalProofImage())
+                .customerArrivalConfirmed(Boolean.TRUE.equals(b.getCustomerArrivalConfirmed()))
+                .customerArrivalConfirmedAt(b.getCustomerArrivalConfirmedAt())
                 .status(b.getStatus())
                 .totalPrice(b.getTotalPrice())
                 .address(fullAddress)
                 .paymentStatus(b.getPaymentStatus())
                 .build();
+    }
+
+    @Transactional
+    public BookingResponse confirmArrivalByCustomer(Long bookingId, Long customerId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+
+        if (!booking.getCustomer().getId().equals(customerId)) {
+            throw new ApiException("Bạn không có quyền xác nhận đơn hàng này", HttpStatus.FORBIDDEN);
+        }
+
+        if (booking.getStatus() != BookingStatus.ARRIVED) {
+            throw new ApiException("Chỉ xác nhận khi helper đã check-in ARRIVED", HttpStatus.BAD_REQUEST);
+        }
+
+        if (booking.getArrivalProofImage() == null || booking.getArrivalProofImage().isBlank()) {
+            throw new ApiException("Đơn hàng chưa có ảnh chứng minh check-in", HttpStatus.BAD_REQUEST);
+        }
+
+        if (!Boolean.TRUE.equals(booking.getCustomerArrivalConfirmed())) {
+            booking.setCustomerArrivalConfirmed(true);
+            booking.setCustomerArrivalConfirmedAt(LocalDateTime.now());
+
+            // Khi khách xác minh helper đã đến đúng nhà, đơn chuyển sang ĐANG THỰC HIỆN.
+            if (booking.getStatus() == BookingStatus.ARRIVED) {
+                booking.setStatus(BookingStatus.IN_PROGRESS);
+            }
+
+            bookingRepository.save(booking);
+
+            notificationService.createNotification(
+                    booking.getHelper().getId(),
+                    "Khách hàng đã xác nhận bạn đến đúng địa điểm",
+                    "Đơn #" + booking.getId() + " đã được khách xác nhận. Bạn có thể bắt đầu công việc.",
+                    "ARRIVAL_CONFIRMED");
+        }
+
+        return mapToBookingResponse(booking, customerId);
     }
 
     public BookingResponse getBookingDetail(Long bookingId, Long userId) {

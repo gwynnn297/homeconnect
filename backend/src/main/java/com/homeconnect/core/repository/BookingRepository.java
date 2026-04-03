@@ -9,11 +9,20 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByHelperIdAndStatus(Long helperId, BookingStatus status);
+
+       Optional<Booking> findByIdAndHelper_Id(Long bookingId, Long helperId);
+
+       List<Booking> findByHelper_IdAndJobPostIdInAndStatusInOrderByCreatedAtDesc(
+                     Long helperId,
+                     Collection<Long> jobPostIds,
+                     Collection<BookingStatus> statuses);
 
     @Query("SELECT COUNT(b) FROM Booking b " +
            "WHERE b.helper.id = :helperId " +
