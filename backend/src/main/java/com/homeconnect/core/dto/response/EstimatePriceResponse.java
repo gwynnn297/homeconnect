@@ -19,6 +19,7 @@ public class EstimatePriceResponse {
 
     private BigDecimal estimatedPrice;
     private BigDecimal basePrice;
+    private Integer totalDuration;
     private java.util.List<ServiceFee> serviceFees;
 
     @Builder.Default
