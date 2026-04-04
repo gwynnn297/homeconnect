@@ -63,4 +63,7 @@ public class CreateJobPostRequest {
 
     @Schema(description = "Thợ mang theo dụng cụ", example = "false")
     private Boolean bringTools;
+
+    @Schema(description = "Dữ liệu bổ sung (JSON) cho từng loại dịch vụ", example = "{\"dishCount\": 3, \"dishNames\": [[\"Cá kho\"]}")
+    private java.util.Map<String, Object> additionalData;
 }

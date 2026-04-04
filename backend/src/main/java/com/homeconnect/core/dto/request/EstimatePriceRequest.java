@@ -1,5 +1,7 @@
 package com.homeconnect.core.dto.request;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -29,7 +31,8 @@ public class EstimatePriceRequest {
 
 
     @NotNull(message = "Số giờ không được để trống")
-    @Positive(message = "Số giờ phải lớn hơn 0")
+    @Min(value = 1, message = "Số giờ tối thiểu là 1")
+    @Max(value = 12, message = "Số giờ tối đa là 12")
     private Integer durationHours;
 
     @Schema(description = "Dịch vụ Premium (+50k)", example = "false")
@@ -37,4 +40,7 @@ public class EstimatePriceRequest {
 
     @Schema(description = "Số lượng/Diện tích (m2, số bé, số máy...)", example = "60.5")
     private Double workSize;
+
+    @Schema(description = "Dữ liệu bổ sung — phải giống body khi POST /api/v1/jobs để giá khớp (đi chợ, nấu ăn, …)")
+    private java.util.Map<String, Object> additionalData;
 }

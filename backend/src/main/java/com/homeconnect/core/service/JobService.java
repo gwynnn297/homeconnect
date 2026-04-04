@@ -24,6 +24,9 @@ import com.homeconnect.core.repository.AddressRepository;
 import com.homeconnect.core.entity.JobApplication;
 import java.util.stream.Collectors;
 import java.util.Optional;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import com.homeconnect.core.exception.ApiException;
 import com.homeconnect.core.enums.BookingStatus;
@@ -55,6 +58,10 @@ import java.util.Objects;
 public class JobService {
 
     private static final int MIN_LEAD_TIME_HOURS = 2;
+    /** Danh mục 1 — Dọn dẹp nhà: thời lượng job (tính phí) tối đa */
+    private static final int MAX_CLEANING_DURATION_HOURS = 4;
+    /** Mỗi dịch vụ con cộng thêm 1 giờ vào thời lượng làm việc (Helper cần thêm thời gian) */
+    private static final int HOURS_PER_SUB_SERVICE = 1;
 
     private final ServiceRepository serviceRepository;
     private final JobPostRepository jobPostRepository;
@@ -68,12 +75,14 @@ public class JobService {
     private final NotificationService notificationService;
     private final HelperScheduleRepository helperScheduleRepository;
     private final BookingRepository bookingRepository;
+    private final ObjectMapper objectMapper;
 
     public EstimatePriceResponse estimatePrice(EstimatePriceRequest request) {
         log.info("Estimating price for category {}, duration {} hours",
                 request.getCategoryId(), request.getDurationHours());
-        
+
         validateWorkSizeAndDuration(request.getCategoryId(), request.getDurationHours(), request.getWorkSize());
+        validateCleaningMaxDuration(request.getCategoryId(), request.getDurationHours());
 
         ServiceCategory category = serviceCategoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -83,31 +92,50 @@ public class JobService {
             throw new IllegalArgumentException("Danh mục này hiện không khả dụng: " + category.getName());
         }
 
-        BigDecimal categoryPrice = category.getBasePrice();
-        BigDecimal durationHours = BigDecimal.valueOf(request.getDurationHours());
-        BigDecimal estimatedPrice = categoryPrice.multiply(durationHours);
-
-        // Cộng phí Premium nếu khách yêu cầu trong bản tính thử
-        if (Boolean.TRUE.equals(request.getIsPremium())) {
-            estimatedPrice = estimatedPrice.add(BigDecimal.valueOf(50000));
-            log.info("Included 50,000 VND Premium surcharge in estimate");
-        }
-
         if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
             for (Integer sId : request.getServiceIds()) {
-                com.homeconnect.core.entity.Service service = serviceRepository.findById(sId)
+                serviceRepository.findById(sId)
                         .orElseThrow(() -> new ApiException("Dịch vụ con " + sId + " không tồn tại",
                                 HttpStatus.BAD_REQUEST));
-                if (service.getBasePrice() != null) {
-                    estimatedPrice = estimatedPrice.add(service.getBasePrice());
+            }
+        }
+
+
+        // --- 1. Tính toán Breakdown ---
+        BigDecimal baseLaborPrice_Unit = category.getBasePrice();
+        int subServiceCount = (request.getServiceIds() != null) ? request.getServiceIds().size() : 0;
+        
+        // baseDurationHours là số giờ gốc của gói (không bao gồm giờ cộng thêm của dịch vụ con)
+        int baseDurationHours = Math.max(0, request.getDurationHours() - (subServiceCount * HOURS_PER_SUB_SERVICE));
+        BigDecimal finalBasePrice = baseLaborPrice_Unit.multiply(BigDecimal.valueOf(baseDurationHours));
+
+        List<EstimatePriceResponse.ServiceFee> serviceFees = new ArrayList<>();
+        if (request.getServiceIds() != null) {
+            for (Integer sId : request.getServiceIds()) {
+                com.homeconnect.core.entity.Service service = serviceRepository.findById(sId).orElse(null);
+                if (service != null) {
+                    serviceFees.add(EstimatePriceResponse.ServiceFee.builder()
+                            .name(service.getName())
+                            .price(service.getBasePrice() != null ? service.getBasePrice() : BigDecimal.ZERO)
+                            .build());
                 }
             }
         }
 
-        log.info("Estimated price: {} VND", estimatedPrice);
+        BigDecimal finalEstimatedPrice = calculatePriceInternal(
+                category,
+                request.getDurationHours(),
+                request.getIsPremium(),
+                request.getServiceIds(),
+                request.getWorkSize(),
+                request.getAdditionalData());
+
+        log.info("Estimated price: {} VND (Base: {}, Fees: {})", finalEstimatedPrice, finalBasePrice, serviceFees.size());
 
         return EstimatePriceResponse.builder()
-                .estimatedPrice(estimatedPrice)
+                .estimatedPrice(finalEstimatedPrice)
+                .basePrice(finalBasePrice)
+                .serviceFees(serviceFees)
                 .currency("VND")
                 .build();
     }
@@ -142,14 +170,17 @@ public class JobService {
         }
 
         validateWorkSizeAndDuration(request.getCategoryId(), request.getDurationHours(), request.getWorkSize());
+        validateCleaningMaxDuration(request.getCategoryId(), request.getDurationHours());
 
-        // Giá = (Giá Cha * Số giờ) + Phí Premium + Tổng Giá Con
-        BigDecimal finalPrice = category.getBasePrice().multiply(BigDecimal.valueOf(request.getDurationHours()));
-
-        if (Boolean.TRUE.equals(request.getIsPremium())) {
-            finalPrice = finalPrice.add(BigDecimal.valueOf(50000));
-            log.info("Added 50,000 VND for Premium service");
-        }
+        // --- NEW: Sử dụng logic tính tiền chung ---
+        BigDecimal finalPrice = calculatePriceInternal(
+            category,
+            request.getDurationHours(),
+            request.getIsPremium(),
+            request.getServiceIds(),
+            request.getWorkSize(),
+            request.getAdditionalData()
+        );
 
         java.util.List<Integer> sIds = request.getServiceIds();
         StringBuilder serviceNames = new StringBuilder();
@@ -161,17 +192,7 @@ public class JobService {
                 com.homeconnect.core.entity.Service service = serviceRepository.findById(sId)
                         .orElseThrow(() -> new ApiException("Dịch vụ con " + sId + " không tồn tại",
                                 HttpStatus.BAD_REQUEST));
-
-                if (service.getCategory() == null
-                        || !service.getCategory().getCategoryId().equals(category.getCategoryId())) {
-                    throw new ApiException(
-                            "Dịch vụ con " + service.getName() + " không thuộc về danh mục " + category.getName(),
-                            HttpStatus.BAD_REQUEST);
-                }
-
-                if (service.getBasePrice() != null) {
-                    finalPrice = finalPrice.add(service.getBasePrice());
-                }
+                
                 if (serviceNames.length() > 0)
                     serviceNames.append(", ");
                 serviceNames.append(service.getName());
@@ -200,6 +221,9 @@ public class JobService {
                 .bringTools(Boolean.TRUE.equals(request.getBringTools()) || Boolean.TRUE.equals(request.getIsPremium()))
                 .build();
 
+        // Xử lý additionalData: Lưu dưới dạng JSON chuỗi
+        jobPost.setAdditionalData(serializeAdditionalData(request.getAdditionalData()));
+
         jobPost = jobPostRepository.save(jobPost);
 
         // --- 4. Giữ tiền (nằm trong @Transactional, nếu lỗi sẽ tự rollback cả bước lưu
@@ -214,6 +238,7 @@ public class JobService {
 
     // REMOVED autoSaveAddress (unused)
 
+    @Transactional(readOnly = true)
     public List<JobPostResponse> getHelperJobFeed(Long helperId) {
         List<Integer> categoryIds = helperServiceRepository.findByHelper_Id(helperId).stream()
                 .map(hs -> hs.getCategory().getCategoryId())
@@ -258,6 +283,7 @@ public class JobService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<JobPostResponse> getAllPublishedJobs(Long helperId) {
         // Lấy tất cả các việc đang OPEN (PUBLISHED)
         // Chỉ lọc bỏ các việc thợ đã ứng tuyển rồi (Không lọc theo Quận/Huyện)
@@ -389,12 +415,38 @@ public class JobService {
     private JobPostResponse mapToJobPostResponse(JobPost jobPost, boolean showAddressDetail, Booking booking) {
         List<Integer> sIds = parseServiceIds(jobPost.getServiceId());
         StringBuilder sNames = new StringBuilder();
+        List<JobPostResponse.ServiceFee> serviceFees = new ArrayList<>();
+        
         for (Integer id : sIds) {
             serviceRepository.findById(id).ifPresent(s -> {
                 if (sNames.length() > 0)
                     sNames.append(", ");
                 sNames.append(s.getName());
+                
+                serviceFees.add(JobPostResponse.ServiceFee.builder()
+                        .name(s.getName())
+                        .price(s.getBasePrice() != null ? s.getBasePrice() : BigDecimal.ZERO)
+                        .build());
             });
+        }
+
+        // Tính giá cơ bản (không bao gồm phụ phí và giờ phụ)
+        BigDecimal baseLaborPrice_Unit = (jobPost.getCategory() != null) ? jobPost.getCategory().getBasePrice() : BigDecimal.ZERO;
+        int baseDurationHours = Math.max(0, (jobPost.getDurationHours() != null ? jobPost.getDurationHours() : 0) - (sIds.size() * HOURS_PER_SUB_SERVICE));
+        BigDecimal finalBasePrice = baseLaborPrice_Unit.multiply(BigDecimal.valueOf(baseDurationHours));
+
+        // Map additionalData
+        Map<String, Object> additionalDataMap = deserializeAdditionalData(jobPost.getAdditionalData());
+        
+        // Trích xuất workSize từ additionalData nếu có
+        Double workSize = null;
+        if (additionalDataMap != null && additionalDataMap.containsKey("workSize")) {
+            Object wsObj = additionalDataMap.get("workSize");
+            if (wsObj != null) {
+                try {
+                    workSize = Double.valueOf(wsObj.toString());
+                } catch (NumberFormatException ignored) {}
+            }
         }
 
         JobPostResponse.JobPostResponseBuilder builder = JobPostResponse.builder()
@@ -413,14 +465,17 @@ public class JobService {
                 .startTime(jobPost.getStartTime())
                 .durationHours(jobPost.getDurationHours())
                 .offerPrice(jobPost.getOfferPrice())
+                .basePrice(finalBasePrice)
+                .serviceFees(serviceFees)
                 .currency("VND")
                 .status(jobPost.getStatus())
                 .bookingId(booking != null ? booking.getId() : null)
                 .bookingStatus(booking != null && booking.getStatus() != null ? booking.getStatus().name() : null)
-                .canCheckin(booking != null && booking.getStatus() == BookingStatus.CONFIRMED)
-                .customerArrivalConfirmed(booking != null && Boolean.TRUE.equals(booking.getCustomerArrivalConfirmed()))
+                .canCheckin(booking != null && booking.getStatus() == com.homeconnect.core.enums.BookingStatus.CONFIRMED)
+                .customerArrivalConfirmed(false) // Ẩn trường do thiếu migration
                 .createdAt(jobPost.getCreatedAt())
-                .workSize(jobPost.getWorkSize())
+                .workSize(workSize)
+                .additionalData(additionalDataMap)
                 .isPremium(jobPost.getIsPremium())
                 .hasPets(jobPost.getHasPets())
                 .bringTools(jobPost.getBringTools());
@@ -443,6 +498,26 @@ public class JobService {
         }
 
         return builder.build();
+    }
+
+    private String serializeAdditionalData(Map<String, Object> data) {
+        if (data == null || data.isEmpty()) return null;
+        try {
+            return objectMapper.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            log.error("Error serializing additionalData", e);
+            return null;
+        }
+    }
+
+    private Map<String, Object> deserializeAdditionalData(String data) {
+        if (data == null || data.isEmpty()) return null;
+        try {
+            return objectMapper.readValue(data, new TypeReference<Map<String, Object>>() {});
+        } catch (JsonProcessingException e) {
+            log.error("Error deserializing additionalData", e);
+            return null;
+        }
     }
 
     private String normalizeLocationText(String text) {
@@ -511,12 +586,13 @@ public class JobService {
             jobApplicationRepository.save(app);
         });
 
-        log.info("✅ Đã xử lý hủy đơn thành công cho Job #{}", postId);
+        log.info(" Đã xử lý hủy đơn thành công cho Job #{}", postId);
     }
 
     /**
      * [BE-Post-03] Lấy danh sách bài đăng của khách hàng
      */
+    @Transactional(readOnly = true)
     public List<JobPostResponse> getCustomerJobs(Long customerId) {
         log.info("Lấy danh sách job post của customer {}", customerId);
         return jobPostRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
@@ -527,6 +603,7 @@ public class JobService {
     /**
      * [BE-Post-04] Lấy chi tiết bài đăng
      */
+    @Transactional(readOnly = true)
     public JobPostResponse getJobDetail(Long jobId, Long customerId) {
         JobPost jobPost = jobPostRepository.findById(jobId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy bài đăng", HttpStatus.NOT_FOUND));
@@ -569,16 +646,29 @@ public class JobService {
             jobPost.setStartTime(request.getStartTime());
         if (request.getDurationHours() != null)
             jobPost.setDurationHours(request.getDurationHours());
-        if (request.getWorkSize() != null)
-            jobPost.setWorkSize(request.getWorkSize());
+//        if (request.getWorkSize() != null)
+//            jobPost.setWorkSize(request.getWorkSize());
         if (request.getIsPremium() != null)
             jobPost.setIsPremium(request.getIsPremium());
         if (request.getHasPets() != null)
             jobPost.setHasPets(request.getHasPets());
         if (request.getBringTools() != null)
             jobPost.setBringTools(request.getBringTools());
+        
+        // Update additionalData and workSize
+        Map<String, Object> currentData = deserializeAdditionalData(jobPost.getAdditionalData());
+        if (currentData == null) currentData = new java.util.HashMap<>();
+        
+        if (request.getAdditionalData() != null) {
+            currentData.putAll(request.getAdditionalData());
+        }
+        if (request.getWorkSize() != null) {
+            currentData.put("workSize", request.getWorkSize());
+        }
+        jobPost.setAdditionalData(serializeAdditionalData(currentData));
 
-        validateWorkSizeAndDuration(jobPost.getCategory().getCategoryId(), jobPost.getDurationHours(), jobPost.getWorkSize());
+        validateWorkSizeAndDuration(jobPost.getCategory().getCategoryId(), jobPost.getDurationHours(), request.getWorkSize() != null ? request.getWorkSize() : (Double)currentData.get("workSize"));
+        validateCleaningMaxDuration(jobPost.getCategory().getCategoryId(), jobPost.getDurationHours());
 
         if (request.getAddressId() != null) {
             Address address = addressRepository.findById(request.getAddressId())
@@ -696,22 +786,104 @@ public class JobService {
     }
 
     private BigDecimal calculatePrice(JobPost jobPost) {
-        ServiceCategory category = jobPost.getCategory();
-        BigDecimal price = category.getBasePrice().multiply(BigDecimal.valueOf(jobPost.getDurationHours()));
+        Map<String, Object> additionalData = deserializeAdditionalData(jobPost.getAdditionalData());
+        Double workSize = null;
+        if (additionalData != null && additionalData.containsKey("workSize")) {
+            Object wsObj = additionalData.get("workSize");
+            if (wsObj != null) {
+                try {
+                    workSize = Double.valueOf(wsObj.toString());
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        
+        return calculatePriceInternal(
+            jobPost.getCategory(),
+            jobPost.getDurationHours(),
+            jobPost.getIsPremium(),
+            parseServiceIds(jobPost.getServiceId()),
+            workSize,
+            additionalData
+        );
+    }
 
-        if (Boolean.TRUE.equals(jobPost.getIsPremium())) {
+    /**
+     * Phương thức lõi tính tiền cho cả 7 danh mục
+     * Logic: (Base * Hours) + Premium + Extras + Category-Specific-Fees
+     */
+    private BigDecimal calculatePriceInternal(
+            ServiceCategory category,
+            Integer hours,
+            Boolean isPremium,
+            List<Integer> serviceIds,
+            Double workSize,
+            Map<String, Object> additionalData) {
+        
+        if (category == null) return BigDecimal.ZERO;
+        
+        // 1. Tính số lượng dịch vụ con để trừ giờ làm việc cơ bản (tránh double charge)
+        int subServiceCount = (serviceIds != null) ? serviceIds.size() : 0;
+        int baseLaborHours = Math.max(0, (hours != null ? hours : 0) - (subServiceCount * HOURS_PER_SUB_SERVICE));
+
+        // 2. Giá lao động cơ bản
+        BigDecimal price = category.getBasePrice().multiply(BigDecimal.valueOf(baseLaborHours));
+
+        // 3. Phí Premium (Dịch vụ cao cấp - không cộng thêm giờ)
+        if (Boolean.TRUE.equals(isPremium)) {
             price = price.add(BigDecimal.valueOf(50000));
         }
 
-        List<Integer> sIds = parseServiceIds(jobPost.getServiceId());
-        BigDecimal totalPrice = price;
-        for (Integer sId : sIds) {
-            com.homeconnect.core.entity.Service service = serviceRepository.findById(sId).orElse(null);
-            if (service != null && service.getBasePrice() != null) {
-                totalPrice = totalPrice.add(service.getBasePrice());
+        // 3. Cộng phí các dịch vụ con (extra services)
+        if (serviceIds != null && !serviceIds.isEmpty()) {
+            for (Integer id : serviceIds) {
+                com.homeconnect.core.entity.Service service = serviceRepository.findById(id).orElse(null);
+                if (service != null && service.getBasePrice() != null) {
+                    price = price.add(service.getBasePrice());
+                }
             }
         }
-        return totalPrice;
+
+        // 4. Logic đặc thù từng danh mục (Dựa trên additionalData và workSize)
+        int catId = category.getCategoryId();
+        
+        // Category 2: Nấu ăn
+        if (catId == 2 && additionalData != null) {
+            // Nếu có nhờ đi chợ
+            if (Boolean.TRUE.equals(additionalData.get("isTaskerShopping"))) {
+                price = price.add(BigDecimal.valueOf(50000));
+            }
+        }
+        
+        // Category 3: Đi chợ
+        if (catId == 3 && additionalData != null) {
+            // Nếu thợ ứng tiền trước
+            if (Boolean.TRUE.equals(additionalData.get("isTaskerAdvance"))) {
+                price = price.add(BigDecimal.valueOf(30000)); // Phí dịch vụ ứng tiền
+
+                // Cộng thêm số tiền đi chợ vào tổng tiền cần hold trong ví
+                Object shoppingAmt = additionalData.get("shoppingAmount");
+                if (shoppingAmt != null) {
+                    try {
+                        BigDecimal amount = new BigDecimal(shoppingAmt.toString());
+                        price = price.add(amount);
+                        log.info("Added shoppingAmount {} to total price for category 3", amount);
+                    } catch (NumberFormatException e) {
+                        log.warn("Invalid shoppingAmount format: {}", shoppingAmt);
+                    }
+                }
+            }
+        }
+        
+        // Category 5: Trông trẻ
+        if (catId == 5 && workSize != null && workSize > 1) {
+            // Phụ phí từ bé thứ 2 (30k/giờ cho mỗi bé thêm)
+            BigDecimal extraChildFee = BigDecimal.valueOf(workSize - 1)
+                    .multiply(BigDecimal.valueOf(hours != null ? hours : 0))
+                    .multiply(BigDecimal.valueOf(30000));
+            price = price.add(extraChildFee);
+        }
+
+        return price;
     }
 
     private void validateHelperService(JobPost jobPost, Long helperId) {
@@ -938,6 +1110,17 @@ public class JobService {
 
         log.info("[Auto-Expiry] Bài đăng #{} đã hết hạn. Đã hủy {} đơn ứng tuyển PENDING và gửi thông báo.",
                 postId, pendingApps.size());
+    }
+
+    private void validateCleaningMaxDuration(Integer categoryId, Integer durationHours) {
+        if (categoryId == null || durationHours == null) {
+            return;
+        }
+        if (categoryId == 1 && durationHours > MAX_CLEANING_DURATION_HOURS) {
+            throw new ApiException(
+                    "Dịch vụ dọn dẹp nhà chỉ được đặt tối đa " + MAX_CLEANING_DURATION_HOURS + " giờ.",
+                    HttpStatus.BAD_REQUEST);
+        }
     }
 
     private void validateWorkSizeAndDuration(Integer categoryId, Integer hours, Double workSize) {

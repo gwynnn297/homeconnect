@@ -29,9 +29,20 @@ public class JobPostResponse {
     private LocalTime startTime;
     private Integer durationHours;
     private BigDecimal offerPrice;
+    private BigDecimal basePrice;
+    private List<ServiceFee> serviceFees;
     private String currency;
     private String status;
     private LocalDateTime createdAt;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ServiceFee {
+        private String name;
+        private BigDecimal price;
+    }
 
     private Long bookingId;
     private String bookingStatus;
@@ -42,6 +53,8 @@ public class JobPostResponse {
     private Boolean isPremium;
     private Boolean hasPets;
     private Boolean bringTools;
+
+    private java.util.Map<String, Object> additionalData;
 
     private Integer categoryId;
     private String categoryName;

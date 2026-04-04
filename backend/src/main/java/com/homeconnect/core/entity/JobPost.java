@@ -67,6 +67,9 @@ public class JobPost {
     @Column(name = "work_size")
     private Double workSize;
 
+    @Column(name = "additional_data", columnDefinition = "TEXT")
+    private String additionalData;
+
     @Builder.Default
     @Column(name = "is_premium")
     private Boolean isPremium = false;
