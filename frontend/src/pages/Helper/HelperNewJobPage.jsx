@@ -4,6 +4,7 @@ import HelperLayout from '../../layouts/HelperLayout';
 import NotificationModal from '../../components/NotificationModal';
 import SmartCheckinModal from '../../components/SmartCheckinModal';
 import HelperJobService from '../../services/HelperJobService';
+import { buildHelperJobModalModel } from '../../utils/helperJobPostDetail';
 import './HelperNewJobPage.css';
 
 const extractPayload = (res) => (res && typeof res === 'object' && 'data' in res ? res.data : res);
@@ -20,7 +21,7 @@ const TAB_UI = {
         desc: 'Công việc phù hợp bạn có thể ứng tuyển ngay.',
         badgeLabel: 'Có thể ứng tuyển',
         badgeClass: 'new',
-        icon: 'spark'
+        icon: 'briefcase'
     },
     PENDING: {
         title: 'Đang chờ khách xác nhận',
@@ -123,16 +124,19 @@ const StatusIcon = ({ type }) => {
         );
     }
 
+    if (type === 'briefcase') {
+        return (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="9" width="20" height="12" rx="2"></rect>
+                <path d="M8 9V7a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <path d="M12 14v2"></path>
+            </svg>
+        );
+    }
+
     return (
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 3v5"></path>
-            <path d="M12 16v5"></path>
-            <path d="M4.22 5.64l3.54 3.54"></path>
-            <path d="M16.24 17.66l3.54 3.54"></path>
-            <path d="M1 12h5"></path>
-            <path d="M18 12h5"></path>
-            <path d="M4.22 18.36l3.54-3.54"></path>
-            <path d="M16.24 6.34l3.54-3.54"></path>
+            <circle cx="12" cy="12" r="9"></circle>
         </svg>
     );
 };
@@ -150,6 +154,7 @@ const HelperNewJobPage = () => {
     const [loadingJobs, setLoadingJobs] = useState(false);
     const [jobsError, setJobsError] = useState('');
     const [hasLoadedJobsOnce, setHasLoadedJobsOnce] = useState(false);
+    const [tabCounts, setTabCounts] = useState({ NEW: 0, PENDING: 0, CONFIRMED: 0 });
     const handledNotificationTokenRef = useRef(null);
     const tabMeta = getTabMeta(activeTab);
 
@@ -174,6 +179,11 @@ const HelperNewJobPage = () => {
                 });
                 // Xoá job khỏi danh sách nếu ứng tuyển thành công
                 setJobs((prevJobs) => prevJobs.filter((j) => j?.postId !== selectedJob?.postId));
+                setTabCounts((prev) => ({
+                    ...prev,
+                    NEW: Math.max(0, prev.NEW - 1),
+                    PENDING: prev.PENDING + 1
+                }));
                 setSelectedJob(null);
             })
             .catch((e) => {
@@ -213,6 +223,7 @@ const HelperNewJobPage = () => {
 
             if (userRole !== 'HELPER') {
                 setJobs([]);
+                setTabCounts({ NEW: 0, PENDING: 0, CONFIRMED: 0 });
                 setJobsError('Bạn không có quyền truy cập trang này. Vui lòng đăng nhập bằng tài khoản Helper.');
                 setHasLoadedJobsOnce(true);
                 return;
@@ -220,25 +231,59 @@ const HelperNewJobPage = () => {
 
             setLoadingJobs(true);
             try {
-                const res = await HelperJobService.getJobsByTab(activeTab);
-                const data = extractPayload(res);
-                const list = Array.isArray(data) ? data : [];
-                if (!cancelled) setJobs(list);
-            } catch (e) {
-                const statusCode = e?.status || e?.code || e?.response?.status;
-                if (!cancelled) {
-                    // Tab phụ có thể chưa được backend hỗ trợ đầy đủ.
-                    // Không hiển thị lỗi quyền kỹ thuật để tránh gây hiểu nhầm cho người dùng.
-                    if ((activeTab === 'PENDING' || activeTab === 'CONFIRMED') && (statusCode === 403 || statusCode === 404)) {
-                        setJobs([]);
-                        setJobsError('');
-                        return;
-                    }
+                const results = await Promise.all(
+                    TABS.map(async (t) => {
+                        try {
+                            const res = await HelperJobService.getJobsByTab(t.id);
+                            const data = extractPayload(res);
+                            return {
+                                tab: t.id,
+                                ok: true,
+                                list: Array.isArray(data) ? data : []
+                            };
+                        } catch (e) {
+                            const statusCode = e?.status || e?.code || e?.response?.status;
+                            if ((t.id === 'PENDING' || t.id === 'CONFIRMED') && (statusCode === 403 || statusCode === 404)) {
+                                return { tab: t.id, ok: true, list: [] };
+                            }
+                            return { tab: t.id, ok: false, error: e };
+                        }
+                    })
+                );
 
-                    const msg = statusCode === 403
-                        ? 'Phiên đăng nhập không có quyền HELPER hoặc đã hết hạn. Vui lòng đăng nhập lại bằng tài khoản Helper.'
-                        : (e?.message || e?.error || e?.msg || 'Không thể tải danh sách việc.');
+                if (cancelled) return;
+
+                const nextCounts = { NEW: 0, PENDING: 0, CONFIRMED: 0 };
+                const listByTab = { NEW: [], PENDING: [], CONFIRMED: [] };
+                let err = '';
+
+                for (const r of results) {
+                    if (r.ok) {
+                        listByTab[r.tab] = r.list;
+                        nextCounts[r.tab] = r.list.length;
+                    } else {
+                        listByTab[r.tab] = [];
+                        nextCounts[r.tab] = 0;
+                        if (r.tab === activeTab) {
+                            const e = r.error;
+                            const statusCode = e?.status || e?.code || e?.response?.status;
+                            err =
+                                statusCode === 403
+                                    ? 'Phiên đăng nhập không có quyền HELPER hoặc đã hết hạn. Vui lòng đăng nhập lại bằng tài khoản Helper.'
+                                    : (e?.message || e?.error || e?.msg || 'Không thể tải danh sách việc.');
+                            err = typeof err === 'string' ? err : 'Không thể tải danh sách việc.';
+                        }
+                    }
+                }
+
+                setTabCounts(nextCounts);
+                setJobs(listByTab[activeTab] || []);
+                setJobsError(err);
+            } catch (e) {
+                if (!cancelled) {
+                    const msg = e?.message || e?.error || e?.msg || 'Không thể tải danh sách việc.';
                     setJobs([]);
+                    setTabCounts({ NEW: 0, PENDING: 0, CONFIRMED: 0 });
                     setJobsError(typeof msg === 'string' ? msg : 'Không thể tải danh sách việc.');
                 }
             } finally {
@@ -319,7 +364,7 @@ const HelperNewJobPage = () => {
                                 aria-selected={activeTab === t.id}
                             >
                                 <span>{t.label}</span>
-                                {activeTab === t.id && <span className="hnj-tab-count">{jobs.length}</span>}
+                                <span className="hnj-tab-count">{tabCounts[t.id] ?? 0}</span>
                             </button>
                         ))}
                     </div>
@@ -464,45 +509,136 @@ const HelperNewJobPage = () => {
                             </div>
 
                             <div className="hnj-modal-body">
-                                <div className="hnj-job-overview">
-                                    <span className="hnj-service-tag" style={{ fontSize: '15px', marginBottom: 0 }}>
-                                        {selectedJob.categoryName || selectedJob.serviceNames || 'Dịch vụ'} &bull; #{selectedJob.postId}
-                                    </span>
-                                    <div className="hnj-price-badge" style={{ fontSize: '18px' }}>
-                                        {formatCurrencyVnd(selectedJob.offerPrice)}
-                                    </div>
-                                </div>
-                                <div className={`hnj-state-pill hnj-state-pill--${getCheckinBadgeMeta(activeTab, selectedJob).badgeClass}`}>
-                                    <StatusIcon type={getCheckinBadgeMeta(activeTab, selectedJob).icon} />
-                                    {getCheckinBadgeMeta(activeTab, selectedJob).badgeLabel}
-                                </div>
+                                {(() => {
+                                    const detail = buildHelperJobModalModel(selectedJob);
+                                    if (!detail) return null;
+                                    const pillMeta = getCheckinBadgeMeta(activeTab, selectedJob);
+                                    const hasScope = detail.workBullets.length > 0 || detail.workLists.length > 0;
+                                    const flagEntries = [
+                                        detail.flags.premium && { key: 'premium', label: 'Gói cao cấp' },
+                                        detail.flags.pets && { key: 'pets', label: 'Có thú cưng' },
+                                        detail.flags.bringTools && { key: 'tools', label: 'Mang dụng cụ theo yêu cầu' },
+                                    ].filter(Boolean);
 
-                                <div className="hnj-detail-section">
-                                    <div className="hnj-detail-grid">
-                                        <div className="hnj-detail-item">
-                                            <span className="hnj-detail-label">Ngày làm việc</span>
-                                            <span className="hnj-detail-value">{formatWorkDate(selectedJob.workDate)}</span>
-                                        </div>
-                                        <div className="hnj-detail-item">
-                                            <span className="hnj-detail-label">Thời gian làm việc</span>
-                                            <span className="hnj-detail-value">
-                                                {selectedJob.startTime || 'N/A'}
-                                                {selectedJob.durationHours ? ` (${selectedJob.durationHours} giờ)` : ''}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="hnj-detail-item" style={{ marginTop: '16px' }}>
-                                        <span className="hnj-detail-label">Địa điểm làm việc</span>
-                                        <span className="hnj-detail-value">{buildLocationText(selectedJob)}</span>
-                                    </div>
-                                </div>
+                                    return (
+                                        <>
+                                            <div className="hnj-modal-hero">
+                                                <div className="hnj-modal-hero-top">
+                                                    <div className="hnj-modal-hero-text">
+                                                        {detail.postRef && (
+                                                            <span className="hnj-modal-post-ref">{detail.postRef}</span>
+                                                        )}
+                                                        <h3 className="hnj-modal-job-title">{detail.title}</h3>
+                                                        <p className="hnj-modal-service-line">{detail.serviceLine}</p>
+                                                    </div>
+                                                    {detail.offerPrice && (
+                                                        <div className="hnj-modal-price-block">
+                                                            <span className="hnj-modal-price-label">Thù lao dự kiến</span>
+                                                            <span className="hnj-modal-price-value">{detail.offerPrice}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className={`hnj-state-pill hnj-state-pill--${pillMeta.badgeClass} hnj-state-pill--modal`}>
+                                                    <StatusIcon type={pillMeta.icon} />
+                                                    {pillMeta.badgeLabel}
+                                                </div>
+                                            </div>
 
-                                <div className="hnj-desc-box">
-                                    <h3 className="hnj-desc-title">Mô tả công việc & Yêu cầu</h3>
-                                    <div className="hnj-desc-text">
-                                        {selectedJob.description || 'Không có mô tả.'}
-                                    </div>
-                                </div>
+                                            <div className="hnj-modal-meta-grid">
+                                                <div className="hnj-modal-meta-card">
+                                                    <div className="hnj-modal-meta-icon" aria-hidden="true">
+                                                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <rect x="3" y="4" width="18" height="18" rx="2" />
+                                                            <path d="M16 2v4M8 2v4M3 10h18" />
+                                                        </svg>
+                                                    </div>
+                                                    <div className="hnj-modal-meta-body">
+                                                        <span className="hnj-modal-meta-label">Thời gian làm</span>
+                                                        <strong className="hnj-modal-meta-strong">
+                                                            {detail.schedule.date || '—'}
+                                                        </strong>
+                                                        <span className="hnj-modal-meta-sub">
+                                                            {[detail.schedule.time, detail.schedule.duration].filter(Boolean).join(' · ') || '—'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="hnj-modal-meta-card">
+                                                    <div className="hnj-modal-meta-icon hnj-modal-meta-icon--pin" aria-hidden="true">
+                                                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2">
+                                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                                            <circle cx="12" cy="10" r="3" />
+                                                        </svg>
+                                                    </div>
+                                                    <div className="hnj-modal-meta-body">
+                                                        <span className="hnj-modal-meta-label">Địa điểm</span>
+                                                        <strong className="hnj-modal-meta-strong">{detail.location.area}</strong>
+                                                        {detail.location.extra && (
+                                                            <span className="hnj-modal-meta-sub hnj-modal-meta-sub--address">
+                                                                {detail.location.extra}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {detail.booking && (
+                                                <div className="hnj-modal-booking-bar">
+                                                    <span className="hnj-modal-booking-label">Booking</span>
+                                                    <span className="hnj-modal-booking-id">#{detail.booking.id}</span>
+                                                    {detail.booking.status && (
+                                                        <span className="hnj-modal-booking-status">{detail.booking.status}</span>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {hasScope && (
+                                                <section className="hnj-modal-scope" aria-labelledby="hnj-scope-heading">
+                                                    <h3 id="hnj-scope-heading" className="hnj-modal-section-title">
+                                                        Chi tiết công việc
+                                                    </h3>
+                                                    {detail.workBullets.length > 0 && (
+                                                        <ul className="hnj-modal-bullet-list">
+                                                            {detail.workBullets.map((line) => (
+                                                                <li key={line}>{line}</li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
+                                                    {detail.workLists.map((block) => (
+                                                        <div key={block.title} className="hnj-modal-sublist">
+                                                            <h4 className="hnj-modal-sublist-title">{block.title}</h4>
+                                                            <ol className="hnj-modal-ordered-list">
+                                                                {block.items.map((item, i) => (
+                                                                    <li key={`${block.title}-${i}`}>{item}</li>
+                                                                ))}
+                                                            </ol>
+                                                        </div>
+                                                    ))}
+                                                </section>
+                                            )}
+
+                                            <div className="hnj-modal-flags">
+                                                {flagEntries.length > 0 ? (
+                                                    <div className="hnj-modal-chip-row" role="list">
+                                                        {flagEntries.map((f) => (
+                                                            <span key={f.key} className="hnj-modal-chip" role="listitem">
+                                                                {f.label}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="hnj-modal-flags-note">Không có ghi chú đặc biệt (thú cưng / dụng cụ / gói premium).</p>
+                                                )}
+                                            </div>
+
+                                            <div className="hnj-desc-box hnj-desc-box--modal">
+                                                <h3 className="hnj-desc-title">Mô tả &amp; yêu cầu từ khách</h3>
+                                                <div className="hnj-desc-text">
+                                                    {selectedJob.description?.trim() || 'Khách chưa ghi thêm mô tả chi tiết.'}
+                                                </div>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
 
                             <div className="hnj-modal-footer">

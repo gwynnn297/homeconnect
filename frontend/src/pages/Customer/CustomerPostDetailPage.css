@@ -314,17 +314,6 @@
     font-size: 13px;
 }
 
-.cpd-top-reviews {
-    margin: 8px 0 0 16px;
-    padding: 0;
-    color: #374151;
-    font-size: 12px;
-}
-
-.cpd-top-reviews li + li {
-    margin-top: 4px;
-}
-
 .cpd-applicant-actions {
     display: flex;
     gap: 8px;
@@ -355,6 +344,20 @@
     width: min(600px, 100%);
     padding: 16px;
     box-shadow: var(--shadow-lg);
+    max-height: min(90vh, 900px);
+    display: flex;
+    flex-direction: column;
+}
+
+.cpd-helper-modal--wide {
+    width: min(680px, 100%);
+}
+
+.cpd-helper-modal .cpd-helper-profile-content {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding-right: 4px;
 }
 
 .cpd-helper-modal-header {
@@ -518,6 +521,118 @@
     color: #334155;
     line-height: 1.5;
     font-size: 14px;
+}
+
+/* Đánh giá trong modal xem hồ sơ helper */
+.cpd-helper-reviews-block {
+    border: 1px solid rgba(47, 93, 80, 0.15);
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: linear-gradient(180deg, rgba(47, 93, 80, 0.04) 0%, transparent 100%);
+}
+
+.cpd-helper-reviews-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.cpd-helper-reviews-head h5 {
+    margin: 0;
+}
+
+.cpd-helper-reviews-summary {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+}
+
+.cpd-helper-reviews-summary strong {
+    color: var(--primary);
+}
+
+.cpd-helper-reviews-empty {
+    margin: 0;
+    font-size: 13px;
+}
+
+.cpd-helper-reviews-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.cpd-helper-review-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+}
+
+.cpd-helper-review-top {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.cpd-helper-review-name {
+    font-weight: 800;
+    font-size: 13px;
+    color: var(--text-main);
+}
+
+.cpd-mini-stars {
+    font-size: 14px;
+    letter-spacing: -1px;
+}
+
+.cpd-mini-stars__on {
+    color: #f59e0b;
+}
+
+.cpd-mini-stars__off {
+    color: #e5e7eb;
+}
+
+.cpd-helper-review-date {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin: 4px 0 6px;
+}
+
+.cpd-helper-review-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #444;
+}
+
+.cpd-helper-review-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.cpd-helper-review-tag {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #e5e7eb;
 }
 
 @media (max-width: 980px) {

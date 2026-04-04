@@ -4,6 +4,7 @@ import CustomerLayout from '../../layouts/CustomerLayout';
 import apiClient from '../../services/apiClient';
 import BookingService from '../../services/BookingService';
 import ProfileService from '../../services/ProfileService';
+import ReviewService from '../../services/ReviewService';
 import './CustomerPostDetailPage.css';
 
 const extractPayload = (res) => (res && typeof res === 'object' && 'data' in res ? res.data : res);
@@ -27,6 +28,26 @@ const formatDateOfBirth = (value) => {
     if (Number.isNaN(d.getTime())) return '---';
     return d.toLocaleDateString('vi-VN');
 };
+
+const formatDateTime = (value) => {
+    if (!value) return '---';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '---';
+    return d.toLocaleString('vi-VN');
+};
+
+function CpdStars({ rating }) {
+    const r = Math.min(5, Math.max(0, Number(rating) || 0));
+    return (
+        <span className="cpd-mini-stars" aria-label={`${r} trên 5 sao`}>
+            {[1, 2, 3, 4, 5].map((n) => (
+                <span key={n} className={n <= r ? 'cpd-mini-stars__on' : 'cpd-mini-stars__off'}>
+                    ★
+                </span>
+            ))}
+        </span>
+    );
+}
 
 const getStatusConfig = (status) => {
     switch (status) {
@@ -78,6 +99,8 @@ const CustomerPostDetailPage = () => {
     const [helperProfileError, setHelperProfileError] = useState('');
     const [helperProfileOpen, setHelperProfileOpen] = useState(false);
     const [selectedApplicant, setSelectedApplicant] = useState(null);
+    const [helperReviewStats, setHelperReviewStats] = useState(null);
+    const [helperReviewsList, setHelperReviewsList] = useState([]);
 
     useEffect(() => {
         const load = async () => {
@@ -195,6 +218,15 @@ const CustomerPostDetailPage = () => {
         }
     };
 
+    const closeHelperModal = () => {
+        setHelperProfileOpen(false);
+        setHelperProfile(null);
+        setHelperProfileError('');
+        setSelectedApplicant(null);
+        setHelperReviewStats(null);
+        setHelperReviewsList([]);
+    };
+
     const handleOpenHelperProfile = async (applicant) => {
         const helperId = applicant?.helperId;
         if (!helperId) return;
@@ -203,15 +235,32 @@ const CustomerPostDetailPage = () => {
         setHelperProfileLoading(true);
         setHelperProfileError('');
         setHelperProfile(null);
-        try {
-            const res = await ProfileService.getPublicHelperProfile(helperId);
-            const helper = extractPayload(res);
-            setHelperProfile(helper || null);
-        } catch (err) {
-            setHelperProfileError(err?.message || 'Không thể tải hồ sơ helper.');
-        } finally {
-            setHelperProfileLoading(false);
+        setHelperReviewStats(null);
+        setHelperReviewsList([]);
+        const settled = await Promise.allSettled([
+            ProfileService.getPublicHelperProfile(helperId),
+            ReviewService.getHelperReviewStats(helperId),
+            ReviewService.getHelperReviews(helperId, { page: 0, size: 15, sort: 'createdAt,desc' }),
+        ]);
+        const [profRes, statRes, revRes] = settled;
+        if (profRes.status === 'fulfilled') {
+            setHelperProfile(extractPayload(profRes.value) || null);
+        } else {
+            setHelperProfile(null);
+            setHelperProfileError(profRes.reason?.message || 'Không thể tải hồ sơ helper.');
         }
+        if (statRes.status === 'fulfilled') {
+            setHelperReviewStats(extractPayload(statRes.value) || null);
+        } else {
+            setHelperReviewStats(null);
+        }
+        if (revRes.status === 'fulfilled') {
+            const list = extractPayload(revRes.value);
+            setHelperReviewsList(Array.isArray(list) ? list : []);
+        } else {
+            setHelperReviewsList([]);
+        }
+        setHelperProfileLoading(false);
     };
 
     return (
@@ -353,13 +402,6 @@ const CustomerPostDetailPage = () => {
                                                     <p className="cpd-applicant-bio">
                                                         {applicant.bio || 'Chưa có phần giới thiệu.'}
                                                     </p>
-                                                    {Array.isArray(applicant.topReviews) && applicant.topReviews.length > 0 ? (
-                                                        <ul className="cpd-top-reviews">
-                                                            {applicant.topReviews.slice(0, 2).map((review, idx) => (
-                                                                <li key={`${applicant.applicationId}-review-${idx}`}>{review}</li>
-                                                            ))}
-                                                        </ul>
-                                                    ) : null}
                                                 </div>
                                             </div>
 
@@ -398,101 +440,181 @@ const CustomerPostDetailPage = () => {
             </div>
 
             {helperProfileOpen ? (
-                <div className="cpd-helper-modal-overlay" onClick={() => setHelperProfileOpen(false)}>
-                    <div className="cpd-helper-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="cpd-helper-modal-overlay" onClick={closeHelperModal}>
+                    <div className="cpd-helper-modal cpd-helper-modal--wide" onClick={(e) => e.stopPropagation()}>
                         <div className="cpd-helper-modal-header">
                             <h3>Hồ sơ helper</h3>
-                            <button type="button" className="cpd-back" onClick={() => setHelperProfileOpen(false)}>
+                            <button type="button" className="cpd-back" onClick={closeHelperModal}>
                                 Đóng
                             </button>
                         </div>
 
                         {helperProfileLoading ? (
                             <p className="cpd-applicants-loading">Đang tải hồ sơ helper...</p>
-                        ) : helperProfileError ? (
-                            <p className="cpd-applicants-error">{helperProfileError}</p>
                         ) : (
                             <div className="cpd-helper-profile-content">
-                                <div className="cpd-helper-hero">
-                                    <div className="cpd-helper-avatar-wrap">
-                                        {selectedApplicant?.avatarUrl ? (
-                                            <img
-                                                className="cpd-helper-avatar-img"
-                                                src={selectedApplicant.avatarUrl}
-                                                alt={selectedApplicant?.fullName || 'Helper'}
-                                            />
-                                        ) : (
-                                            <div className="cpd-helper-avatar-fallback">
-                                                {(selectedApplicant?.fullName || 'H').charAt(0).toUpperCase()}
+                                {helperProfileError ? (
+                                    <p className="cpd-applicants-error" role="alert">
+                                        {helperProfileError}
+                                    </p>
+                                ) : null}
+
+                                {selectedApplicant ? (
+                                    <div className="cpd-helper-hero">
+                                        <div className="cpd-helper-avatar-wrap">
+                                            {selectedApplicant?.avatarUrl ? (
+                                                <img
+                                                    className="cpd-helper-avatar-img"
+                                                    src={selectedApplicant.avatarUrl}
+                                                    alt={selectedApplicant?.fullName || 'Helper'}
+                                                />
+                                            ) : (
+                                                <div className="cpd-helper-avatar-fallback">
+                                                    {(selectedApplicant?.fullName || 'H').charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="cpd-helper-headline">
+                                            <h4>{selectedApplicant?.fullName || 'Helper'}</h4>
+                                            <div className="cpd-helper-badges">
+                                                <span className="cpd-helper-badge">
+                                                    ⭐{' '}
+                                                    {Number(
+                                                        helperReviewStats?.averageRating ??
+                                                            helperProfile?.ratingAverage ??
+                                                            selectedApplicant?.rating ??
+                                                            0
+                                                    ).toFixed(1)}{' '}
+                                                    (
+                                                    {helperReviewStats?.totalReviews ??
+                                                        helperProfile?.totalReviews ??
+                                                        selectedApplicant?.reviewCount ??
+                                                        0}{' '}
+                                                    đánh giá)
+                                                </span>
+                                                {helperProfile ? (
+                                                    <>
+                                                        <span
+                                                            className={`cpd-helper-badge ${helperProfile?.isOnline ? 'online' : 'offline'}`}
+                                                        >
+                                                            {helperProfile?.isOnline ? 'Đang online' : 'Đang offline'}
+                                                        </span>
+                                                        <span className="cpd-helper-badge">
+                                                            KYC: {helperProfile?.kycStatus || 'Chưa xác minh'}
+                                                        </span>
+                                                    </>
+                                                ) : null}
                                             </div>
-                                        )}
-                                    </div>
-                                    <div className="cpd-helper-headline">
-                                        <h4>{selectedApplicant?.fullName || 'Helper'}</h4>
-                                        <div className="cpd-helper-badges">
-                                            <span className="cpd-helper-badge">
-                                                ⭐ {Number(helperProfile?.ratingAverage ?? selectedApplicant?.rating ?? 0).toFixed(1)}
-                                                {' '}({helperProfile?.totalReviews ?? selectedApplicant?.reviewCount ?? 0} đánh giá)
-                                            </span>
-                                            <span className={`cpd-helper-badge ${helperProfile?.isOnline ? 'online' : 'offline'}`}>
-                                                {helperProfile?.isOnline ? 'Đang online' : 'Đang offline'}
-                                            </span>
-                                            <span className="cpd-helper-badge">
-                                                KYC: {helperProfile?.kycStatus || 'Chưa xác minh'}
-                                            </span>
                                         </div>
                                     </div>
+                                ) : null}
+
+                                {helperProfile ? (
+                                    <>
+                                        <div className="cpd-helper-metrics">
+                                            <div className="cpd-helper-metric-item">
+                                                <span>Kinh nghiệm</span>
+                                                <strong>{helperProfile?.experienceYears ?? 0} năm</strong>
+                                            </div>
+                                            <div className="cpd-helper-metric-item">
+                                                <span>Quê quán</span>
+                                                <strong>{helperProfile?.hometownName || '---'}</strong>
+                                            </div>
+                                            <div className="cpd-helper-metric-item">
+                                                <span>Ngày sinh</span>
+                                                <strong>{formatDateOfBirth(helperProfile?.dateOfBirth)}</strong>
+                                            </div>
+                                        </div>
+
+                                        <div className="cpd-helper-section">
+                                            <h5>Kỹ năng dịch vụ</h5>
+                                            <div className="cpd-helper-chip-list">
+                                                {(helperProfile?.categories || []).length > 0 ? (
+                                                    helperProfile.categories.map((cat) => (
+                                                        <span key={cat?.id || cat?.name} className="cpd-helper-chip">
+                                                            {cat?.name || 'Dịch vụ'}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="cpd-helper-muted">Chưa cập nhật kỹ năng.</span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="cpd-helper-section">
+                                            <h5>Khu vực làm việc</h5>
+                                            <div className="cpd-helper-chip-list">
+                                                {(helperProfile?.workingDistricts || []).length > 0 ? (
+                                                    helperProfile.workingDistricts.map((district, idx) => (
+                                                        <span
+                                                            key={`${district?.districtName || 'district'}-${idx}`}
+                                                            className="cpd-helper-chip location"
+                                                        >
+                                                            {district?.districtName || district?.name || 'Khu vực'}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="cpd-helper-muted">Chưa cập nhật khu vực làm việc.</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : null}
+
+                                <div className="cpd-helper-section cpd-helper-reviews-block">
+                                    <div className="cpd-helper-reviews-head">
+                                        <h5>Đánh giá từ khách hàng</h5>
+                                        {helperReviewStats != null && (helperReviewStats.totalReviews ?? 0) > 0 ? (
+                                            <span className="cpd-helper-reviews-summary">
+                                                TB{' '}
+                                                <strong>
+                                                    {helperReviewStats.averageRating != null
+                                                        ? Number(helperReviewStats.averageRating).toFixed(1)
+                                                        : '—'}
+                                                </strong>
+                                                /5 · {helperReviewStats.totalReviews} lượt
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                    {helperReviewsList.length === 0 ? (
+                                        <p className="cpd-helper-muted cpd-helper-reviews-empty">
+                                            Chưa có đánh giá công khai nào để hiển thị.
+                                        </p>
+                                    ) : (
+                                        <ul className="cpd-helper-reviews-list">
+                                            {helperReviewsList.map((rev) => (
+                                                <li key={rev.id} className="cpd-helper-review-item">
+                                                    <div className="cpd-helper-review-top">
+                                                        <span className="cpd-helper-review-name">{rev.customerName || 'Khách hàng'}</span>
+                                                        <CpdStars rating={rev.rating} />
+                                                    </div>
+                                                    <span className="cpd-helper-review-date">{formatDateTime(rev.createdAt)}</span>
+                                                    {rev.comment ? <p className="cpd-helper-review-text">{rev.comment}</p> : null}
+                                                    {rev.tags ? (
+                                                        <div className="cpd-helper-review-tags">
+                                                            {rev.tags
+                                                                .split(',')
+                                                                .map((t) => t.trim())
+                                                                .filter(Boolean)
+                                                                .map((t, i) => (
+                                                                    <span key={`${t}-${i}`} className="cpd-helper-review-tag">
+                                                                        {t}
+                                                                    </span>
+                                                                ))}
+                                                        </div>
+                                                    ) : null}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                 </div>
 
-                                <div className="cpd-helper-metrics">
-                                    <div className="cpd-helper-metric-item">
-                                        <span>Kinh nghiệm</span>
-                                        <strong>{helperProfile?.experienceYears ?? 0} năm</strong>
+                                {helperProfile ? (
+                                    <div className="cpd-helper-section">
+                                        <h5>Giới thiệu</h5>
+                                        <p className="cpd-helper-bio-text">{helperProfile?.bio || 'Helper chưa cập nhật phần giới thiệu.'}</p>
                                     </div>
-                                    <div className="cpd-helper-metric-item">
-                                        <span>Quê quán</span>
-                                        <strong>{helperProfile?.hometownName || '---'}</strong>
-                                    </div>
-                                    <div className="cpd-helper-metric-item">
-                                        <span>Ngày sinh</span>
-                                        <strong>{formatDateOfBirth(helperProfile?.dateOfBirth)}</strong>
-                                    </div>
-                                </div>
-
-                                <div className="cpd-helper-section">
-                                    <h5>Kỹ năng dịch vụ</h5>
-                                    <div className="cpd-helper-chip-list">
-                                        {(helperProfile?.categories || []).length > 0 ? (
-                                            helperProfile.categories.map((cat) => (
-                                                <span key={cat?.id || cat?.name} className="cpd-helper-chip">
-                                                    {cat?.name || 'Dịch vụ'}
-                                                </span>
-                                            ))
-                                        ) : (
-                                            <span className="cpd-helper-muted">Chưa cập nhật kỹ năng.</span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="cpd-helper-section">
-                                    <h5>Khu vực làm việc</h5>
-                                    <div className="cpd-helper-chip-list">
-                                        {(helperProfile?.workingDistricts || []).length > 0 ? (
-                                            helperProfile.workingDistricts.map((district, idx) => (
-                                                <span key={`${district?.districtName || 'district'}-${idx}`} className="cpd-helper-chip location">
-                                                    {district?.districtName || district?.name || 'Khu vực'}
-                                                </span>
-                                            ))
-                                        ) : (
-                                            <span className="cpd-helper-muted">Chưa cập nhật khu vực làm việc.</span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="cpd-helper-section">
-                                    <h5>Giới thiệu</h5>
-                                    <p className="cpd-helper-bio-text">{helperProfile?.bio || 'Helper chưa cập nhật phần giới thiệu.'}</p>
-                                </div>
+                                ) : null}
                             </div>
                         )}
                     </div>

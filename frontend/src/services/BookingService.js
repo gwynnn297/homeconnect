@@ -35,6 +35,11 @@ const BookingService = {
     confirmArrival: async (bookingId) => {
         return apiClient.post(`${BOOKING_BASE_URL}/${bookingId}/arrival/confirm`);
     },
+
+    /** Khách xác nhận thợ hoàn thành: PENDING_COMPLETION → COMPLETED */
+    confirmComplete: async (bookingId) => {
+        return apiClient.post(`${BOOKING_BASE_URL}/${bookingId}/confirm-complete`, {});
+    },
 };
 
 export default BookingService;
