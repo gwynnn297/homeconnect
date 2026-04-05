@@ -1,6 +1,6 @@
 .cs-sidebar {
     width: 250px;
-    background-color: var(--sidebar-bg);
+    background-color: #ffffff;
     border-right: 1px solid var(--border);
     height: 100%;
     position: relative;

@@ -77,15 +77,16 @@ public class WalletScheduler {
 
                 // 3. Push Notification cho Helper
                 String helperName = booking.getHelper().getFullName();
-                String serviceName = booking.getCategory() != null
+                String categoryName = booking.getCategory() != null
                         ? booking.getCategory().getName() : "Dịch vụ";
+                Long postId = booking.getJobPostId() != null ? booking.getJobPostId() : booking.getId();
 
                 notificationService.createNotification(
                         booking.getHelper().getId(),
                         " Bạn đã nhận được lương!",
-                        String.format("Bạn nhận được %s VNĐ từ đơn hàng #%d (%s). " +
+                        String.format("Job #%d: Bạn nhận được %s VNĐ từ dịch vụ %s. " +
                                 "Số tiền đã được cộng vào ví khả dụng.",
-                                helperSalary.toPlainString(), booking.getId(), serviceName),
+                                postId, helperSalary.toPlainString(), categoryName),
                         "SALARY_RELEASED"
                 );
 

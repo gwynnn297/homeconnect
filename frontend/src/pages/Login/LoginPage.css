@@ -64,12 +64,13 @@ body {
 .btn-login-login {
     width: 110px;
     height: 40px;
-    background: rgb(241, 240, 240);
-    border: 2px solid #838dde;
-    color: rgb(10, 7, 7);
+    background: #f3f4f6;
+    border: 1.5px solid #d1d5db;
+    color: #111827;
     display: flex;
     align-items: center;
     justify-content: center;
+    
 }
 
 .btn-login-login:hover {
@@ -80,7 +81,7 @@ body {
     width: 110px;
     height: 40px;
     background: #346252;
-    border: 2px solid #838dde;
+    border: 2px solid #346252;
     color: white;
     display: flex;
     align-items: center;

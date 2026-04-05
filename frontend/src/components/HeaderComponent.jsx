@@ -116,8 +116,8 @@ const HeaderComponent = () => {
 
     const extractJobIdFromNotification = useCallback((notif) => {
         const content = `${notif?.title ?? ''} ${notif?.content ?? ''}`;
-        // Backend currently encodes postId into content like: "Job #123: ..."
-        const match = content.match(/job\s*#\s*(\d+)/i);
+        // Backend currently encodes postId into content like: "Job #123: ..." or "đơn hàng #123"
+        const match = content.match(/(?:job|đơn hàng|booking)\s*#\s*(\d+)/i);
         if (match?.[1]) return Number(match[1]);
         return null;
     }, []);

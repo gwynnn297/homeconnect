@@ -44,7 +44,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
      * và thời gian checkout (scheduledEndTime) đã qua cutoff.
      * Dùng cho cronjob auto salary release.
      */
-    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"helper", "customer"})
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"helper", "customer", "category"})
     @Query("SELECT b FROM Booking b " +
            "WHERE b.status = :status " +
            "AND b.paymentStatus = :paymentStatus " +

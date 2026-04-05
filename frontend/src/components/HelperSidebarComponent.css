@@ -1,6 +1,6 @@
 .hc-helper-sidebar {
     width: 250px;
-    background-color: var(--sidebar-bg);
+    background-color: #ffffff;
     border-right: 1px solid var(--border);
     height: calc(100vh - 80px);
     /* Adjust based on header height */
