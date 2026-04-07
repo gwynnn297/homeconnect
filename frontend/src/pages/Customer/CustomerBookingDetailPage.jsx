@@ -306,11 +306,20 @@ const CustomerBookingDetailPage = () => {
 
     const statusUI = getBookingStatusUI(booking?.status);
     const paymentUI = getPaymentStatusUI(booking?.paymentStatus);
-    const statusUpper = String(booking?.status || '').toUpperCase();
+    const normalizedStatus = String(booking?.status || '').toUpperCase();
+    const statusUpper = normalizedStatus;
     const showConfirmBanner = statusUpper === 'PENDING_COMPLETION';
     const showReviewSection = statusUpper === 'COMPLETED';
     const editableWindow = existingReview && canEditReviewByTime(existingReview);
     const helperName = booking?.helperName || 'Helper';
+    const hasArrivalSignal = Boolean(booking?.arrivalProofImage) || Boolean(booking?.arrivedAt) || ['ARRIVED', 'IN_PROGRESS'].includes(normalizedStatus);
+    const hasConfirmedFlag = Boolean(booking?.customerArrivalConfirmed);
+    const isInconsistentArrivalState = hasConfirmedFlag && normalizedStatus === 'ARRIVED';
+    const isArrivalConfirmed = hasConfirmedFlag && !isInconsistentArrivalState;
+    const canShowArrivalConfirmSection = hasArrivalSignal;
+    const canSubmitArrivalConfirm = canShowArrivalConfirmSection
+        && Boolean(booking?.arrivalProofImage)
+        && (!hasConfirmedFlag || isInconsistentArrivalState);
 
     const handleConfirmArrival = async () => {
         if (!booking?.bookingId || confirmingArrival) return;
@@ -439,10 +448,10 @@ const CustomerBookingDetailPage = () => {
 
                             {booking?.arrivalProofImage && (
                                 <div className="cbd-card">
-                                    <div className="cbd-section-title">Ảnh helper check-in tại địa điểm</div>
+                                    <div className="cbd-section-title">Ảnh địa điểm helper đã gửi</div>
                                     <img
                                         src={booking.arrivalProofImage}
-                                        alt="Arrival proof"
+                                        alt="Ảnh địa điểm helper gửi"
                                         style={{ width: '100%', borderRadius: 12, border: '1px solid #e2e8f0' }}
                                     />
                                 </div>
@@ -467,22 +476,57 @@ const CustomerBookingDetailPage = () => {
                                 <div className="cbd-kv">
                                     <div className="cbd-k">Xác nhận địa điểm</div>
                                     <div className="cbd-v">
-                                        {booking?.customerArrivalConfirmed ? 'Đã xác nhận đúng nhà' : 'Chưa xác nhận'}
+                                        {isArrivalConfirmed
+                                            ? 'Đã xác nhận đúng nhà'
+                                            : isInconsistentArrivalState
+                                                ? 'Đã xác minh, đang chờ đồng bộ trạng thái'
+                                                : 'Chưa xác nhận'}
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {statusUpper === 'ARRIVED' && booking?.arrivalProofImage && !booking?.customerArrivalConfirmed && (
+                        {canShowArrivalConfirmSection && (
                             <div className="cbd-actions" style={{ marginTop: 8 }}>
-                                <button
-                                    className="cbd-btn cbd-btn--primary"
-                                    type="button"
-                                    onClick={handleConfirmArrival}
-                                    disabled={confirmingArrival}
-                                >
-                                    {confirmingArrival ? 'Đang xác nhận...' : 'Xác nhận helper đã đến đúng nhà'}
-                                </button>
+                                {isArrivalConfirmed ? (
+                                    <button className="cbd-btn cbd-btn--primary" type="button" disabled>
+                                        Đã xác minh helper đến đúng nhà
+                                    </button>
+                                ) : (
+                                    <button
+                                        className="cbd-btn cbd-btn--primary"
+                                        type="button"
+                                        onClick={handleConfirmArrival}
+                                        disabled={confirmingArrival || !canSubmitArrivalConfirm}
+                                    >
+                                        {confirmingArrival
+                                            ? 'Đang xác nhận...'
+                                            : canSubmitArrivalConfirm
+                                                ? (isInconsistentArrivalState
+                                                    ? 'Đồng bộ trạng thái sang Đang thực hiện'
+                                                    : 'Xác nhận helper đã đến đúng nhà')
+                                                : 'Chưa có ảnh địa điểm để xác nhận'}
+                                    </button>
+                                )}
+
+                                {!isArrivalConfirmed && !canSubmitArrivalConfirm && (
+                                    <div style={{ color: '#b45309', fontSize: 14 }}>
+                                        Nút xác nhận sẽ bật khi hệ thống đã nhận được ảnh địa điểm helper gửi.
+                                    </div>
+                                )}
+
+                                {isInconsistentArrivalState && (
+                                    <div style={{ color: '#b45309', fontSize: 14 }}>
+                                        Hệ thống phát hiện trạng thái chưa đồng bộ. Bấm nút để cập nhật sang Đang thực hiện.
+                                    </div>
+                                )}
+
+                                {isArrivalConfirmed && (
+                                    <div style={{ color: '#065f46', fontSize: 14 }}>
+                                        Bạn đã xác minh thành công
+                                        {booking?.customerArrivalConfirmedAt ? ` lúc ${formatDateTime(booking.customerArrivalConfirmedAt)}.` : '.'}
+                                    </div>
+                                )}
                             </div>
                         )}
 

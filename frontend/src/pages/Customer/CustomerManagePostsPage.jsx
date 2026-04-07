@@ -111,6 +111,10 @@ const CustomerManagePostsPage = () => {
                     postId,
                     categoryId,
                     categoryName,
+                    bookingId: post?.bookingId ?? null,
+                    bookingStatus: post?.bookingStatus ?? null,
+                    customerArrivalConfirmed: Boolean(post?.customerArrivalConfirmed),
+                    arrivalProofImage: post?.arrivalProofImage || null,
                     title: post?.title || `Bài đăng #${postId}`,
                     description: post?.description || 'Không có mô tả.',
                     addressText: addressText || post?.address_detail || 'Chưa có địa chỉ',
@@ -268,6 +272,9 @@ const CustomerManagePostsPage = () => {
                                 const applicants = applicantsByPostId[post.postId] || [];
                                 const hasApplicants = ['PENDING', 'PUBLISHED'].includes(post.status) && applicants.length > 0;
                                 const previewApplicants = applicants.slice(0, 3);
+                                const canOpenBooking = Number(post?.bookingId) > 0;
+                                const shouldShowArrivalCta = canOpenBooking && ['CONFIRMED', 'ARRIVED', 'IN_PROGRESS'].includes(String(post?.bookingStatus || '').toUpperCase());
+                                const hasArrivalProof = Boolean(post?.arrivalProofImage);
 
                                 return (
                                     <div
@@ -288,6 +295,11 @@ const CustomerManagePostsPage = () => {
                                             {isAssigned ? (
                                                 <div className="cmp-assigned-banner">
                                                     ✅ Bài đăng đã chốt helper. Theo dõi chi tiết để xem tiến độ làm việc.
+                                                </div>
+                                            ) : null}
+                                            {canOpenBooking ? (
+                                                <div className="cmp-assigned-banner" style={{ marginTop: 8 }}>
+                                                    Booking #{post.bookingId} - Trạng thái: {post.bookingStatus || '---'}
                                                 </div>
                                             ) : null}
                                             <h3 className="cmp-post-title">{post.title}</h3>
@@ -356,6 +368,27 @@ const CustomerManagePostsPage = () => {
                                                             ? 'Đã có 1 helper apply vào bài đăng này'
                                                             : `Đã có ${applicants.length} helper apply vào bài đăng này`}
                                                     </p>
+                                                </div>
+                                            ) : null}
+
+                                            {canOpenBooking ? (
+                                                <div style={{ marginTop: 12 }}>
+                                                    {hasArrivalProof ? (
+                                                        <div className="cmp-assigned-banner" style={{ marginBottom: 8 }}>
+                                                            Đã có ảnh địa điểm helper gửi để xác minh đúng nhà.
+                                                        </div>
+                                                    ) : null}
+                                                    <button
+                                                        type="button"
+                                                        className="cmp-btn-outline cmp-btn-action"
+                                                        onClick={() => navigate(`/customer/bookings/${post.bookingId}`)}
+                                                    >
+                                                        {shouldShowArrivalCta
+                                                            ? (post.customerArrivalConfirmed
+                                                                ? 'Xem xác nhận helper đã đến'
+                                                                : 'Xem ảnh địa điểm và xác nhận helper đã đến đúng nhà')
+                                                            : 'Xem chi tiết booking'}
+                                                    </button>
                                                 </div>
                                             ) : null}
                                         </div>

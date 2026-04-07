@@ -24,6 +24,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                      Collection<Long> jobPostIds,
                      Collection<BookingStatus> statuses);
 
+           List<Booking> findByCustomer_IdAndJobPostIdInOrderByCreatedAtDesc(
+                  Long customerId,
+                  Collection<Long> jobPostIds);
+
+           Optional<Booking> findTopByJobPostIdAndCustomer_IdOrderByCreatedAtDesc(Long jobPostId, Long customerId);
+
     @Query("SELECT COUNT(b) FROM Booking b " +
            "WHERE b.helper.id = :helperId " +
            "AND b.status IN :statuses " +

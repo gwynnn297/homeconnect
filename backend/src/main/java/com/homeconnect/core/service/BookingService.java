@@ -466,6 +466,8 @@ public class BookingService {
             }
         }
 
+        String arrivalProofImage = resolveArrivalProofImage(b);
+
         return BookingResponse.builder()
                 .bookingId(b.getId())
                 .customerId(b.getCustomer().getId())
@@ -476,7 +478,7 @@ public class BookingService {
                 .scheduledStartTime(b.getScheduledStartTime())
                 .scheduledEndTime(b.getScheduledEndTime())
                 .arrivedAt(b.getArrivedAt())
-                .arrivalProofImage(b.getArrivalProofImage())
+                .arrivalProofImage(arrivalProofImage)
                 .customerArrivalConfirmed(Boolean.TRUE.equals(b.getCustomerArrivalConfirmed()))
                 .customerArrivalConfirmedAt(b.getCustomerArrivalConfirmedAt())
                 .status(b.getStatus())
@@ -484,6 +486,16 @@ public class BookingService {
                 .address(fullAddress)
                 .paymentStatus(b.getPaymentStatus())
                 .build();
+    }
+
+    private String resolveArrivalProofImage(Booking booking) {
+        if (booking.getArrivalProofImage() != null && !booking.getArrivalProofImage().isBlank()) {
+            return booking.getArrivalProofImage();
+        }
+        if (booking.getCheckinPhotoUrl() != null && !booking.getCheckinPhotoUrl().isBlank()) {
+            return booking.getCheckinPhotoUrl();
+        }
+        return null;
     }
 
     @Transactional
@@ -495,25 +507,37 @@ public class BookingService {
             throw new ApiException("Bạn không có quyền xác nhận đơn hàng này", HttpStatus.FORBIDDEN);
         }
 
-        if (booking.getStatus() != BookingStatus.ARRIVED) {
-            throw new ApiException("Chỉ xác nhận khi helper đã check-in ARRIVED", HttpStatus.BAD_REQUEST);
+        if (booking.getStatus() != BookingStatus.ARRIVED && booking.getStatus() != BookingStatus.IN_PROGRESS) {
+            throw new ApiException("Chỉ xác nhận khi helper đã check-in ARRIVED/IN_PROGRESS", HttpStatus.BAD_REQUEST);
         }
 
-        if (booking.getArrivalProofImage() == null || booking.getArrivalProofImage().isBlank()) {
+        if (resolveArrivalProofImage(booking) == null) {
             throw new ApiException("Đơn hàng chưa có ảnh chứng minh check-in", HttpStatus.BAD_REQUEST);
         }
+
+        boolean changed = false;
+        boolean newlyConfirmed = false;
 
         if (!Boolean.TRUE.equals(booking.getCustomerArrivalConfirmed())) {
             booking.setCustomerArrivalConfirmed(true);
             booking.setCustomerArrivalConfirmedAt(LocalDateTime.now());
+            changed = true;
+            newlyConfirmed = true;
 
-            // Khi khách xác minh helper đã đến đúng nhà, đơn chuyển sang ĐANG THỰC HIỆN.
-            if (booking.getStatus() == BookingStatus.ARRIVED) {
-                booking.setStatus(BookingStatus.IN_PROGRESS);
-            }
+        }
 
+        // Khi khách xác minh helper đã đến đúng nhà, đơn chuyển sang ĐANG THỰC HIỆN.
+        // Nhánh này cũng tự chữa dữ liệu cũ bị lệch: customerArrivalConfirmed=true nhưng status vẫn ARRIVED.
+        if (booking.getStatus() == BookingStatus.ARRIVED) {
+            booking.setStatus(BookingStatus.IN_PROGRESS);
+            changed = true;
+        }
+
+        if (changed) {
             bookingRepository.save(booking);
+        }
 
+        if (newlyConfirmed) {
             notificationService.createNotification(
                     booking.getHelper().getId(),
                     "Khách hàng đã xác nhận bạn đến đúng địa điểm",
@@ -524,6 +548,7 @@ public class BookingService {
         return mapToBookingResponse(booking, customerId);
     }
 
+    @Transactional(readOnly = true)
     public BookingResponse getBookingDetail(Long bookingId, Long userId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));

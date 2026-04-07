@@ -154,6 +154,10 @@ const CustomerPostDetailPage = () => {
 
         return {
             postId: job?.postId ?? '',
+            bookingId: job?.bookingId ?? null,
+            bookingStatus: job?.bookingStatus ?? null,
+            customerArrivalConfirmed: Boolean(job?.customerArrivalConfirmed),
+            arrivalProofImage: job?.arrivalProofImage || null,
             title: job?.title || `Bài đăng #${job?.postId ?? ''}`,
             categoryName: job?.categoryName || 'Dịch vụ',
             serviceNames: job?.serviceNames || '',
@@ -365,7 +369,32 @@ const CustomerPostDetailPage = () => {
                             <button className="cpd-secondary" type="button" onClick={() => navigate('/customer/manage-posts')}>
                                 Danh sách bài đăng
                             </button>
+                            {Number(viewModel.bookingId) > 0 ? (
+                                <button
+                                    className="cpd-primary"
+                                    type="button"
+                                    onClick={() => navigate(`/customer/bookings/${viewModel.bookingId}`)}
+                                >
+                                    {viewModel.customerArrivalConfirmed
+                                        ? 'Xem xác nhận helper đã đến'
+                                        : 'Xem ảnh địa điểm để xác nhận helper đã đến đúng nhà'}
+                                </button>
+                            ) : null}
                         </div>
+
+                        {viewModel.arrivalProofImage ? (
+                            <div className="cpd-card" style={{ marginTop: 12 }}>
+                                <h3 style={{ marginTop: 0 }}>Ảnh địa điểm helper đã gửi</h3>
+                                <img
+                                    src={viewModel.arrivalProofImage}
+                                    alt="Ảnh địa điểm helper gửi"
+                                    style={{ width: '100%', borderRadius: 12, border: '1px solid #e2e8f0' }}
+                                />
+                                <p style={{ marginTop: 8, color: '#475569' }}>
+                                    Chủ nhà có thể vào chi tiết booking để xác nhận helper đã đến đúng địa chỉ.
+                                </p>
+                            </div>
+                        ) : null}
 
                         <div className="cpd-card cpd-applicants-card">
                             <div className="cpd-applicants-header">

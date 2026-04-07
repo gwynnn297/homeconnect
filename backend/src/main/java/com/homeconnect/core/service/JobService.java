@@ -476,8 +476,13 @@ public class JobService {
                 .status(jobPost.getStatus())
                 .bookingId(booking != null ? booking.getId() : null)
                 .bookingStatus(booking != null && booking.getStatus() != null ? booking.getStatus().name() : null)
-                .canCheckin(booking != null && booking.getStatus() == com.homeconnect.core.enums.BookingStatus.CONFIRMED)
-                .customerArrivalConfirmed(false) // Ẩn trường do thiếu migration
+                .canCheckin(booking != null && booking.getStatus() == BookingStatus.CONFIRMED)
+                .customerArrivalConfirmed(booking != null && Boolean.TRUE.equals(booking.getCustomerArrivalConfirmed()))
+                .arrivalProofImage(booking != null
+                    ? (booking.getArrivalProofImage() != null && !booking.getArrivalProofImage().isBlank()
+                        ? booking.getArrivalProofImage()
+                        : booking.getCheckinPhotoUrl())
+                    : null)
                 .createdAt(jobPost.getCreatedAt())
                 .workSize(workSize)
                 .additionalData(additionalDataMap)
@@ -600,8 +605,28 @@ public class JobService {
     @Transactional(readOnly = true)
     public List<JobPostResponse> getCustomerJobs(Long customerId) {
         log.info("Lấy danh sách job post của customer {}", customerId);
-        return jobPostRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
-                .map(jp -> mapToJobPostResponse(jp, true))
+        List<JobPost> jobPosts = jobPostRepository.findByCustomerIdOrderByCreatedAtDesc(customerId);
+        if (jobPosts.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> postIds = jobPosts.stream()
+                .map(JobPost::getPostId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        Map<Long, Booking> bookingByPostId = new HashMap<>();
+        if (!postIds.isEmpty()) {
+            List<Booking> bookings = bookingRepository.findByCustomer_IdAndJobPostIdInOrderByCreatedAtDesc(customerId, postIds);
+            for (Booking booking : bookings) {
+                if (booking.getJobPostId() != null && !bookingByPostId.containsKey(booking.getJobPostId())) {
+                    bookingByPostId.put(booking.getJobPostId(), booking);
+                }
+            }
+        }
+
+        return jobPosts.stream()
+                .map(jp -> mapToJobPostResponse(jp, true, bookingByPostId.get(jp.getPostId())))
                 .collect(Collectors.toList());
     }
 
@@ -617,7 +642,9 @@ public class JobService {
             throw new ApiException("Bạn không có quyền xem bài đăng này", HttpStatus.FORBIDDEN);
         }
 
-        return mapToJobPostResponse(jobPost, true);
+        Booking booking = bookingRepository.findTopByJobPostIdAndCustomer_IdOrderByCreatedAtDesc(jobId, customerId)
+                .orElse(null);
+        return mapToJobPostResponse(jobPost, true, booking);
     }
 
     /**

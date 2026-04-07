@@ -48,6 +48,7 @@ public class JobPostResponse {
     private String bookingStatus;
     private Boolean canCheckin;
     private Boolean customerArrivalConfirmed;
+    private String arrivalProofImage;
 
     private Double workSize;
     private Boolean isPremium;
