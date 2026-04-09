@@ -295,11 +295,16 @@ public class JobService {
 
     @Transactional(readOnly = true)
     public List<JobPostResponse> getAllPublishedJobs(Long helperId) {
-        // Lấy tất cả các việc đang OPEN (PUBLISHED)
-        // Chỉ lọc bỏ các việc thợ đã ứng tuyển rồi (Không lọc theo Quận/Huyện)
+        List<String> helperDistricts = getNormalizedHelperDistricts(helperId);
+        if (helperDistricts.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Lấy tất cả các việc đang OPEN (PUBLISHED) trong khu vực helper đã đăng ký.
         return jobPostRepository.findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalDateTime.now()).stream()
                 .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(),
                         helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
+                .filter(jp -> isJobInRegisteredDistrict(jp, helperDistricts))
                 .map(jp -> mapToJobPostResponse(jp, false))
                 .collect(Collectors.toList());
     }
@@ -983,20 +988,26 @@ public class JobService {
     }
 
     private void validateJobDistrict(JobPost jobPost, Long helperId) {
-        String jobDistrict = jobPost.getAddress() != null
-                ? normalizeLocationText(jobPost.getAddress().getDistrictName())
-                : "";
-
-        List<String> helperDistricts = helperWorkingDistrictRepository.findByHelper_Id(helperId).stream()
-                .map(com.homeconnect.core.entity.HelperWorkingDistrict::getDistrictName)
-                .map(this::normalizeLocationText)
-                .collect(Collectors.toList());
-
-        if (!helperDistricts.contains(jobDistrict)) {
+        List<String> helperDistricts = getNormalizedHelperDistricts(helperId);
+        if (!isJobInRegisteredDistrict(jobPost, helperDistricts)) {
             throw new ApiException("Công việc này ở "
                     + (jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : "Quận khác")
                     + ", không thuộc các khu vực bạn đăng ký làm việc.", HttpStatus.BAD_REQUEST);
         }
+    }
+
+    private List<String> getNormalizedHelperDistricts(Long helperId) {
+        return helperWorkingDistrictRepository.findByHelper_Id(helperId).stream()
+                .map(com.homeconnect.core.entity.HelperWorkingDistrict::getDistrictName)
+                .map(this::normalizeLocationText)
+                .collect(Collectors.toList());
+    }
+
+    private boolean isJobInRegisteredDistrict(JobPost jobPost, List<String> helperDistricts) {
+        String jobDistrict = jobPost.getAddress() != null
+                ? normalizeLocationText(jobPost.getAddress().getDistrictName())
+                : "";
+        return helperDistricts.contains(jobDistrict);
     }
 
     private void validateHelperAvailability(JobPost jobPost, Long helperId) {
