@@ -38,7 +38,6 @@ public class BookingService {
     private final ConflictEngine conflictEngine;
     private final NotificationService notificationService;
 
-
     /**
      * Xác nhận đơn hàng và cập nhật lịch của Helper sang BUSY
      */
@@ -297,7 +296,7 @@ public class BookingService {
         helperScheduleRepository.save(targetSchedule);
 
         log.info("Direct booking {} created. Waiting for helper {} to respond.", booking.getId(), helper.getId());
-        
+
         // Trả về response với address đầy đủ (cho khách hàng - người vừa tạo)
         return mapToBookingResponse(booking, customerId);
     }
@@ -352,23 +351,26 @@ public class BookingService {
         }
 
         if (booking.getStatus() != BookingStatus.ARRIVED) {
-            throw new ApiException("Đơn hàng phải ở trạng thái ARRIVED (Thợ đã xác thực khuôn mặt) mới có thể xác nhận bắt đầu", HttpStatus.BAD_REQUEST);
+            throw new ApiException(
+                    "Đơn hàng phải ở trạng thái ARRIVED (Thợ đã xác thực khuôn mặt) mới có thể xác nhận bắt đầu",
+                    HttpStatus.BAD_REQUEST);
         }
 
         booking.setStatus(BookingStatus.IN_PROGRESS);
         booking.setConfirmedStartAt(LocalDateTime.now());
         bookingRepository.save(booking);
-        
+
         log.info("[BE-Exec-02] Customer {} confirmed start for booking {}. Status: IN_PROGRESS", customerId, bookingId);
-        
-        notificationService.createNotification(booking.getHelper().getId(), 
-                "Công việc đã bắt đầu!", 
+
+        notificationService.createNotification(booking.getHelper().getId(),
+                "Công việc đã bắt đầu!",
                 "Khách hàng đã xác nhận. Bạn có thể bắt đầu làm việc ngay.", "WORK_STARTED");
     }
 
     /**
      * [BE-Exec-03] Thợ chụp ảnh hoàn thành -> WAITING_FOR_CONFIRMATION (Tú)
-     * Ràng buộc: Không được check-out khi chưa làm đủ 80% thời gian cam kết mà không có lý do
+     * Ràng buộc: Không được check-out khi chưa làm đủ 80% thời gian cam kết mà
+     * không có lý do
      */
     @Transactional
     public void checkOut(Long bookingId, String checkoutPhotoUrl, String checkoutReason, Long helperId) {
@@ -380,7 +382,8 @@ public class BookingService {
         }
 
         if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
-            throw new ApiException("Đơn hàng phải ở trạng thái IN_PROGRESS mới có thể check-out", HttpStatus.BAD_REQUEST);
+            throw new ApiException("Đơn hàng phải ở trạng thái IN_PROGRESS mới có thể check-out",
+                    HttpStatus.BAD_REQUEST);
         }
 
         // [Conflict 1] Kiểm tra nếu thực tế làm < 80% thời gian đặt
@@ -395,7 +398,9 @@ public class BookingService {
         boolean isUndertime = workedMinutes < scheduledMinutes * 0.8;
         if (isUndertime) {
             if (checkoutReason == null || checkoutReason.trim().isEmpty()) {
-                throw new ApiException("Bạn hoàn thành sớm hơn 80% thời gian dự kiến. Vui lòng cung cấp lý do (Làm xong sớm, Khách cho về...)", HttpStatus.BAD_REQUEST);
+                throw new ApiException(
+                        "Bạn hoàn thành sớm hơn 80% thời gian dự kiến. Vui lòng cung cấp lý do (Làm xong sớm, Khách cho về...)",
+                        HttpStatus.BAD_REQUEST);
             }
             // Gắn flag bất thường, log để Admin theo dõi
             booking.setIsFlagged(true);
@@ -441,7 +446,8 @@ public class BookingService {
         booking.setConfirmedDoneAt(LocalDateTime.now());
         bookingRepository.save(booking);
 
-        log.info("[BE-Exec-03b] Customer {} confirmed completion of booking {}. Status: COMPLETED", customerId, bookingId);
+        log.info("[BE-Exec-03b] Customer {} confirmed completion of booking {}. Status: COMPLETED", customerId,
+                bookingId);
 
         notificationService.createNotification(booking.getHelper().getId(),
                 "Khách đã xác nhận hoàn thành!",
@@ -451,7 +457,8 @@ public class BookingService {
     private BookingResponse mapToBookingResponse(Booking b, Long viewerId) {
         String fullAddress = "";
         if (b.getAddress() != null) {
-            // [PB-15] Privacy: Helper chỉ thấy Quận/Huyện khi đơn ở trạng thái PENDING_ACCEPTANCE
+            // [PB-15] Privacy: Helper chỉ thấy Quận/Huyện khi đơn ở trạng thái
+            // PENDING_ACCEPTANCE
             if (b.getHelper().getId().equals(viewerId) && b.getStatus() == BookingStatus.PENDING_ACCEPTANCE) {
                 fullAddress = String.format("%s, %s, %s",
                         b.getAddress().getWardName(),
@@ -527,7 +534,8 @@ public class BookingService {
         }
 
         // Khi khách xác minh helper đã đến đúng nhà, đơn chuyển sang ĐANG THỰC HIỆN.
-        // Nhánh này cũng tự chữa dữ liệu cũ bị lệch: customerArrivalConfirmed=true nhưng status vẫn ARRIVED.
+        // Nhánh này cũng tự chữa dữ liệu cũ bị lệch: customerArrivalConfirmed=true
+        // nhưng status vẫn ARRIVED.
         if (booking.getStatus() == BookingStatus.ARRIVED) {
             booking.setStatus(BookingStatus.IN_PROGRESS);
             changed = true;
