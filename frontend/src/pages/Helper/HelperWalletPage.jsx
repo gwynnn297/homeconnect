@@ -130,10 +130,6 @@ const HelperWalletPage = () => {
     return (
         <HelperLayout>
             <div className="hw-page">
-                <div className="hw-header">
-                    <h2 className="hw-title">Ví của tôi</h2>
-                    <p className="hw-subtitle">Quản lý thu nhập, rút tiền và theo dõi lịch sử giao dịch.</p>
-                </div>
 
                 {/* TOP SECTION: BALANCE CARDS */}
                 <div className="hw-balance-grid">

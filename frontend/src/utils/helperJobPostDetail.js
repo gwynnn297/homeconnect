@@ -158,9 +158,9 @@ export function buildHelperJobModalModel(job) {
         booking:
             job.bookingId != null
                 ? {
-                      id: job.bookingId,
-                      status: job.bookingStatus ? String(job.bookingStatus) : null,
-                  }
+                    id: job.bookingId,
+                    status: job.bookingStatus ? String(job.bookingStatus) : null,
+                }
                 : null,
         workBullets: bullets,
         workLists: lists,

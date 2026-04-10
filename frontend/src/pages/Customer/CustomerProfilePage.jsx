@@ -208,7 +208,18 @@ const CustomerProfilePage = () => {
         const provCode = e.target.value;
         const provName = provinces.find((p) => p.value === provCode)?.label || '';
         setHasManualAddressEdit(true);
-        setForm((f) => ({ ...f, provinceCode: provCode, provinceName: provName, districtCode: '', districtName: '', wardCode: '', wardName: '' }));
+        setForm((f) => ({
+            ...f,
+            provinceCode: provCode,
+            provinceName: provName,
+            districtCode: '',
+            districtName: '',
+            wardCode: '',
+            wardName: '',
+            addressDetail: '',
+        }));
+        setAddressSuggestions([]);
+        setShowAddressSuggestions(false);
         setDistricts([]);
         setWards([]);
         if (!provCode) return;
@@ -381,6 +392,10 @@ const CustomerProfilePage = () => {
         e.preventDefault();
         if (!form.fullName.trim()) {
             setToast({ message: 'Họ tên không được để trống', type: 'error' });
+            return;
+        }
+        if (!form.addressDetail.trim()) {
+            setToast({ message: 'Vui lòng nhập địa chỉ chi tiết để cập nhật', type: 'error' });
             return;
         }
         setSaving(true);
@@ -703,7 +718,7 @@ const CustomerProfilePage = () => {
                                                     <polyline points="17 21 17 13 7 13 7 21" />
                                                     <polyline points="7 3 7 8 15 8" />
                                                 </svg>
-                                                Lưu thay đổi
+                                                Cập nhật
                                             </>
                                         )}
                                     </button>

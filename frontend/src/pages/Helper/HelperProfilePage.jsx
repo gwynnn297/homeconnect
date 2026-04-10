@@ -229,7 +229,18 @@ const BasicInfoTab = ({ profile, onSaved }) => {
         const provCode = e.target.value;
         const provName = provinces.find((p) => p.value === provCode)?.label || '';
         setHasManualAddressEdit(true);
-        setForm((f) => ({ ...f, provinceCode: provCode, provinceName: provName, districtCode: '', districtName: '', wardCode: '', wardName: '' }));
+        setForm((f) => ({
+            ...f,
+            provinceCode: provCode,
+            provinceName: provName,
+            districtCode: '',
+            districtName: '',
+            wardCode: '',
+            wardName: '',
+            addressDetail: '',
+        }));
+        setAddressSuggestions([]);
+        setShowAddressSuggestions(false);
         setDistricts([]);
         setWards([]);
         if (!provCode) return;
@@ -408,6 +419,10 @@ const BasicInfoTab = ({ profile, onSaved }) => {
         e.preventDefault();
         if (!form.fullName.trim()) {
             setToast({ message: 'Họ tên không được để trống', type: 'error' });
+            return;
+        }
+        if (!form.addressDetail.trim()) {
+            setToast({ message: 'Vui lòng nhập địa chỉ chi tiết để cập nhật', type: 'error' });
             return;
         }
         setSaving(true);
@@ -733,7 +748,7 @@ const BasicInfoTab = ({ profile, onSaved }) => {
                                     <polyline points="17 21 17 13 7 13 7 21" />
                                     <polyline points="7 3 7 8 15 8" />
                                 </svg>
-                                Lưu thay đổi
+                                Cập nhật
                             </>
                         )}
                     </button>
@@ -875,7 +890,13 @@ const ProfessionalProfileTab = () => {
     // When user manually changes the work-province filter
     const handleWorkProvinceChange = async (e) => {
         const provCode = e.target.value;
-        setForm((f) => ({ ...f, workProvinceCode: provCode }));
+        setForm((f) => ({
+            ...f,
+            workProvinceCode: provCode,
+            // Reset selected working districts to avoid accumulating stale districts
+            // from previously filtered provinces.
+            workingDistricts: [],
+        }));
         setAllWorkDistricts([]);
         if (!provCode) return;
         setLoadingWorkDist(true);
@@ -1109,14 +1130,13 @@ const ProfessionalProfileTab = () => {
                     options={allWorkDistricts}
                     selectedIds={form.workingDistricts.map((d) => d.code)}
                     onChange={(codes) => {
-                        // Build workingDistricts array of {code, name}
-                        const updated = codes.map((code) => {
-                            const found = allWorkDistricts.find((d) => d.value === code);
-                            // Preserve existing entry or create new one
-                            return found
-                                ? { code, name: found.label }
-                                : form.workingDistricts.find((d) => d.code === code) || { code, name: '' };
-                        });
+                        // Build workingDistricts array of {code, name} from current options only
+                        const updated = codes
+                            .map((code) => {
+                                const found = allWorkDistricts.find((d) => d.value === code);
+                                return found ? { code, name: found.label } : null;
+                            })
+                            .filter(Boolean);
                         setForm((f) => ({ ...f, workingDistricts: updated }));
                     }}
                     loading={loadingWorkDist}
@@ -1159,7 +1179,7 @@ const ProfessionalProfileTab = () => {
                                     <polyline points="17 21 17 13 7 13 7 21" />
                                     <polyline points="7 3 7 8 15 8" />
                                 </svg>
-                                Lưu hồ sơ nghề nghiệp
+                                Cập nhật hồ sơ nghề nghiệp
                             </>
                         )}
                     </button>

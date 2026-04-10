@@ -12,7 +12,8 @@ const extractPayload = (res) => (res && typeof res === 'object' && 'data' in res
 const TABS = [
     { id: 'NEW', label: 'Việc mới' },
     { id: 'PENDING', label: 'Chờ xác nhận' },
-    { id: 'CONFIRMED', label: 'Xác nhận' }
+    { id: 'CONFIRMED', label: 'Xác nhận' },
+    { id: 'COMPLETED', label: 'Hoàn thành' }
 ];
 
 const TAB_UI = {
@@ -36,6 +37,13 @@ const TAB_UI = {
         badgeLabel: 'Đã xác nhận làm việc',
         badgeClass: 'confirmed',
         icon: 'check'
+    },
+    COMPLETED: {
+        title: 'Đã hoàn thành',
+        desc: 'Công việc bạn đã hoàn tất.',
+        badgeLabel: 'Đã hoàn thành',
+        badgeClass: 'done',
+        icon: 'check'
     }
 };
 
@@ -55,6 +63,8 @@ const formatWorkDate = (value) => {
 const buildLocationText = (job) =>
     [job?.wardName, job?.districtName, job?.provinceName].filter(Boolean).join(', ') || 'N/A';
 
+const isCompletedJob = (job) => String(job?.status || '').toUpperCase() === 'COMPLETED' || String(job?.bookingStatus || '').toUpperCase() === 'COMPLETED';
+
 const getTabMeta = (tabId) => TAB_UI[tabId] || TAB_UI.NEW;
 
 const getDisplayStatus = (tabId, jobStatus) => {
@@ -63,13 +73,6 @@ const getDisplayStatus = (tabId, jobStatus) => {
     if (tabId === 'NEW') return fallback;
     if (tabId === 'PENDING') return fallback;
     if (tabId === 'CONFIRMED') {
-        if (jobStatus === 'COMPLETED') {
-            return {
-                ...fallback,
-                badgeLabel: 'Đã hoàn thành',
-                badgeClass: 'done'
-            };
-        }
         if (jobStatus === 'CANCELLED' || jobStatus === 'EXPIRED') {
             return {
                 ...fallback,
@@ -78,6 +81,10 @@ const getDisplayStatus = (tabId, jobStatus) => {
                 icon: 'clock'
             };
         }
+        return fallback;
+    }
+
+    if (tabId === 'COMPLETED') {
         return fallback;
     }
 
@@ -154,7 +161,7 @@ const HelperNewJobPage = () => {
     const [loadingJobs, setLoadingJobs] = useState(false);
     const [jobsError, setJobsError] = useState('');
     const [hasLoadedJobsOnce, setHasLoadedJobsOnce] = useState(false);
-    const [tabCounts, setTabCounts] = useState({ NEW: 0, PENDING: 0, CONFIRMED: 0 });
+    const [tabCounts, setTabCounts] = useState({ NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 });
     const handledNotificationTokenRef = useRef(null);
     const tabMeta = getTabMeta(activeTab);
 
@@ -223,7 +230,7 @@ const HelperNewJobPage = () => {
 
             if (userRole !== 'HELPER') {
                 setJobs([]);
-                setTabCounts({ NEW: 0, PENDING: 0, CONFIRMED: 0 });
+                setTabCounts({ NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 });
                 setJobsError('Bạn không có quyền truy cập trang này. Vui lòng đăng nhập bằng tài khoản Helper.');
                 setHasLoadedJobsOnce(true);
                 return;
@@ -231,40 +238,53 @@ const HelperNewJobPage = () => {
 
             setLoadingJobs(true);
             try {
+                const apiTabs = ['NEW', 'PENDING', 'CONFIRMED'];
                 const results = await Promise.all(
-                    TABS.map(async (t) => {
+                    apiTabs.map(async (tId) => {
                         try {
-                            const res = await HelperJobService.getJobsByTab(t.id);
+                            const res = await HelperJobService.getJobsByTab(tId);
                             const data = extractPayload(res);
                             return {
-                                tab: t.id,
+                                tab: tId,
                                 ok: true,
                                 list: Array.isArray(data) ? data : []
                             };
                         } catch (e) {
                             const statusCode = e?.status || e?.code || e?.response?.status;
-                            if ((t.id === 'PENDING' || t.id === 'CONFIRMED') && (statusCode === 403 || statusCode === 404)) {
-                                return { tab: t.id, ok: true, list: [] };
+                            if ((tId === 'PENDING' || tId === 'CONFIRMED') && (statusCode === 403 || statusCode === 404)) {
+                                return { tab: tId, ok: true, list: [] };
                             }
-                            return { tab: t.id, ok: false, error: e };
+                            return { tab: tId, ok: false, error: e };
                         }
                     })
                 );
 
                 if (cancelled) return;
 
-                const nextCounts = { NEW: 0, PENDING: 0, CONFIRMED: 0 };
-                const listByTab = { NEW: [], PENDING: [], CONFIRMED: [] };
+                const nextCounts = { NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 };
+                const listByTab = { NEW: [], PENDING: [], CONFIRMED: [], COMPLETED: [] };
                 let err = '';
 
                 for (const r of results) {
                     if (r.ok) {
-                        listByTab[r.tab] = r.list;
-                        nextCounts[r.tab] = r.list.length;
+                        if (r.tab === 'CONFIRMED') {
+                            listByTab.CONFIRMED = r.list.filter(job => !isCompletedJob(job));
+                            listByTab.COMPLETED = r.list.filter(job => isCompletedJob(job));
+                            nextCounts.CONFIRMED = listByTab.CONFIRMED.length;
+                            nextCounts.COMPLETED = listByTab.COMPLETED.length;
+                        } else {
+                            listByTab[r.tab] = r.list;
+                            nextCounts[r.tab] = r.list.length;
+                        }
                     } else {
-                        listByTab[r.tab] = [];
-                        nextCounts[r.tab] = 0;
-                        if (r.tab === activeTab) {
+                        if (r.tab === 'CONFIRMED') {
+                            listByTab.CONFIRMED = [];
+                            listByTab.COMPLETED = [];
+                        } else {
+                            listByTab[r.tab] = [];
+                        }
+
+                        if (r.tab === activeTab || (r.tab === 'CONFIRMED' && activeTab === 'COMPLETED')) {
                             const e = r.error;
                             const statusCode = e?.status || e?.code || e?.response?.status;
                             err =
@@ -283,7 +303,7 @@ const HelperNewJobPage = () => {
                 if (!cancelled) {
                     const msg = e?.message || e?.error || e?.msg || 'Không thể tải danh sách việc.';
                     setJobs([]);
-                    setTabCounts({ NEW: 0, PENDING: 0, CONFIRMED: 0 });
+                    setTabCounts({ NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 });
                     setJobsError(typeof msg === 'string' ? msg : 'Không thể tải danh sách việc.');
                 }
             } finally {
@@ -452,13 +472,6 @@ const HelperNewJobPage = () => {
                             </div>
 
                             <div className="hnj-card-footer">
-                                <div className="hnj-distance">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <polyline points="3 11 21 11"></polyline>
-                                        <polyline points="10 4 3 11 10 18"></polyline>
-                                    </svg>
-                                    Mã trạng thái: {job.status || 'PUBLISHED'}
-                                </div>
                                 {activeTab === 'CONFIRMED' && Number(job?.bookingId) > 0 && Boolean(job?.canCheckin) && (
                                     <button
                                         type="button"
@@ -488,7 +501,8 @@ const HelperNewJobPage = () => {
                             <p>
                                 {activeTab === 'NEW' && 'Không có công việc đang mở lúc này.'}
                                 {activeTab === 'PENDING' && 'Bạn chưa có công việc nào đang chờ khách hàng xác nhận.'}
-                                {activeTab === 'CONFIRMED' && 'Bạn chưa có công việc nào đã được xác nhận.'}
+                                {activeTab === 'CONFIRMED' && 'Bạn chưa có công việc nào đang làm hoặc đã được xác nhận.'}
+                                {activeTab === 'COMPLETED' && 'Bạn chưa hoàn thành công việc nào.'}
                             </p>
                         </div>
                     )}
