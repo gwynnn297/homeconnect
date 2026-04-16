@@ -11,6 +11,7 @@ import com.homeconnect.core.repository.HelperProfileRepository;
 import com.homeconnect.core.repository.HelperWorkingDistrictRepository;
 import com.homeconnect.core.repository.UserRepository;
 import com.homeconnect.core.repository.AddressRepository;
+import com.homeconnect.core.repository.NotificationRepository;
 import com.homeconnect.core.repository.ServiceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.text.Normalizer;
 import java.util.Comparator;
 import java.util.List;
@@ -41,6 +43,7 @@ public class MatchingService {
     private final JobApplicationRepository jobApplicationRepository;
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
+    private final NotificationRepository notificationRepository;
     private final ServiceRepository serviceRepository;
     private final EmailService emailService;
     private final NotificationService notificationService;
@@ -50,6 +53,9 @@ public class MatchingService {
 
     @Value("${matching.min-reviews:0}")
     private Integer MIN_REVIEWS;
+
+    @Value("${matching.notification-cooldown-minutes:120}")
+    private long matchingNotificationCooldownMinutes;
 
 
     // BE-Match-01: Tìm helper phù hợp — chỉ notify (email + in-app), không tạo INVITED.
@@ -163,6 +169,10 @@ public class MatchingService {
                     // CANCELLED / REJECTED / EXPIRED: có thể nhắc lại qua notify (thợ tự apply lại trên feed)
                 }
 
+                if (!shouldNotifyHelperForPost(helperId, postId)) {
+                    continue;
+                }
+
                 notificationService.createMatchingNotification(helperId, postId, jobPost);
                 sendJobInvitationEmail(helperId, postId, jobPost);
                 notifyCount++;
@@ -174,6 +184,22 @@ public class MatchingService {
         } catch (Exception e) {
             log.error("[Matching] Lỗi khi thực hiện matching cho Job Post ID: {}", postId, e);
         }
+    }
+
+    private boolean shouldNotifyHelperForPost(Long helperId, Long postId) {
+        if (matchingNotificationCooldownMinutes <= 0) {
+            return true;
+        }
+
+        LocalDateTime since = LocalDateTime.now().minusMinutes(matchingNotificationCooldownMinutes);
+        String contentMarker = "Job #" + postId + ":";
+
+        boolean recentlyNotified = notificationRepository.existsByUserIdAndTypeAndContentContainingAndCreatedAtAfter(
+                helperId,
+                "MATCHING",
+                contentMarker,
+                since);
+        return !recentlyNotified;
     }
 
 
@@ -220,14 +246,19 @@ public class MatchingService {
                         return false;
                     }
 
-                    boolean passRating = profile.getRatingAverage() == null
+                    int totalReviews = profile.getTotalReviews() != null ? profile.getTotalReviews() : 0;
+                    boolean hasReviewHistory = totalReviews > 0;
+
+                    // Cho thợ mới (chưa có review) đi qua bước lọc để tránh false-negative khi hệ thống mới.
+                    boolean passRating = !hasReviewHistory
+                            || profile.getRatingAverage() == null
                             || profile.getRatingAverage().compareTo(MIN_RATING) >= 0;
-                    boolean passReviews = profile.getTotalReviews() == null || profile.getTotalReviews() >= MIN_REVIEWS;
+                    boolean passReviews = !hasReviewHistory || totalReviews >= MIN_REVIEWS;
                     return passRating && passReviews;
                 })
                 .sorted(Comparator.comparing(
                         (Long helperId) -> {
-HelperProfile profile = profileByHelperId.get(helperId);
+                            HelperProfile profile = profileByHelperId.get(helperId);
                             return profile != null ? profile.getRatingAverage() : null;
                         },
                         Comparator.nullsLast(Comparator.reverseOrder()))

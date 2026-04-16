@@ -28,6 +28,8 @@ public class HelperListItemResponse {
     // KYC thông tin
     private KycStatus kycStatus;
     private String identityNumber;
+    private String cccdNumber;
+    private Boolean aiVerified;
     private LocalDate dateOfBirth;
 
     // đia chỉ

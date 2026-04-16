@@ -39,11 +39,15 @@ const AdminHelperDetailPage = () => {
 
         setSubmitting(true);
         try {
-            const data = {
-                action: reviewAction,
-                rejectionReason: reviewAction === 'REJECTED' ? rejectionReason : null
-            };
-            await AdminService.reviewHelper(helperId, data);
+            if (reviewAction === 'VERIFIED') {
+                await AdminService.approveCv(helperId);
+            } else {
+                const data = {
+                    action: reviewAction,
+                    rejectionReason: reviewAction === 'REJECTED' ? rejectionReason : null
+                };
+                await AdminService.reviewHelper(helperId, data);
+            }
             alert(`Đã ${reviewAction === 'VERIFIED' ? 'xác minh' : 'từ chối'} Helper thành công`);
             setShowReviewModal(false);
             navigate('/admin/helpers');
@@ -77,6 +81,8 @@ const AdminHelperDetailPage = () => {
                 return 'Chưa nộp';
             case 'WAITING_APPROVAL':
                 return 'Chờ duyệt';
+            case 'IDENTITY_VERIFIED':
+                return 'AI Verified';
             case 'VERIFIED':
                 return 'Đã xác minh';
             case 'REJECTED':
@@ -92,6 +98,8 @@ const AdminHelperDetailPage = () => {
                 return 'status-pending';
             case 'WAITING_APPROVAL':
                 return 'status-waiting';
+            case 'IDENTITY_VERIFIED':
+                return 'status-ai-verified';
             case 'VERIFIED':
                 return 'status-verified';
             case 'REJECTED':
@@ -187,8 +195,14 @@ const AdminHelperDetailPage = () => {
                         </div>
                         <div className="info-item">
                             <label>CMND/CCCD</label>
-                            <p>{helper.identityNumber}</p>
+                            <p>{helper.cccdNumber || helper.identityNumber}</p>
                         </div>
+                        {helper.aiVerified && (
+                            <div className="info-item">
+                                <label>AI Verification</label>
+                                <p><span className="ai-verified-pill">✓ AI Verified</span></p>
+                            </div>
+                        )}
                         {helper.rejectionReason && (
                             <div className="info-item full-width">
                                 <label>Lý do từ chối</label>
@@ -203,7 +217,10 @@ const AdminHelperDetailPage = () => {
                         <div className="document-grid">
                             {helper.identityFrontUrl && (
                                 <div className="document-item">
-                                    <p>Mặt trước CMND/CCCD</p>
+                                    <p>
+                                        Mặt trước CMND/CCCD
+                                        {helper.aiVerified && <span className="ai-verified-pill document-pill">✓ AI Verified</span>}
+                                    </p>
                                     <img src={helper.identityFrontUrl} alt="Mặt trước" />
                                 </div>
                             )}
@@ -257,7 +274,7 @@ const AdminHelperDetailPage = () => {
                 </div>
 
                 {/* Action Buttons */}
-                {helper.kycStatus === 'WAITING_APPROVAL' && (
+                {(helper.kycStatus === 'IDENTITY_VERIFIED' || helper.kycStatus === 'WAITING_APPROVAL') && (
                     <div className="action-buttons">
                         <button 
                             className="btn-approve"

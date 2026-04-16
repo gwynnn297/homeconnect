@@ -56,6 +56,17 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
+        @Operation(summary = "Approve Helper CV", description = "Đổi trạng thái từ IDENTITY_VERIFIED sang VERIFIED")
+        @PatchMapping("/helpers/{helperId}/approve-cv")
+        public ResponseEntity<HelperReviewResponse> approveHelperCv(
+                        @PathVariable("helperId") Long helperId,
+                        Authentication authentication) {
+
+                String adminEmail = authentication.getName();
+                HelperReviewResponse response = adminService.approveHelperCv(helperId, adminEmail);
+                return ResponseEntity.ok(response);
+        }
+
     /**
      * GET /api/v1/admin/helpers
      * Lấy danh sách Helper với filter và pagination
@@ -63,7 +74,7 @@ public class AdminController {
     @Operation(summary = "Danh sách Helper", description = "Lấy danh sách Helper với filter theo KYC status")
     @GetMapping("/helpers")
     public ResponseEntity<HelperListResponse> getHelpers(
-            @Parameter(description = "Filter theo KYC status: PENDING, WAITING_APPROVAL, VERIFIED, REJECTED") @RequestParam(value = "status", required = false) KycStatus status,
+            @Parameter(description = "Filter theo KYC status: PENDING, WAITING_APPROVAL, IDENTITY_VERIFIED, VERIFIED, REJECTED") @RequestParam(value = "status", required = false) KycStatus status,
 
             @Parameter(description = "Số trang (bắt đầu từ 0)") @RequestParam(value = "page", defaultValue = "0") int page,
 

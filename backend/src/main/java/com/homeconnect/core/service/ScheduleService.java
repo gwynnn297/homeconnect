@@ -7,6 +7,7 @@ import com.homeconnect.core.dto.response.schedule.RegisterScheduleSummaryRespons
 import com.homeconnect.core.dto.response.schedule.ScheduleResponse;
 import com.homeconnect.core.entity.HelperProfile;
 import com.homeconnect.core.entity.HelperSchedule;
+import com.homeconnect.core.entity.JobPost;
 import com.homeconnect.core.entity.User;
 import com.homeconnect.core.enums.KycStatus;
 import com.homeconnect.core.enums.ScheduleStatus;
@@ -14,6 +15,8 @@ import com.homeconnect.core.enums.UserRole;
 import com.homeconnect.core.enums.UserStatus;
 import com.homeconnect.core.exception.ApiException;
 import com.homeconnect.core.repository.HelperProfileRepository;
+import com.homeconnect.core.repository.JobApplicationRepository;
+import com.homeconnect.core.repository.JobPostRepository;
 import com.homeconnect.core.repository.UserRepository;
 import com.homeconnect.core.util.ConflictEngine;
 import lombok.RequiredArgsConstructor;
@@ -21,11 +24,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.homeconnect.core.repository.HelperScheduleRepository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import com.homeconnect.core.enums.BookingStatus;
 
@@ -37,6 +45,9 @@ public class ScheduleService {
     private final HelperScheduleRepository helperScheduleRepository;
     private final HelperProfileRepository helperProfileRepository;
     private final UserRepository userRepository;
+    private final JobPostRepository jobPostRepository;
+    private final JobApplicationRepository jobApplicationRepository;
+    private final MatchingService matchingService;
     private final ConflictEngine conflictEngine;
 
     /**
@@ -75,6 +86,7 @@ public class ScheduleService {
 
         int createdCount = 0;
         String groupId = generateGroupId(); // Tạo groupId cho lô này
+        Set<LocalDate> affectedDates = new HashSet<>();
 
         LocalDate currentDate = request.getStartDate();
         while (!currentDate.isAfter(request.getEndDate())) {
@@ -118,10 +130,13 @@ public class ScheduleService {
                             .build();
                     helperScheduleRepository.save(schedule);
                     createdCount++;
+                    affectedDates.add(currentDate);
                 }
             }
             currentDate = currentDate.plusDays(1);
         }
+
+        triggerRematchingAfterScheduleChange(helperId, affectedDates);
 
         return RegisterScheduleSummaryResponse.builder()
                 .created(createdCount)
@@ -176,6 +191,8 @@ public class ScheduleService {
                     .build();
             helperScheduleRepository.save(schedule);
         }
+
+        triggerRematchingAfterScheduleChange(helperId, Set.of(request.getDate()));
 
         return RegisterScheduleSummaryResponse.builder()
                 .created(request.getSlots().size())
@@ -274,6 +291,8 @@ public class ScheduleService {
                 count++;
             }
         }
+
+            triggerRematchingAfterScheduleChange(helperId, new HashSet<>(distinctDates));
 
         return RegisterScheduleSummaryResponse.builder()
                 .created(count)
@@ -491,5 +510,43 @@ public class ScheduleService {
             sb.append(chars.charAt(rnd.nextInt(chars.length())));
         }
         return sb.toString();
+    }
+
+    private void triggerRematchingAfterScheduleChange(Long helperId, Set<LocalDate> affectedDates) {
+        if (affectedDates == null || affectedDates.isEmpty()) {
+            return;
+        }
+
+        Runnable rematchTask = () -> {
+            List<JobPost> activeJobs = jobPostRepository.findActiveJobPosts(LocalDate.now(), LocalDateTime.now()).stream()
+                    .filter(job -> affectedDates.contains(job.getWorkDate()))
+                    .toList();
+
+            int triggeredCount = 0;
+            for (JobPost job : activeJobs) {
+                if (jobApplicationRepository.existsByPostIdAndStatusIn(
+                        job.getPostId(),
+                        List.of("PENDING", "ACCEPTED", "ASSIGNED"))) {
+                    continue;
+                }
+                matchingService.findAndInviteHelpers(job.getPostId());
+                triggeredCount++;
+            }
+
+            log.info("[Schedule] Helper #{} cập nhật lịch, quét lại {} job chưa có ứng tuyển trên {} ngày bị ảnh hưởng.",
+                    helperId, triggeredCount, affectedDates.size());
+        };
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    rematchTask.run();
+                }
+            });
+            return;
+        }
+
+        rematchTask.run();
     }
 }

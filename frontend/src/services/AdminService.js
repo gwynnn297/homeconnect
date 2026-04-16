@@ -45,6 +45,14 @@ const AdminService = {
     },
 
     /**
+     * Approve CV after AI identity verification
+     * Endpoint: PATCH /api/v1/admin/helpers/{helperId}/approve-cv
+     */
+    approveCv: async (helperId) => {
+        return apiClient.patch(`/api/v1/admin/helpers/${helperId}/approve-cv`);
+    },
+
+    /**
      * Gửi thông báo Broadcast
      * Endpoint: POST /api/v1/admin/notifications/broadcast
      * @param {Object} data

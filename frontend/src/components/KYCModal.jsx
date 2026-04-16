@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './KYCModal.css';
 import HelperRegistrationService from '../services/HelperRegistrationService';
+import KycService from '../services/KycService';
 import CloudinaryService from '../services/CloudinaryService';
 import logoHomieConnect from '../assets/LogoHomieConnect.png';
 import { reverseGeocodeStreet, autocompleteAddressGoong, getPlaceDetailGoong, geocodeAddressGoong } from '../utils/mapLocationUtils';
@@ -49,8 +50,6 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         categoryIds: [],
         latitude: 16.0544,  // Default Da Nang
         longitude: 108.2022,
-        // Stage 2
-        identityNumber: '',
     });
 
     // Preview URLs cho ảnh
@@ -69,6 +68,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
 
     // UI state
     const [isLoading, setIsLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
@@ -106,7 +106,6 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             categoryIds: [],
             latitude: 16.0544,
             longitude: 108.2022,
-            identityNumber: '',
         });
         setCityDistricts([]);
         setCityWards([]);
@@ -122,6 +121,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         setFaceRightFile(null);
         setError('');
         setSuccess('');
+        setLoadingMessage('');
         setAddressSuggestions([]);
         setShowAddressSuggestions(false);
         suppressAutoGeocodeRef.current = false;
@@ -486,10 +486,6 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
     };
 
     const validateStage2 = () => {
-        if (!formData.identityNumber.trim()) {
-            setError('Vui lòng nhập số CCCD');
-            return false;
-        }
         if (!cccdFrontFile) {
             setError('Vui lòng tải lên ảnh mặt trước CCCD');
             return false;
@@ -518,6 +514,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         if (!validateStage1()) return;
 
         setIsLoading(true);
+        setLoadingMessage('Đang lưu hồ sơ...');
         setError('');
         setSuccess('');
 
@@ -555,6 +552,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             setError(err.message || 'Có lỗi xảy ra khi lưu thông tin giai đoạn 1');
         } finally {
             setIsLoading(false);
+            setLoadingMessage('');
         }
     };
 
@@ -563,6 +561,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
         if (!validateStage2()) return;
 
         setIsLoading(true);
+        setLoadingMessage('AI đang kiểm tra tính hợp lệ của CCCD...');
         setError('');
         setSuccess('');
 
@@ -577,7 +576,6 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             ]);
 
             const stage2Data = {
-                identityNumber: formData.identityNumber.trim(),
                 cccdFrontUrl: cccdFrontUrl,
                 cccdBackUrl: cccdBackUrl,
                 selfieUrl: avatarUrl,
@@ -587,23 +585,24 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
 
             await HelperRegistrationService.registerStage2(stage2Data);
 
-            // Submit registration
-            const response = await HelperRegistrationService.submitRegistration();
+            // PB-33: Verify AI and persist KYC in one flow
+            const verifyResponse = await KycService.verify({
+                cccdFrontUrl,
+                selfieUrl: avatarUrl,
+            });
 
-            if (response.success) {
-                setSuccess(response.message || 'Hồ sơ đã được gửi thành công!');
+            setSuccess(
+                verifyResponse?.message ||
+                'Xác minh khuôn mặt thành công! Hồ sơ đang chờ Admin duyệt kỹ năng.'
+            );
 
-                // Cập nhật trạng thái trong localStorage
-                const user = JSON.parse(localStorage.getItem('user') || '{}');
-                user.kycStatus = 'WAITING_APPROVAL';
-                localStorage.setItem('user', JSON.stringify(user));
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            user.kycStatus = 'IDENTITY_VERIFIED';
+            localStorage.setItem('user', JSON.stringify(user));
 
-                setTimeout(() => {
-                    if (onSuccess) onSuccess();
-                }, 1500);
-            } else {
-                setError(response.message || 'Có lỗi xảy ra. Vui lòng thử lại.');
-            }
+            setTimeout(() => {
+                if (onSuccess) onSuccess();
+            }, 1500);
         } catch (err) {
             console.error('Stage 2 Error:', err);
             // Xử lý lỗi validation từ backend (dạng object field-level)
@@ -617,6 +616,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
             }
         } finally {
             setIsLoading(false);
+            setLoadingMessage('');
         }
     };
 
@@ -1021,23 +1021,8 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                 {/* Stage 2: Xác thực danh tính */}
                 {currentStage === 2 && (
                     <form className="kyc-form" onSubmit={handleSubmit}>
-                        {/* Số CCCD */}
                         <div className="kyc-form-group">
-                            <label>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                                    <line x1="1" y1="10" x2="23" y2="10" />
-                                </svg>
-                                Số CCCD/CMND <span className="kyc-required">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                name="identityNumber"
-                                className="kyc-input"
-                                placeholder="Nhập số CCCD/CMND"
-                                value={formData.identityNumber}
-                                onChange={handleInputChange}
-                            />
+
                         </div>
 
                         {/* CCCD Front & Back */}
@@ -1287,7 +1272,7 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
                                 {isLoading ? (
                                     <>
                                         <span className="kyc-spinner" />
-                                        Đang gửi hồ sơ...
+                                        {loadingMessage || 'Đang gửi hồ sơ...'}
                                     </>
                                 ) : (
                                     'Gửi hồ sơ'

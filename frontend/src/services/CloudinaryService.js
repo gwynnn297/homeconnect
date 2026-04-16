@@ -1,6 +1,25 @@
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
+const toDisplayableCloudinaryUrl = (url) => {
+    if (!url || typeof url !== 'string') return url;
+
+    const trimmed = url.trim();
+    if (!trimmed.includes('res.cloudinary.com') || !trimmed.includes('/image/upload/')) {
+        return trimmed;
+    }
+
+    // Ensure browser-friendly output (HEIC/HEIF -> JPG) and reasonable size.
+    if (trimmed.includes('/image/upload/f_')) {
+        return trimmed;
+    }
+
+    return trimmed.replace(
+        '/image/upload/',
+        '/image/upload/f_jpg,q_auto:good,w_1600,h_1600,c_limit/'
+    );
+};
+
 /**
  * Service quản lý upload ảnh lên Cloudinary
  */
@@ -31,7 +50,7 @@ const CloudinaryService = {
         }
 
         const data = await response.json();
-        return data.secure_url; // URL HTTPS của ảnh
+        return toDisplayableCloudinaryUrl(data.secure_url); // URL HTTPS đã tối ưu để FE hiển thị ổn định
     },
 
     /**

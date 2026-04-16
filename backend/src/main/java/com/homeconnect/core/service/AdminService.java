@@ -76,9 +76,9 @@ public class AdminService {
                                                                 "Không tìm thấy hồ sơ Helper cho User ID: "
                                                                                 + helperId));
 
-                // 4. Kiểm tra trạng thái hiện tại - chỉ cho phép review khi status =
-                // WAITING_APPROVAL
-                if (helperProfile.getKycStatus() != KycStatus.WAITING_APPROVAL) {
+                // 4. Kiểm tra trạng thái hiện tại
+                if (helperProfile.getKycStatus() != KycStatus.WAITING_APPROVAL
+                                && helperProfile.getKycStatus() != KycStatus.IDENTITY_VERIFIED) {
                         throw new BadRequestException("Helper này không ở trạng thái chờ duyệt. Trạng thái hiện tại: " +
                                         helperProfile.getKycStatus().getDisplayName());
                 }
@@ -125,6 +125,49 @@ public class AdminService {
                                 .reviewedBy(adminEmail)
                                 .message(newStatus == KycStatus.VERIFIED ? "Đã phê duyệt KYC cho Helper thành công"
                                                 : "Đã từ chối KYC cho Helper")
+                                .build();
+        }
+
+        @Transactional
+        public HelperReviewResponse approveHelperCv(Long helperId, String adminEmail) {
+                User helper = userRepository.findById(helperId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy Helper với ID: " + helperId));
+
+                if (!"HELPER".equals(helper.getRole().name())) {
+                        throw new BadRequestException(
+                                        "User ID " + helperId + " không phải là Helper. Role: "
+                                                        + helper.getRole().name());
+                }
+
+                HelperProfile helperProfile = helperProfileRepository.findByUser_Id(helperId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy hồ sơ Helper cho User ID: " + helperId));
+
+                if (helperProfile.getKycStatus() != KycStatus.IDENTITY_VERIFIED) {
+                        throw new BadRequestException("Chỉ có thể duyệt CV khi helper ở trạng thái IDENTITY_VERIFIED.");
+                }
+
+                helperProfile.setKycStatus(KycStatus.VERIFIED);
+                helperProfile.setRejectionReason(null);
+                helperProfile.setUpdatedAt(LocalDateTime.now());
+                helper.setStatus(UserStatus.ACTIVE);
+
+                helperProfileRepository.save(helperProfile);
+                userRepository.save(helper);
+                sendKycNotificationEmail(helper, KycStatus.VERIFIED, null);
+
+                log.info("Admin {} đã approve CV cho Helper {} (ID: {})", adminEmail, helper.getFullName(), helperId);
+
+                return HelperReviewResponse.builder()
+                                .helperId(helper.getId().intValue())
+                                .helperName(helper.getFullName())
+                                .helperEmail(helper.getEmail())
+                                .kycStatus(KycStatus.VERIFIED)
+                                .rejectionReason(null)
+                                .reviewedAt(LocalDateTime.now())
+                                .reviewedBy(adminEmail)
+                                .message("Đã duyệt CV cho Helper thành công")
                                 .build();
         }
 
@@ -312,6 +355,9 @@ public class AdminService {
                                 .kycStatus(helperProfile.getKycStatus())
                                 .rejectionReason(helperProfile.getRejectionReason())
                                 .identityNumber(helperProfile.getIdentityNumber())
+                                .cccdNumber(helperProfile.getCccdNumber())
+                                .aiVerified(helperProfile.getKycStatus() == KycStatus.IDENTITY_VERIFIED
+                                                || helperProfile.getKycStatus() == KycStatus.VERIFIED)
                                 .identityFrontUrl(helperProfile.getIdentityFrontUrl())
                                 .identityBackUrl(helperProfile.getIdentityBackUrl())
                                 .selfieUrl(helperProfile.getSelfieUrl())
@@ -349,7 +395,8 @@ public class AdminService {
 
                 // Thống kế Helper theo KYC status
                 long pendingKyc = helperProfileRepository.countByKycStatus(KycStatus.PENDING);
-                long waitingApproval = helperProfileRepository.countByKycStatus(KycStatus.WAITING_APPROVAL);
+                long waitingApproval = helperProfileRepository.countByKycStatus(KycStatus.WAITING_APPROVAL)
+                                + helperProfileRepository.countByKycStatus(KycStatus.IDENTITY_VERIFIED);
                 long verifiedHelpers = helperProfileRepository.countByKycStatus(KycStatus.VERIFIED);
                 long rejectedHelpers = helperProfileRepository.countByKycStatus(KycStatus.REJECTED);
 
@@ -443,6 +490,9 @@ public class AdminService {
 
                                 .kycStatus(helperProfile.getKycStatus())
                                 .identityNumber(helperProfile.getIdentityNumber())
+                                .cccdNumber(helperProfile.getCccdNumber())
+                                .aiVerified(helperProfile.getKycStatus() == KycStatus.IDENTITY_VERIFIED
+                                                || helperProfile.getKycStatus() == KycStatus.VERIFIED)
                                 .dateOfBirth(helper.getDateOfBirth()) // Đã chuyển từ helperProfile sang User
 
                                 .currentCityName(

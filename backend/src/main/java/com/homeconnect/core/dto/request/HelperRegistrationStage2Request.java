@@ -11,8 +11,7 @@ import lombok.*;
 @Schema(description = "Yêu cầu Giai đoạn 2: Xác minh danh tính (CCCD)")
 public class HelperRegistrationStage2Request {
 
-    @NotBlank(message = "Số CCCD xác thực không được để trống")
-    @Schema(description = "Nhập lại số CCCD/CMND để xác thực (phải khớp với Giai đoạn 1)", example = "037123456789")
+    @Schema(description = "Số CCCD fallback (tuỳ chọn, hệ thống ưu tiên OCR từ ảnh)", example = "037123456789")
     private String identityNumber;
 
     @NotBlank(message = "Ảnh mặt trước không được để trống")
