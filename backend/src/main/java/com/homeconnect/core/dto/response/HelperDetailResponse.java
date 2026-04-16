@@ -45,6 +45,8 @@ public class HelperDetailResponse {
     private KycStatus kycStatus;
     private String rejectionReason;
     private String identityNumber;
+    private String cccdNumber;
+    private Boolean aiVerified;
     private String identityFrontUrl;
     private String identityBackUrl;
     private String selfieUrl;

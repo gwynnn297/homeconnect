@@ -23,6 +23,8 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
 
     boolean existsByPostIdAndHelperIdAndStatusIn(Long postId, Long helperId, java.util.Collection<String> statuses);
 
+    boolean existsByPostIdAndStatusIn(Long postId, java.util.Collection<String> statuses);
+
     boolean existsByPostIdAndHelperIdAndTypeAndStatusIn(Long postId, Long helperId, String type, java.util.Collection<String> statuses);
 
     java.util.Optional<JobApplication> findByPostIdAndHelperId(Long postId, Long helperId);

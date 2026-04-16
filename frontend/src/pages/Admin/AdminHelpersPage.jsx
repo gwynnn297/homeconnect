@@ -73,6 +73,8 @@ const AdminHelpersPage = () => {
                 return 'status-pending';
             case 'WAITING_APPROVAL':
                 return 'status-waiting';
+            case 'IDENTITY_VERIFIED':
+                return 'status-ai-verified';
             case 'VERIFIED':
                 return 'status-verified';
             case 'REJECTED':
@@ -88,6 +90,8 @@ const AdminHelpersPage = () => {
                 return 'Chưa nộp';
             case 'WAITING_APPROVAL':
                 return 'Chờ duyệt';
+            case 'IDENTITY_VERIFIED':
+                return 'AI Verified';
             case 'VERIFIED':
                 return 'Đã xác minh';
             case 'REJECTED':
@@ -120,6 +124,7 @@ const AdminHelpersPage = () => {
                             <option value="">-- Tất cả --</option>
                             <option value="PENDING">Chưa nộp</option>
                             <option value="WAITING_APPROVAL">Chờ duyệt</option>
+                            <option value="IDENTITY_VERIFIED">AI Verified</option>
                             <option value="VERIFIED">Đã xác minh</option>
                             <option value="REJECTED">Bị từ chối</option>
                         </select>
@@ -182,7 +187,12 @@ const AdminHelpersPage = () => {
                                             {helper.avatarUrl && (
                                                 <img src={helper.avatarUrl} alt={helper.fullName} className="helper-avatar" />
                                             )}
-                                            <span>{helper.fullName}</span>
+                                            <div className="name-cell-meta">
+                                                <span>{helper.fullName}</span>
+                                                {helper.aiVerified && (
+                                                    <span className="ai-verified-pill">✓ AI Verified</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td>{helper.email}</td>
                                         <td>{helper.phone}</td>

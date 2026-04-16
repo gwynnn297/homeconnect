@@ -18,6 +18,7 @@ const KYC_STATUS_MAP = {
     // Matches backend KycStatus enum (helper_profile.kyc_status)
     PENDING: { label: 'Chưa xác minh', color: '#64748b', bg: '#f1f5f9' },
     WAITING_APPROVAL: { label: 'Đang chờ duyệt', color: '#d97706', bg: '#fffbeb' },
+    IDENTITY_VERIFIED: { label: 'AI Verified', color: '#0e7490', bg: '#ecfeff' },
     VERIFIED: { label: 'Đã xác minh', color: '#16a34a', bg: '#f0fdf4' },
     REJECTED: { label: 'Bị từ chối', color: '#dc2626', bg: '#fef2f2' },
 };

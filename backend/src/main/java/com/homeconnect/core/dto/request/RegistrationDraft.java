@@ -48,7 +48,7 @@ public class RegistrationDraft {
 
 
     public boolean isStage2Complete() {
-        return identityNumber != null && cccdFrontUrl != null && 
+        return cccdFrontUrl != null && 
                cccdBackUrl != null && selfieUrl != null &&
                faceRightUrl != null && faceLeftUrl != null;
     }

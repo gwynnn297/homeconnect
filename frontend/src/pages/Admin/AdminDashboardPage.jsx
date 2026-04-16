@@ -75,7 +75,7 @@ const AdminDashboardPage = () => {
 
                     <div className="hero-actions">
                         <NavLink
-                            to="/admin/helpers?status=WAITING_APPROVAL"
+                            to="/admin/helpers?status=IDENTITY_VERIFIED"
                             className="hero-btn hero-btn-primary"
                         >
                             Duyệt KYC
@@ -183,7 +183,7 @@ const AdminDashboardPage = () => {
 
                                 <div className="panel-footer">
                                     <NavLink
-                                        to="/admin/helpers?status=WAITING_APPROVAL"
+                                        to="/admin/helpers?status=IDENTITY_VERIFIED"
                                         className="panel-link"
                                     >
                                         Xem danh sách KYC

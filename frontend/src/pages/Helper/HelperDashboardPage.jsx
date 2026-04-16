@@ -128,7 +128,7 @@ const HelperDashboardPage = () => {
     }, [fetchLatestProfileStatus]);
 
     useEffect(() => {
-        if (kycStatus !== 'WAITING_APPROVAL') return undefined;
+        if (kycStatus !== 'WAITING_APPROVAL' && kycStatus !== 'IDENTITY_VERIFIED') return undefined;
 
         const poll = async () => {
             const latestStatus = await fetchLatestProfileStatus();
@@ -314,7 +314,7 @@ const HelperDashboardPage = () => {
 
     const handleKYCSuccess = () => {
         setShowKYCModal(false);
-        setKycStatus('WAITING_APPROVAL');
+        setKycStatus('IDENTITY_VERIFIED');
     };
 
     const handleCloseKYC = () => {
@@ -356,6 +356,20 @@ const HelperDashboardPage = () => {
                         <p className="hdb-kyc-desc">
                             Hồ sơ KYC của bạn đã được gửi thành công và đang chờ Admin phê duyệt.
                             Bạn sẽ nhận được thông báo khi hồ sơ được xử lý.
+                        </p>
+                    </div>
+                );
+            case 'IDENTITY_VERIFIED':
+                return (
+                    <div className="hdb-kyc-card">
+                        <div className="hdb-kyc-icon waiting">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0e7490" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M20 6L9 17l-5-5" />
+                            </svg>
+                        </div>
+                        <h2 className="hdb-kyc-title">AI đã xác minh danh tính</h2>
+                        <p className="hdb-kyc-desc">
+                            Xác minh khuôn mặt thành công! Hồ sơ của bạn đang chờ Admin duyệt kỹ năng để chính thức nhận việc.
                         </p>
                     </div>
                 );

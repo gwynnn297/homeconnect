@@ -29,6 +29,10 @@ public interface HelperProfileRepository extends JpaRepository<HelperProfile, In
     // Kiểm tra tồn tại số CCCD
     boolean existsByIdentityNumber(String identityNumber);
 
+        boolean existsByCccdNumber(String cccdNumber);
+
+        boolean existsByCccdNumberAndUser_IdNot(String cccdNumber, Long userId);
+
     /**
      * BE-Match-01: Query tìm helper phù hợp để match với job post
      * Lọc theo: Dịch vụ + Online + KYC đã xác thực

@@ -15,7 +15,8 @@ import java.time.LocalDateTime;
 @Table(name = "helper_profiles", indexes = {
     @Index(name = "idx_user_id", columnList = "user_id"),
     @Index(name = "idx_kyc_status", columnList = "kyc_status"),
-    @Index(name = "idx_identity_number", columnList = "identity_number")
+    @Index(name = "idx_identity_number", columnList = "identity_number"),
+    @Index(name = "idx_cccd_number", columnList = "cccd_number")
 })
 @Getter
 @Setter
@@ -44,6 +45,9 @@ public class HelperProfile {
 
     @Column(name = "identity_number", unique = true, length = 20)
     private String identityNumber;  // Số CMND/CCCD
+
+    @Column(name = "cccd_number", unique = true, length = 12)
+    private String cccdNumber;  // Số CCCD chuẩn 12 chữ số (OCR)
     
     @Column(name = "identity_front_url", columnDefinition = "TEXT")
     private String identityFrontUrl;  // Ảnh mặt trước CMND

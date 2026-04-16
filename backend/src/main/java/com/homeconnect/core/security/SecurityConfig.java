@@ -1,5 +1,6 @@
 package com.homeconnect.core.security;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,6 +36,10 @@ public class SecurityConfig {
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .authorizeHttpRequests(auth -> auth
+                                                // Cho phép async dispatch (SSE) để tránh AccessDenied sau khi response đã commit
+                                                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR,
+                                                                DispatcherType.FORWARD)
+                                                .permitAll()
                                                 // Các endpoint auth
                                                 .requestMatchers("/api/auth/**").permitAll()
                                                 .requestMatchers("/api/v1/auth/**").permitAll()
