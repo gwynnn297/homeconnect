@@ -37,6 +37,10 @@ public class WalletService {
 
     private final WalletRepository walletRepository;
     private final WalletTransactionRepository transactionRepository;
+    private final com.homeconnect.core.repository.WithdrawRequestRepository withdrawRequestRepository;
+    private final com.homeconnect.core.repository.WithdrawAuditLogRepository auditLogRepository;
+    private final com.homeconnect.core.repository.UserBankAccountRepository userBankAccountRepository;
+    private final NotificationService notificationService;
 
     @Value("${wallet.bank.code:MB}")
     private String bankCode;
@@ -470,7 +474,364 @@ public class WalletService {
     /**
      * Getter cho commission rate (dùng bởi WalletScheduler để log)
      */
-    public BigDecimal getCommissionRate() {
-        return commissionRate;
+    /**
+     * [PB-18 Stage 1] User yêu cầu rút tiền
+     */
+    @Transactional
+    public void requestWithdraw(Long userId, BigDecimal amount, Integer bankAccountId) {
+        log.info("💸 User {} yêu cầu rút {} VNĐ. BankAccountID: {}", userId, amount, bankAccountId != null ? bankAccountId : "DEFAULT");
+        
+        // 1. Lock wallet
+        Wallet wallet = walletRepository.findByUserIdWithLock(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví"));
+
+        // 2. Lấy thông tin Bank linked
+        com.homeconnect.core.entity.UserBankAccount bankAccount;
+        if (bankAccountId != null) {
+            bankAccount = userBankAccountRepository.findById(bankAccountId)
+                    .orElseThrow(() -> new RuntimeException("Tài khoản ngân hàng không tồn tại"));
+            
+            if (!bankAccount.getUser().getId().equals(userId)) {
+                throw new RuntimeException("Tài khoản ngân hàng này không thuộc về bạn");
+            }
+        } else {
+            // Nếu không gửi ID, tìm thẻ mặc định
+            bankAccount = userBankAccountRepository.findByUserIdAndIsDefaultTrue(userId)
+                    .orElseThrow(() -> new RuntimeException("Vui lòng chọn hoặc liên kết một tài khoản ngân hàng mặc định để rút tiền"));
+            log.info("⭐ Sử dụng tài khoản mặc định ID: {} cho User {}", bankAccount.getBankAccountId(), userId);
+        }
+
+        // 3. Validate balance and minimum amount
+        if (amount.compareTo(new BigDecimal("3000")) < 0) {
+            throw new RuntimeException("Số tiền rút tối thiểu là 3.000 VNĐ");
+        }
+        if (wallet.getAvailableBalance().compareTo(amount) < 0) {
+            throw new RuntimeException("Số dư không đủ để rút tiền");
+        }
+
+        // 4. Trừ Available, Cộng Hold
+        wallet.setAvailableBalance(wallet.getAvailableBalance().subtract(amount));
+        wallet.setHoldBalance(wallet.getHoldBalance().add(amount));
+        walletRepository.save(wallet);
+
+        // 5. Tạo request với Snapshot thông tin bank (Quan trọng!)
+        com.homeconnect.core.entity.WithdrawRequest request = com.homeconnect.core.entity.WithdrawRequest.builder()
+                .wallet(wallet)
+                .bankAccountRef(bankAccount)
+                .amount(amount)
+                .bankName(bankAccount.getBankName())
+                .bankAccount(bankAccount.getAccountNumber())
+                .accountHolderName(bankAccount.getAccountHolderName())
+                .status(com.homeconnect.core.enums.WithdrawStatus.PENDING)
+                .adminNote("Yêu cầu rút tiền tự động")
+                .build();
+        withdrawRequestRepository.save(request);
+
+        // 6. Ghi lịch sử giao dịch loại HOLD để user thấy trong lịch sử
+        WalletTransaction holdTx = WalletTransaction.builder()
+                .wallet(wallet)
+                .amount(amount)
+                .type(TransactionType.HOLD)
+                .referenceType(ReferenceType.WITHDRAWAL)
+                .referenceId(request.getRequestId())
+                .description(String.format("Đang giữ tiền cho yêu cầu rút #%d về %s - %s",
+                        request.getRequestId(), bankAccount.getBankName(), bankAccount.getAccountNumber()))
+                .build();
+        transactionRepository.save(holdTx);
+
+        saveAudit(request.getRequestId(), "REQUEST", "USER", "Khởi tạo yêu cầu rút tiền về " + bankAccount.getBankName());
+        
+        try {
+            notificationService.createNotification(userId,
+                    "Yêu cầu rút tiền đang chờ duyệt",
+                    String.format("Yêu cầu rút %,.0f VNĐ về %s đã được gửi và đang chờ Admin duyệt.", amount.doubleValue(), bankAccount.getBankName()),
+                    "WITHDRAW_PENDING");
+        } catch (Exception e) {
+            log.error("Failed to send notification for withdraw request: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * [PB-18 Stage 2] Admin duyệt lệnh rút
+     */
+    @Transactional
+    public String approveWithdraw(Integer requestId, String adminActor) {
+        com.homeconnect.core.entity.WithdrawRequest request = withdrawRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu"));
+
+        if (request.getStatus() == com.homeconnect.core.enums.WithdrawStatus.COMPLETED) {
+            // Nếu đã hoàn thành rồi thì trả về mã nội dung luôn, coi như thành công im lặng
+            return "HOMIRT" + requestId;
+        }
+        
+        if (request.getStatus() != com.homeconnect.core.enums.WithdrawStatus.PENDING) {
+            throw new RuntimeException("Yêu cầu không còn ở trạng thái chờ duyệt.");
+        }
+
+        // 1. Chuyển sang PROCESSING
+        request.setStatus(com.homeconnect.core.enums.WithdrawStatus.PROCESSING);
+        
+        // 2. Sinh mã nội dung chuyển khoản để Admin copy (VD: HOMIRT123)
+        String transferCode = "HOMIRT" + requestId;
+        request.setAdminNote("Vui lòng CK với nội dung: " + transferCode);
+        
+        withdrawRequestRepository.save(request);
+        saveAudit(requestId, "APPROVE", adminActor, "Admin duyệt lệnh. Chờ Admin chuyển tiền tay với nội dung: " + transferCode);
+        
+        return transferCode;
+    }
+
+    @Transactional
+    public void processWithdrawWebhook(String description, BigDecimal amount) {
+        log.info("🔔 Khớp lệnh rút tiền từ biến động số dư: Content='{}', Amount={}", description, amount);
+        
+        // 1. Parse requestId từ nội dung (HOMIRT123 -> 123)
+        Integer requestId = extractRequestIdFromContent(description);
+        if (requestId == null) return;
+
+        com.homeconnect.core.entity.WithdrawRequest request = withdrawRequestRepository.findById(requestId)
+                .orElse(null);
+
+        if (request == null || request.getStatus() == com.homeconnect.core.enums.WithdrawStatus.COMPLETED) {
+            return;
+        }
+
+        // 2. Khớp số tiền - BẮT BUỘC phải khớp hoàn toàn để đảm bảo an toàn
+        if (amount == null || request.getAmount().compareTo(amount) != 0) {
+            log.error("❌ Không thể khớp lệnh rút tiền #{}: Số tiền không khớp (Cần: {}, Nhận: {})", 
+                    requestId, request.getAmount(), amount);
+            saveAudit(requestId, "WEBHOOK_MISMATCH", "SYSTEM", 
+                    String.format("Số tiền không khớp. Cần: %s, Nhận từ ngân hàng: %s", request.getAmount(), amount));
+            return; // KHÔNG xử lý tiếp nếu tiền không khớp
+        }
+
+        // 3. Hoàn tất: trừ Hold Balance
+        request.setStatus(com.homeconnect.core.enums.WithdrawStatus.COMPLETED);
+        
+        Wallet wallet = request.getWallet();
+        wallet.setHoldBalance(wallet.getHoldBalance().subtract(request.getAmount()));
+        walletRepository.save(wallet);
+
+        // 4. Ghi lịch sử giao dịch loại WITHDRAWAL
+        WalletTransaction withdrawTx = WalletTransaction.builder()
+                .wallet(wallet)
+                .amount(request.getAmount())
+                .type(TransactionType.WITHDRAW)
+                .referenceType(ReferenceType.WITHDRAWAL)
+                .referenceId(requestId)
+                .description(String.format("Rút tiền thành công cho yêu cầu #%d về %s - %s",
+                        requestId, request.getBankName(), request.getBankAccount()))
+                .build();
+        transactionRepository.save(withdrawTx);
+
+        saveAudit(requestId, "WEBHOOK_MATCH", "SYSTEM", "Đã khớp giao dịch chi ra từ ngân hàng: " + description);
+        withdrawRequestRepository.save(request);
+        
+        try {
+            notificationService.createNotification(wallet.getUser().getId(), 
+                    "Rút tiền thành công", 
+                    String.format("Yêu cầu rút %,.0f VNĐ về %s đã được thực hiện thành công.", request.getAmount().doubleValue(), request.getBankName()),
+                    "WITHDRAW_SUCCESS");
+        } catch (Exception e) {
+            log.error("Failed to send notification for withdrawal #{}: {}", requestId, e.getMessage());
+        }
+        log.info("✅ Đối soát thành công đơn rút tiền #{}", requestId);
+    }
+
+    /**
+     * [Admin] Lấy danh sách yêu cầu rút tiền theo trạng thái
+     */
+    @Transactional(readOnly = true)
+    public com.homeconnect.core.dto.response.WithdrawRequestListResponse getWithdrawals(com.homeconnect.core.enums.WithdrawStatus status, org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<com.homeconnect.core.entity.WithdrawRequest> page;
+        if (status != null) {
+            page = withdrawRequestRepository.findByStatus(status, pageable);
+        } else {
+            page = withdrawRequestRepository.findAll(pageable);
+        }
+        
+        java.util.List<com.homeconnect.core.dto.response.WithdrawRequestResponse> list = page.getContent().stream()
+                .map(this::mapToWithdrawResponse)
+                .collect(java.util.stream.Collectors.toList());
+
+        return com.homeconnect.core.dto.response.WithdrawRequestListResponse.builder()
+                .withdrawals(list)
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .build();
+    }
+
+    /**
+     * [Admin] Lấy chi tiết yêu cầu rút tiền
+     */
+    @Transactional(readOnly = true)
+    public com.homeconnect.core.dto.response.WithdrawRequestResponse getWithdrawDetail(Integer requestId) {
+        com.homeconnect.core.entity.WithdrawRequest req = withdrawRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu rút tiền"));
+        
+        return mapToWithdrawResponse(req);
+    }
+
+    /**
+     * [User] Lấy danh sách yêu cầu rút tiền của mình
+     */
+    @Transactional(readOnly = true)
+    public com.homeconnect.core.dto.response.WithdrawRequestListResponse getMyWithdrawals(Long userId, org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<com.homeconnect.core.entity.WithdrawRequest> page = withdrawRequestRepository.findByWalletUserId(userId, pageable);
+        
+        java.util.List<com.homeconnect.core.dto.response.WithdrawRequestResponse> list = page.getContent().stream()
+                .map(this::mapToWithdrawResponse)
+                .collect(java.util.stream.Collectors.toList());
+
+        return com.homeconnect.core.dto.response.WithdrawRequestListResponse.builder()
+                .withdrawals(list)
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .build();
+    }
+
+    /**
+     * [User] Lấy chi tiết một đơn rút tiền của mình
+     */
+    @Transactional(readOnly = true)
+    public com.homeconnect.core.dto.response.WithdrawRequestResponse getMyWithdrawDetail(Long userId, Integer requestId) {
+        com.homeconnect.core.entity.WithdrawRequest req = withdrawRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu rút tiền"));
+        
+        if (!req.getWallet().getUser().getId().equals(userId)) {
+            throw new RuntimeException("Bạn không có quyền xem yêu cầu này");
+        }
+        
+        return mapToWithdrawResponse(req);
+    }
+
+    /**
+     * [Admin] Từ chối yêu cầu rút tiền
+     */
+    @Transactional
+    public void rejectWithdraw(Integer requestId, String reason, String adminEmail) {
+        com.homeconnect.core.entity.WithdrawRequest request = withdrawRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu rút tiền"));
+
+        if (request.getStatus() != com.homeconnect.core.enums.WithdrawStatus.PENDING 
+            && request.getStatus() != com.homeconnect.core.enums.WithdrawStatus.PROCESSING) {
+            throw new RuntimeException("Chỉ có thể từ chối đơn ở trạng thái PENDING hoặc PROCESSING");
+        }
+
+        // 1. Hoàn tiền về Available Balance
+        Wallet wallet = request.getWallet();
+        BigDecimal amount = request.getAmount();
+        
+        wallet.setHoldBalance(wallet.getHoldBalance().subtract(amount));
+        wallet.setAvailableBalance(wallet.getAvailableBalance().add(amount));
+        walletRepository.save(wallet);
+
+        // 2. Cập nhật trạng thái đơn
+        request.setStatus(com.homeconnect.core.enums.WithdrawStatus.REJECTED);
+        request.setFailureReason(reason);
+        withdrawRequestRepository.save(request);
+
+        // 3. Ghi log audit
+        saveAudit(requestId, "REJECT", adminEmail, "Từ chối rút tiền: " + reason);
+
+        // 4. Cập nhật lịch sử giao dịch: Tìm transaction HOLD cũ để đánh dấu, và thêm bản ghi REFUND
+        try {
+            java.util.List<com.homeconnect.core.entity.WalletTransaction> holdTxs = transactionRepository.findByWallet_WalletIdAndReferenceTypeAndReferenceId(
+                    wallet.getWalletId(), com.homeconnect.core.enums.ReferenceType.WITHDRAWAL, requestId);
+            
+            for (com.homeconnect.core.entity.WalletTransaction tx : holdTxs) {
+                if (tx.getType() == com.homeconnect.core.enums.TransactionType.HOLD) {
+                    tx.setDescription(tx.getDescription().replace("Đang giữ tiền", "BỊ TỪ CHỐI"));
+                    transactionRepository.save(tx);
+                }
+            }
+
+            com.homeconnect.core.entity.WalletTransaction refundTx = com.homeconnect.core.entity.WalletTransaction.builder()
+                    .wallet(wallet)
+                    .amount(amount)
+                    .type(com.homeconnect.core.enums.TransactionType.REFUND)
+                    .referenceType(com.homeconnect.core.enums.ReferenceType.WITHDRAWAL)
+                    .referenceId(requestId)
+                    .description(String.format("Hoàn tiền yêu cầu #%d bị từ chối. Lý do: %s", requestId, reason))
+                    .build();
+            transactionRepository.save(refundTx);
+        } catch (Exception e) {
+            log.warn("Could not update transaction history for rejection: {}", e.getMessage());
+        }
+
+        // 5. Thông báo cho User
+        try {
+            notificationService.createNotification(wallet.getUser().getId(), 
+                    "Yêu cầu rút tiền bị từ chối", 
+                    String.format("Yêu cầu rút %,.0f VNĐ của bạn đã bị từ chối. Lý do: %s", amount.doubleValue(), reason), 
+                    "WITHDRAW_REJECTED");
+        } catch (Exception e) {
+            log.error("Failed to send rejection notification: {}", e.getMessage());
+        }
+    }
+
+    private Integer extractRequestIdFromContent(String content) {
+        if (content == null) return null;
+        Pattern pattern = Pattern.compile("HOMIRT\\s*(\\d+)", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = pattern.matcher(content);
+        if (matcher.find()) {
+            return Integer.parseInt(matcher.group(1));
+        }
+        return null;
+    }
+
+    private void saveAudit(Integer requestId, String action, String actor, String note) {
+        com.homeconnect.core.entity.WithdrawAuditLog log = com.homeconnect.core.entity.WithdrawAuditLog.builder()
+                .requestId(requestId)
+                .action(action)
+                .actor(actor)
+                .note(note)
+                .build();
+        auditLogRepository.save(log);
+    }
+
+    private com.homeconnect.core.dto.response.WithdrawRequestResponse mapToWithdrawResponse(com.homeconnect.core.entity.WithdrawRequest req) {
+        return com.homeconnect.core.dto.response.WithdrawRequestResponse.builder()
+                .requestId(req.getRequestId())
+                .userId(req.getWallet().getUser().getId())
+                .userFullName(req.getWallet().getUser().getFullName())
+                .amount(req.getAmount())
+                .bankName(req.getBankName())
+                .bankAccount(req.getBankAccount())
+                .accountHolderName(req.getAccountHolderName())
+                .status(req.getStatus())
+                .adminNote(req.getAdminNote())
+                .failureReason(req.getFailureReason())
+                .qrCode(generateWithdrawQRUrl(req))
+                .createdAt(req.getCreatedAt())
+                .build();
+    }
+
+    private String generateWithdrawQRUrl(com.homeconnect.core.entity.WithdrawRequest request) {
+        if (request.getBankAccountRef() == null) {
+            return null;
+        }
+        
+        String bankCode = request.getBankAccountRef().getBankCode();
+        String accountNumber = request.getBankAccount();
+        BigDecimal amount = request.getAmount();
+        String transferContent = "HOMIRT" + request.getRequestId();
+        String accountHolderName = request.getAccountHolderName();
+
+        try {
+            String encodedContent = java.net.URLEncoder.encode(transferContent, java.nio.charset.StandardCharsets.UTF_8.toString());
+            String encodedName = java.net.URLEncoder.encode(accountHolderName, java.nio.charset.StandardCharsets.UTF_8.toString());
+
+            return String.format(
+                    "https://img.vietqr.io/image/%s-%s-compact.png?amount=%d&addInfo=%s&accountName=%s",
+                    bankCode,
+                    accountNumber,
+                    amount.longValue(),
+                    encodedContent,
+                    encodedName);
+        } catch (java.io.UnsupportedEncodingException e) {
+            log.error("Lỗi tạo mã QR rút tiền: {}", e.getMessage());
+            return null;
+        }
     }
 }

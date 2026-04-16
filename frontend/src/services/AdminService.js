@@ -62,7 +62,25 @@ const AdminService = {
      */
     broadcastNotification: async (data) => {
         return apiClient.post('/api/v1/admin/notifications/broadcast', data);
-    }
+    },
+
+    // ===== QUAN LY RUT TIEN =====
+    getWithdrawals: async (params = {}) => {
+        // params: { status, page, size }
+        return apiClient.get('/api/v1/admin/withdrawals', { params });
+    },
+
+    getWithdrawDetail: async (requestId) => {
+        return apiClient.get(`/api/v1/admin/withdrawals/${requestId}`);
+    },
+
+    approveWithdrawal: async (requestId) => {
+        return apiClient.patch(`/api/v1/admin/withdrawals/${requestId}/approve`);
+    },
+
+    rejectWithdrawal: async (requestId, reason) => {
+        return apiClient.patch(`/api/v1/admin/withdrawals/${requestId}/reject`, null, { params: { reason } });
+    },
 };
 
 export default AdminService;

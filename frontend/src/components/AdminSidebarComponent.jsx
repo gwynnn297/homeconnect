@@ -133,7 +133,7 @@ const AdminSidebarComponent = () => {
                 </NavLink>
 
                 <NavLink
-                    to="/admin/wallet-transactions"
+                    to="/admin/withdrawals"
                     className={linkClass}
                 >
                     <div className="sidebar-link-left">
@@ -144,7 +144,7 @@ const AdminSidebarComponent = () => {
                                 <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>
                             </svg>
                         </div>
-                        <span>Ví &amp; Giao dịch</span>
+                        <span>Quản lý Rút tiền</span>
                     </div>
                 </NavLink>
 

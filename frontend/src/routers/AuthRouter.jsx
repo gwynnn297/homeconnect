@@ -21,6 +21,7 @@ import AdminWalletTransactionsPage from '../pages/Admin/AdminWalletTransactionsP
 import AdminComplaintsPage from '../pages/Admin/AdminComplaintsPage'
 import AdminReportsPage from '../pages/Admin/AdminReportsPage'
 import ServiceManagerPage from '../pages/Admin/ServiceManagerPage'
+import AdminWithdrawalsPage from '../pages/Admin/AdminWithdrawalsPage'
 import HelperSchedulePage from '../pages/Helper/HelperSchedulePage'
 import HelperWalletPage from '../pages/Helper/HelperWalletPage'
 import HelperReviewsPage from '../pages/Helper/HelperReviewsPage'
@@ -61,6 +62,7 @@ const AuthRouter = () => {
         <Route path="/admin/users" element={<AdminUsersPage />} />
         <Route path="/admin/bookings" element={<AdminBookingsPage />} />
         <Route path="/admin/wallet-transactions" element={<AdminWalletTransactionsPage />} />
+        <Route path="/admin/withdrawals" element={<AdminWithdrawalsPage />} />
         <Route path="/admin/complaints" element={<AdminComplaintsPage />} />
         <Route path="/admin/reports" element={<AdminReportsPage />} />
         <Route path="/customer/post-job" element={<CustomerPostJobPage />} />

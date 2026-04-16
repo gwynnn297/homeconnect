@@ -51,7 +51,6 @@ public class GeocodingService {
      * Validate tọa độ do client gửi có khớp với placeId từ Goong hay không.
      */
     @RateLimiter(name = "goong")
-    @SuppressWarnings("unchecked")
     public void validatePlaceCoordinates(String placeId, BigDecimal latitude, BigDecimal longitude) {
         try {
             String url = UriComponentsBuilder.fromUriString(goongPlaceDetailUrl)
@@ -190,7 +189,6 @@ public class GeocodingService {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     private GeoResult executeRequest(String url, String originalAddress) {
         org.springframework.http.ResponseEntity<Map<String, Object>> responseEntity = restTemplate.exchange(
                 url, org.springframework.http.HttpMethod.GET, null, 
@@ -247,7 +245,6 @@ public class GeocodingService {
     }
 
     @RateLimiter(name = "goong")
-    @SuppressWarnings("unchecked")
     public List<Map<String, String>> getSuggestions(String input) {
         if (input == null || input.trim().length() < 3) {
             return List.of();
@@ -285,7 +282,6 @@ public class GeocodingService {
                     new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {}).getBody();
             if (raw == null) return List.of();
 
-            @SuppressWarnings("unchecked")
             List<Map<String, Object>> predictions = (List<Map<String, Object>>) raw.get("predictions");
             if (predictions == null) return List.of();
 
@@ -303,7 +299,6 @@ public class GeocodingService {
     }
 
     @RateLimiter(name = "goong")
-    @SuppressWarnings("unchecked")
     public Map<String, Object> getPlaceDetail(String placeId) {
         if (placeId == null || placeId.isBlank()) {
             throw new ApiException("placeId không được để trống", HttpStatus.BAD_REQUEST);
@@ -351,7 +346,6 @@ public class GeocodingService {
      * Trả về: addressDetail, wardName, districtName, provinceName, latitude, longitude
      */
     @RateLimiter(name = "goong")
-    @SuppressWarnings("unchecked")
     public Map<String, Object> getAddressComponents(String placeId) {
         if (placeId == null || placeId.isBlank()) {
             throw new ApiException("placeId không được để trống", HttpStatus.BAD_REQUEST);
@@ -372,7 +366,6 @@ public class GeocodingService {
                 throw new ApiException("Không thể lấy chi tiết địa điểm từ Goong", HttpStatus.BAD_REQUEST);
             }
 
-            @SuppressWarnings("unchecked")
             Map<String, Object> result = (Map<String, Object>) raw.get("result");
             if (result == null) {
                 throw new ApiException("Goong không trả về kết quả cho placeId này", HttpStatus.NOT_FOUND);

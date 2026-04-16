@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,6 +29,8 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final AddressRepository addressRepository;
     private final HelperScheduleRepository helperScheduleRepository;
+    private final WalletService walletService;
+    private final NotificationService notificationService;
     private final JobPostRepository jobPostRepository;
     private final JobApplicationRepository jobApplicationRepository;
     private final UserRepository userRepository;
@@ -36,7 +39,6 @@ public class BookingService {
     private final HelperServiceRepository helperServiceRepository;
     private final ReviewRepository reviewRepository;
     private final ConflictEngine conflictEngine;
-    private final NotificationService notificationService;
 
     /**
      * Xác nhận đơn hàng và cập nhật lịch của Helper sang BUSY
@@ -556,7 +558,6 @@ public class BookingService {
         return mapToBookingResponse(booking, customerId);
     }
 
-    @Transactional(readOnly = true)
     public BookingResponse getBookingDetail(Long bookingId, Long userId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
@@ -566,5 +567,40 @@ public class BookingService {
         }
 
         return mapToBookingResponse(booking, userId);
+    }
+
+    @Transactional
+    public void cancelBooking(Long bookingId, Long customerId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng"));
+
+        if (!booking.getCustomer().getId().equals(customerId)) {
+            throw new RuntimeException("Bạn không có quyền hủy đơn hàng này");
+        }
+
+        if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
+            throw new RuntimeException("Đơn hàng đã hoàn thành hoặc đã bị hủy trước đó");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startTime = booking.getScheduledStartTime();
+
+        if (booking.getPaymentStatus() == com.homeconnect.core.enums.PaymentStatus.HOLDING) {
+            long diffInMinutes = java.time.Duration.between(now, startTime).toMinutes();
+
+            if (diffInMinutes < 120) {
+                BigDecimal penalty = booking.getTotalPrice().multiply(BigDecimal.valueOf(0.3));
+                BigDecimal refund = booking.getTotalPrice().subtract(penalty);
+
+                walletService.deductPenalty(customerId, penalty, bookingId, "Hủy đơn sát giờ (< 2h)");
+                walletService.compensateCustomer(booking.getHelper().getId(), penalty, bookingId);
+                walletService.refundHold(customerId, refund, bookingId, "Hoàn lại 70% sau phí hủy đơn");
+            } else {
+                walletService.refundHold(customerId, booking.getTotalPrice(), bookingId, "Hủy đơn sớm (> 2h)");
+            }
+        }
+
+        booking.setStatus(BookingStatus.CANCELLED);
+        bookingRepository.save(booking);
     }
 }

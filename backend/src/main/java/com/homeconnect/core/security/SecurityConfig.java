@@ -44,7 +44,7 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/auth/**").permitAll()
                                                 .requestMatchers("/api/v1/auth/**").permitAll()
                                                 // Webhook endpoints (không cần auth)
-                                                .requestMatchers("/api/v1/wallets/webhook").permitAll()
+                                                .requestMatchers("/api/v1/wallets/webhook", "/api/v1/webhooks/**").permitAll()
                                                 // Các endpoint test
                                                 .requestMatchers("/api/v1/test/**").permitAll()
                                                 // Các endpoint public (locations)

@@ -2,6 +2,7 @@ package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.GenerateQRRequest;
 import com.homeconnect.core.dto.request.WebhookDepositRequest;
+import com.homeconnect.core.dto.response.ApiResponse;
 import com.homeconnect.core.dto.response.VietQRResponse;
 import com.homeconnect.core.dto.response.WalletInfoResponse;
 import com.homeconnect.core.dto.response.WalletTransactionListResponse;
@@ -106,6 +107,52 @@ public class WalletController {
             return ResponseEntity.ok("ERROR");
         }
     }
+
+    @PostMapping("/withdraw")
+    @Operation(summary = "Gửi yêu cầu rút tiền", description = "User gửi yêu cầu rút tiền từ ví khả dụng về số tài khoản đã liên kết.", security = @SecurityRequirement(name = "bearerAuth"))
+    public ResponseEntity<ApiResponse<Void>> requestWithdraw(
+            HttpServletRequest request,
+            @Valid @RequestBody com.homeconnect.core.dto.request.WithdrawRequestDTO withdrawRequest) {
+        
+        Long userId = getUserIdFromToken(request);
+        log.info(" User ID: {} yêu cầu rút {} VNĐ", userId, withdrawRequest.getAmount());
+
+        walletService.requestWithdraw(userId, withdrawRequest.getAmount(), withdrawRequest.getBankAccountId());
+        
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Yêu cầu rút tiền của bạn đã được gửi và đang chờ duyệt!")
+                .build());
+    }
+
+    @GetMapping("/withdrawals")
+    @Operation(summary = "Lấy lịch sử yêu cầu rút tiền của tôi", security = @SecurityRequirement(name = "bearerAuth"))
+    public ResponseEntity<ApiResponse<com.homeconnect.core.dto.response.WithdrawRequestListResponse>> getMyWithdrawals(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        
+        Long userId = getUserIdFromToken(request);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        
+        return ResponseEntity.ok(ApiResponse.<com.homeconnect.core.dto.response.WithdrawRequestListResponse>builder()
+                .message("Thành công")
+                .data(walletService.getMyWithdrawals(userId, pageable))
+                .build());
+    }
+
+    @GetMapping("/withdrawals/{requestId}")
+    @Operation(summary = "Xem chi tiết yêu cầu rút tiền của tôi", security = @SecurityRequirement(name = "bearerAuth"))
+    public ResponseEntity<ApiResponse<com.homeconnect.core.dto.response.WithdrawRequestResponse>> getMyWithdrawDetail(
+            HttpServletRequest request,
+            @PathVariable Integer requestId) {
+        
+        Long userId = getUserIdFromToken(request);
+        return ResponseEntity.ok(ApiResponse.<com.homeconnect.core.dto.response.WithdrawRequestResponse>builder()
+                .message("Thành công")
+                .data(walletService.getMyWithdrawDetail(userId, requestId))
+                .build());
+    }
+
 
     // ===== Helper Methods =====
 

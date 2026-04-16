@@ -39,6 +39,7 @@ import java.util.List;
 public class AdminController {
 
     private final AdminService adminService;
+    private final com.homeconnect.core.service.WalletService walletService;
 
     /**
      * BE-Admin-02: Helper Approval Workflow
@@ -253,6 +254,59 @@ public class AdminController {
         adminService.deleteService(serviceId);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .message("Xóa dịch vụ thành công")
+                .build());
+    }
+
+    @Operation(summary = "Duyệt yêu cầu rút tiền (PB-18)", description = "Admin duyệt lệnh rút tiền. Hệ thống sẽ trả về mã nội dung chuyển khoản HOMIRT{id}.")
+    @PatchMapping("/withdrawals/{requestId}/approve")
+    public ResponseEntity<ApiResponse<Void>> approveWithdrawal(
+            @PathVariable("requestId") Integer requestId,
+            Authentication authentication) {
+        
+        String adminEmail = authentication.getName();
+        String transferCode = walletService.approveWithdraw(requestId, adminEmail);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Duyệt thành công! Admin vui lòng chuyển khoản với nội dung: " + transferCode)
+                .build());
+    }
+
+    @Operation(summary = "Từ chối yêu cầu rút tiền (PB-18)", description = "Admin từ chối lệnh rút. Tiền sẽ được hoàn lại từ Hold Balance về Available Balance của User.")
+    @PatchMapping("/withdrawals/{requestId}/reject")
+    public ResponseEntity<ApiResponse<Void>> rejectWithdrawal(
+            @PathVariable("requestId") Integer requestId,
+            @RequestParam String reason,
+            Authentication authentication) {
+        
+        String adminEmail = authentication.getName();
+        walletService.rejectWithdraw(requestId, reason, adminEmail);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Đã từ chối yêu cầu rút tiền và hoàn tiền cho người dùng.")
+                .build());
+    }
+
+    @Operation(summary = "Lấy danh sách yêu cầu rút tiền", description = "Admin liệt kê các đơn rút tiền theo trạng thái (PENDING, PROCESSING, COMPLETED, REJECTED)")
+    @GetMapping("/withdrawals")
+    public ResponseEntity<ApiResponse<WithdrawRequestListResponse>> getWithdrawals(
+            @RequestParam(required = false) com.homeconnect.core.enums.WithdrawStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        WithdrawRequestListResponse response = walletService.getWithdrawals(status, pageable);
+        
+        return ResponseEntity.ok(ApiResponse.<WithdrawRequestListResponse>builder()
+                .message("Thành công")
+                .data(response)
+                .build());
+    }
+
+    @GetMapping("/withdrawals/{requestId}")
+    @Operation(summary = "[Admin] Lấy chi tiết đơn rút tiền ")
+    public ResponseEntity<ApiResponse<com.homeconnect.core.dto.response.WithdrawRequestResponse>> getWithdrawDetail(@PathVariable Integer requestId) {
+        com.homeconnect.core.dto.response.WithdrawRequestResponse response = walletService.getWithdrawDetail(requestId);
+        return ResponseEntity.ok(ApiResponse.<com.homeconnect.core.dto.response.WithdrawRequestResponse>builder()
+                .message("Thành công")
+                .data(response)
                 .build());
     }
 }

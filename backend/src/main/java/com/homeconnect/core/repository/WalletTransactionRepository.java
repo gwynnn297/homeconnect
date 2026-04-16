@@ -31,4 +31,6 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
      */
     @Query("SELECT SUM(wt.amount) FROM WalletTransaction wt WHERE wt.wallet.walletId = :walletId AND wt.type = 'RELEASE'")
     java.math.BigDecimal getTotalEarningsByWalletId(@Param("walletId") Integer walletId);
+
+    java.util.List<WalletTransaction> findByWallet_WalletIdAndReferenceTypeAndReferenceId(Integer walletId, com.homeconnect.core.enums.ReferenceType referenceType, Integer referenceId);
 }
