@@ -443,19 +443,33 @@ const SERVICE_INFOS = {
 const CustomerPostJobPage = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const categoryId = parseInt(searchParams.get('serviceId'), 10) || 1;
+    const categoryId =
+        parseInt(searchParams.get('categoryId') || searchParams.get('serviceId'), 10) || 1;
+    const parsedWorkDate = String(searchParams.get('workDate') || '').trim();
+    const parsedStartTime = String(searchParams.get('startTime') || '').trim();
+    const parsedDurationHoursRaw = Number(searchParams.get('durationHours'));
+    const parsedDurationHours =
+        Number.isFinite(parsedDurationHoursRaw) && parsedDurationHoursRaw >= 1
+            ? Math.min(12, Math.max(1, Math.round(parsedDurationHoursRaw)))
+            : 2;
+    const parsedServiceIds = String(searchParams.get('serviceIds') || '')
+        .split(',')
+        .map((item) => Math.round(Number(item)))
+        .filter((item) => Number.isFinite(item) && item > 0);
+    const parsedServiceIdsKey = parsedServiceIds.join(',');
+    const bookingKey = `${categoryId}|${parsedWorkDate}|${parsedStartTime}|${parsedDurationHours}|${parsedServiceIdsKey}`;
     const [categoryName, setCategoryName] = useState('');
 
     const [step, setStep] = useState(1);
 
     const [jobData, setJobData] = useState({
         categoryId,
-        serviceIds: [],
+        serviceIds: parsedServiceIds,
         addressId: null,
         addressDetail: '',
-        workDate: '',
-        startTime: '',
-        durationHours: 2,
+        workDate: parsedWorkDate,
+        startTime: parsedStartTime,
+        durationHours: parsedDurationHours,
         title: '',
         description: '',
         workSize: undefined,
@@ -601,6 +615,46 @@ const CustomerPostJobPage = () => {
         loadCategoryName();
     }, [categoryId]);
 
+    // Khi chatbot navigate ngay trên cùng trang (đổi query URL),
+    // state jobData trong parent cần đồng bộ theo lịch vừa chat.
+    useEffect(() => {
+        // Khi chatbot điều hướng ngay trên cùng trang (chỉ đổi query),
+        // cần đưa user về lại bước chọn địa chỉ.
+        setStep(1);
+        setEstimateData(null);
+        setLoadingEstimate(false);
+        setLoadingSubmit(false);
+
+        setJobData((prev) => {
+            const categoryChanged = prev.categoryId !== categoryId;
+            return {
+                ...prev,
+                categoryId,
+                serviceIds: parsedServiceIds,
+                workDate: parsedWorkDate,
+                startTime: parsedStartTime,
+                durationHours: parsedDurationHours,
+                ...(categoryChanged
+                    ? {
+                          workSize: undefined,
+                          hasPets: false,
+                          isPremium: false,
+                          bringTools: false,
+                          additionalData: {},
+                          title: '',
+                          description: ''
+                      }
+                    : {}),
+            };
+        });
+    }, [
+        categoryId,
+        parsedServiceIdsKey,
+        parsedWorkDate,
+        parsedStartTime,
+        parsedDurationHours,
+    ]);
+
     const serviceInfo = SERVICE_INFOS[categoryId] || {
         name: categoryName || 'Dịch vụ',
         icon: '✨',
@@ -612,6 +666,7 @@ const CustomerPostJobPage = () => {
             <div className="customer-post-job-page">
                 {step === 1 && (
                     <AddressStep
+                        key={`address-step-${bookingKey}`}
                         onBack={() => navigate('/customer-dashboard')}
                         onSelectAddress={handleSelectAddress}
                         serviceInfo={serviceInfo}
@@ -619,6 +674,7 @@ const CustomerPostJobPage = () => {
                 )}
                 {step === 2 && (
                     <JobDetailsStep
+                        key={`job-details-${bookingKey}`}
                         onBack={() => setStep(1)}
                         onSubmit={handleJobDetailsSubmit}
                         initialData={jobData}
@@ -627,6 +683,7 @@ const CustomerPostJobPage = () => {
                 )}
                 {step === 3 && (
                     <ConfirmPayStep
+                        key={`confirm-pay-${bookingKey}`}
                         onBack={() => setStep(2)}
                         onConfirm={handleConfirmAndPay}
                         jobData={jobData}

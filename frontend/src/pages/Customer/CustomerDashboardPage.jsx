@@ -230,8 +230,8 @@ const CustomerDashboardPage = () => {
         }));
     }, [PALETTE, filteredCategories]);
 
-    const handleServiceClick = (serviceId) => {
-        navigate(`/customer/post-job?serviceId=${serviceId}`);
+    const handleServiceClick = (categoryId) => {
+        navigate(`/customer/post-job?categoryId=${categoryId}`);
     };
 
     const normalizedJobs = useMemo(() => {

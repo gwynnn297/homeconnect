@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import AIChatbotComponent from '../components/AIChatbotComponent';
 import HeaderComponent from '../components/HeaderComponent';
 import CustomerSidebarComponent from '../components/CustomerSidebarComponent';
 import './CustomerLayout.css';
@@ -33,6 +34,7 @@ const CustomerLayout = ({ children }) => {
                 <main className="customer-content">
                     {children}
                 </main>
+                <AIChatbotComponent />
             </div>
         </div>
     );
