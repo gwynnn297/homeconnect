@@ -1,5 +1,5 @@
 -- ==========================================
--- V50__init_withdraw_system.sql
+-- V51__init_withdraw_system.sql
 -- Hệ thống Rút tiền Chuyên nghiệp & Audit Logs
 -- ==========================================
 
