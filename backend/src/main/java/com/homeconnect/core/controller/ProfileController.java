@@ -1,6 +1,7 @@
 package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.profile.CommonProfileUpdateRequest;
+import com.homeconnect.core.dto.request.profile.HelperOnlineStatusRequest;
 import com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest;
 import com.homeconnect.core.dto.response.ApiResponse;
 import com.homeconnect.core.dto.response.profile.HelperProfileResponse;
@@ -84,6 +85,17 @@ public class ProfileController {
         return ResponseEntity.ok(ApiResponse.<HelperProfileResponse>builder()
                 .message("Cập nhật hồ sơ năng lực thành công")
                 .data(profileService.updateHelperProfessionalProfile(request))
+                .build());
+    }
+
+    @PatchMapping("/helper/profile/online-status")
+    @PreAuthorize("hasRole('HELPER')")
+    @Operation(summary = "Bật/tắt trạng thái online (Helper)", description = "Helper chủ động bật hoặc tắt trạng thái nhận việc")
+    public ResponseEntity<ApiResponse<HelperProfileResponse>> updateOnlineStatus(
+            @Valid @RequestBody HelperOnlineStatusRequest request) {
+        return ResponseEntity.ok(ApiResponse.<HelperProfileResponse>builder()
+                .message("Cập nhật trạng thái online thành công")
+                .data(profileService.updateHelperOnlineStatus(request.getIsOnline()))
                 .build());
     }
 

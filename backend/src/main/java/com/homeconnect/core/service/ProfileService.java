@@ -112,6 +112,18 @@ public class ProfileService {
     }
 
     @Transactional
+    public HelperProfileResponse updateHelperOnlineStatus(Boolean isOnline) {
+        User user = getCurrentUser();
+        HelperProfile profile = helperProfileRepository.findByUser_Id(user.getId())
+                .orElseThrow(() -> new ApiException("Hồ sơ Helper không tồn tại", HttpStatus.NOT_FOUND));
+
+        profile.setIsOnline(isOnline);
+        HelperProfile savedProfile = helperProfileRepository.save(profile);
+        log.info("Updated helper online status for {} to {}", user.getEmail(), isOnline);
+        return mapToHelperResponse(savedProfile);
+    }
+
+    @Transactional
     public HelperProfileResponse updateHelperProfessionalProfile(HelperProfessionalProfileRequest request) {
         User user = getCurrentUser();
         HelperProfile profile = helperProfileRepository.findByUser_Id(user.getId())

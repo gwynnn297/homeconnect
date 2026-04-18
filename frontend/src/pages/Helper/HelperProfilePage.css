@@ -337,6 +337,60 @@
     display: inline-block;
 }
 
+.hpp-online-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    margin-top: 2px;
+}
+
+.hpp-online-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.hpp-online-switch-track {
+    width: 44px;
+    height: 24px;
+    border-radius: 999px;
+    background: #cbd5e1;
+    transition: background-color 0.2s ease;
+    position: relative;
+}
+
+.hpp-online-switch-track::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+    transition: transform 0.2s ease;
+}
+
+.hpp-online-switch input:checked+.hpp-online-switch-track {
+    background: #22c55e;
+}
+
+.hpp-online-switch input:checked+.hpp-online-switch-track::after {
+    transform: translateX(20px);
+}
+
+.hpp-online-switch input:focus-visible+.hpp-online-switch-track {
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
+}
+
+.hpp-online-switch--disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
 /* ── Section title ───────────────────────────────────────────────── */
 .hpp-section-title {
     display: flex;

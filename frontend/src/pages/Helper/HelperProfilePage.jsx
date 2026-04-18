@@ -765,6 +765,7 @@ const BasicInfoTab = ({ profile, onSaved }) => {
 const ProfessionalProfileTab = () => {
     const [profile, setProfile] = useState(null);
     const [loadingInit, setLoadingInit] = useState(true);
+    const [updatingOnlineStatus, setUpdatingOnlineStatus] = useState(false);
 
     // Master data
     const [allProvinces, setAllProvinces] = useState([]);
@@ -915,6 +916,34 @@ const ProfessionalProfileTab = () => {
         setForm((f) => ({ ...f, [name]: value }));
     };
 
+    const handleToggleOnlineStatus = async (e) => {
+        if (!profile || updatingOnlineStatus) return;
+        const nextIsOnline = e.target.checked;
+        const previousIsOnline = !!profile.isOnline;
+
+        setProfile((prev) => (prev ? { ...prev, isOnline: nextIsOnline } : prev));
+        setUpdatingOnlineStatus(true);
+        try {
+            const res = await ProfileService.updateHelperOnlineStatus(nextIsOnline);
+            const updated = res?.data;
+            if (updated) {
+                setProfile((prev) => (prev ? { ...prev, ...updated } : prev));
+            }
+            setToast({
+                message: nextIsOnline ? 'Bạn đã bật trạng thái online' : 'Bạn đã tắt trạng thái online',
+                type: 'success',
+            });
+        } catch (err) {
+            setProfile((prev) => (prev ? { ...prev, isOnline: previousIsOnline } : prev));
+            setToast({
+                message: err?.message || 'Không thể cập nhật trạng thái online, vui lòng thử lại',
+                type: 'error',
+            });
+        } finally {
+            setUpdatingOnlineStatus(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!form.bio || form.bio.trim().length < 50) {
@@ -992,6 +1021,16 @@ const ProfessionalProfileTab = () => {
                             <span className="hpp-dot" style={{ background: profile.isOnline ? '#16a34a' : '#94a3b8' }} />
                             {profile.isOnline ? 'Online' : 'Offline'}
                         </span>
+                        <label className={`hpp-online-switch ${updatingOnlineStatus ? 'hpp-online-switch--disabled' : ''}`}>
+                            <input
+                                type="checkbox"
+                                checked={!!profile.isOnline}
+                                onChange={handleToggleOnlineStatus}
+                                disabled={updatingOnlineStatus}
+                                aria-label="Bật tắt trạng thái online"
+                            />
+                            <span className="hpp-online-switch-track" />
+                        </label>
                         <span className="hpp-stat-label">Trạng thái</span>
                     </div>
                 </div>
