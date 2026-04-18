@@ -2,15 +2,32 @@ package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.BroadcastNotificationRequest;
 import com.homeconnect.core.dto.request.HelperReviewRequest;
+import com.homeconnect.core.dto.request.admin.AdminCancelBookingRequest;
+import com.homeconnect.core.dto.request.admin.AdminCancelJobPostRequest;
+import com.homeconnect.core.dto.request.admin.AdminUpdateUserStatusRequest;
 import com.homeconnect.core.dto.request.admin.CreateCategoryRequest;
 import com.homeconnect.core.dto.request.admin.CreateServiceRequest;
 import com.homeconnect.core.dto.request.admin.UpdateCategoryRequest;
 import com.homeconnect.core.dto.request.admin.UpdateServiceRequest;
 import com.homeconnect.core.dto.response.*;
+import com.homeconnect.core.dto.response.admin.AdminBookingDetailResponse;
+import com.homeconnect.core.dto.response.admin.AdminBookingListResponse;
+import com.homeconnect.core.dto.response.admin.AdminJobPostDetailResponse;
+import com.homeconnect.core.dto.response.admin.AdminJobPostListResponse;
+import com.homeconnect.core.dto.response.admin.AdminUserDetailResponse;
+import com.homeconnect.core.dto.response.admin.AdminUserListItemResponse;
+import com.homeconnect.core.dto.response.admin.AdminUserListResponse;
 import com.homeconnect.core.dto.response.admin.ServiceResponse;
 import com.homeconnect.core.dto.response.service.CategoryResponse;
+import com.homeconnect.core.enums.BookingStatus;
 import com.homeconnect.core.enums.KycStatus;
+import com.homeconnect.core.enums.UserRole;
+import com.homeconnect.core.enums.UserStatus;
+import com.homeconnect.core.exception.BadRequestException;
+import com.homeconnect.core.repository.UserRepository;
 import com.homeconnect.core.service.AdminService;
+import com.homeconnect.core.service.BookingService;
+import com.homeconnect.core.service.JobService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,8 +40,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -40,6 +60,9 @@ public class AdminController {
 
     private final AdminService adminService;
     private final com.homeconnect.core.service.WalletService walletService;
+    private final BookingService bookingService;
+    private final JobService jobService;
+    private final UserRepository userRepository;
 
     /**
      * BE-Admin-02: Helper Approval Workflow
@@ -127,6 +150,158 @@ public class AdminController {
 
         BroadcastNotificationResponse response = adminService.broadcastNotification(request);
         return ResponseEntity.ok(response);
+    }
+
+    // ============================================================
+    // Quản lý Booking (Admin)
+    // ============================================================
+
+    @Operation(summary = "Danh sách booking", description = "Lọc theo trạng thái, cờ bất thường, khoảng thời gian làm việc (scheduled), tìm theo mã đơn hoặc tên khách")
+    @GetMapping("/bookings")
+    public ResponseEntity<AdminBookingListResponse> getAdminBookings(
+            @RequestParam(required = false) BookingStatus status,
+            @RequestParam(required = false) Boolean flaggedOnly,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime scheduledTo,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "scheduledStartTime") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        Sort.Direction direction = sortDir.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String safeSort = switch (sortBy) {
+            case "createdAt", "totalPrice", "status" -> sortBy;
+            default -> "scheduledStartTime";
+        };
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, safeSort));
+        return ResponseEntity.ok(adminService.getAdminBookings(status, flaggedOnly, scheduledFrom, scheduledTo, q,
+                pageable));
+    }
+
+    @Operation(summary = "Chi tiết booking", description = "Đầy đủ thông tin vận hành: khách, thợ, địa chỉ, thanh toán, check-in/out, cờ bất thường")
+    @GetMapping("/bookings/{bookingId}")
+    public ResponseEntity<AdminBookingDetailResponse> getAdminBookingDetail(@PathVariable Long bookingId) {
+        return ResponseEntity.ok(adminService.getAdminBookingDetail(bookingId));
+    }
+
+    @Operation(summary = "Hủy booking (Admin)", description = "Áp dụng cùng quy tắc hoàn tiền/hold như khách hủy (sát giờ / sớm). Bắt buộc lý do.")
+    @PostMapping("/bookings/{bookingId}/cancel")
+    public ResponseEntity<ApiResponse<Void>> adminCancelBooking(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody AdminCancelBookingRequest request,
+            Authentication authentication) {
+        String adminEmail = authentication.getName();
+        bookingService.cancelBookingByAdmin(bookingId, request.getReason(), adminEmail);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Đã hủy booking và xử lý ví theo quy định")
+                .build());
+    }
+
+    @Operation(summary = "Gỡ cờ bất thường", description = "Sau khi xem xét đơn checkout sớm (isFlagged)")
+    @PatchMapping("/bookings/{bookingId}/unflag")
+    public ResponseEntity<ApiResponse<Void>> adminUnflagBooking(
+            @PathVariable Long bookingId,
+            Authentication authentication) {
+        String adminEmail = authentication.getName();
+        bookingService.clearBookingFlagByAdmin(bookingId, adminEmail);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Đã gỡ cờ cảnh báo")
+                .build());
+    }
+
+    // ============================================================
+    // Quản lý tin đăng / Chợ việc (Admin)
+    // ============================================================
+
+    @Operation(summary = "Danh sách tin đăng", description = "Lọc theo trạng thái, danh mục, khoảng ngày làm, ID khách; tìm theo mã tin, tiêu đề, tên/SĐT/email khách")
+    @GetMapping("/job-posts")
+    public ResponseEntity<AdminJobPostListResponse> getAdminJobPosts(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDateTo,
+            @RequestParam(required = false) Long customerId,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        Sort.Direction direction = sortDir.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String safeSort = switch (sortBy) {
+            case "workDate", "offerPrice", "status" -> sortBy;
+            default -> "createdAt";
+        };
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, safeSort));
+        return ResponseEntity.ok(adminService.getAdminJobPosts(status, categoryId, workDateFrom, workDateTo, customerId,
+                q, pageable));
+    }
+
+    @Operation(summary = "Chi tiết tin đăng", description = "Thông tin tin + khách + booking liên quan (nếu có) + thống kê ứng tuyển")
+    @GetMapping("/job-posts/{postId}")
+    public ResponseEntity<AdminJobPostDetailResponse> getAdminJobPostDetail(@PathVariable Long postId) {
+        return ResponseEntity.ok(adminService.getAdminJobPostDetail(postId));
+    }
+
+    @Operation(summary = "Hủy tin đăng (Admin)", description = "PUBLISHED: hoàn hold & hủy ứng tuyển như khách. ASSIGNED: hủy đơn booking theo luật admin rồi đóng tin.")
+    @PostMapping("/job-posts/{postId}/cancel")
+    public ResponseEntity<ApiResponse<Void>> adminCancelJobPost(
+            @PathVariable Long postId,
+            @Valid @RequestBody AdminCancelJobPostRequest request,
+            Authentication authentication) {
+        String adminEmail = authentication.getName();
+        jobService.cancelJobPostByAdmin(postId, request.getReason(), adminEmail);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Đã xử lý hủy tin đăng theo quy định")
+                .build());
+    }
+
+    // ============================================================
+    // Quản lý User (Admin)
+    // ============================================================
+
+    @Operation(summary = "Danh sách người dùng", description = "Lọc theo role, trạng thái tài khoản; tìm theo tên, email hoặc SĐT (q)")
+    @GetMapping("/users")
+    public ResponseEntity<AdminUserListResponse> getUsers(
+            @RequestParam(required = false) UserRole role,
+            @RequestParam(required = false) UserStatus status,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        Sort.Direction direction = sortDir.equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String safeSort = switch (sortBy) {
+            case "updatedAt", "fullName", "email", "phone" -> sortBy;
+            default -> "createdAt";
+        };
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, safeSort));
+        return ResponseEntity.ok(adminService.getUsers(role, status, q, pageable));
+    }
+
+    @Operation(summary = "Chi tiết người dùng", description = "Không trả về mật khẩu. HELPER có thêm tóm tắt KYC nếu có hồ sơ.")
+    @GetMapping("/users/{userId}")
+    public ResponseEntity<AdminUserDetailResponse> getAdminUserDetail(@PathVariable Long userId) {
+        return ResponseEntity.ok(adminService.getAdminUserDetail(userId));
+    }
+
+    @Operation(summary = "Khóa / mở khóa tài khoản", description = "Chỉ chấp nhận BLOCKED (khóa) hoặc ACTIVE (mở khóa từ trạng thái BLOCKED).")
+    @PatchMapping("/users/{userId}/status")
+    public ResponseEntity<ApiResponse<AdminUserListItemResponse>> updateUserStatus(
+            @PathVariable Long userId,
+            @Valid @RequestBody AdminUpdateUserStatusRequest request,
+            Authentication authentication) {
+        String adminEmail = authentication.getName();
+        Long adminId = userRepository.findByEmail(adminEmail)
+                .map(u -> u.getId())
+                .orElseThrow(() -> new BadRequestException("Không xác định được tài khoản admin."));
+        AdminUserListItemResponse data = adminService.updateUserStatus(userId, request, adminId, adminEmail);
+        return ResponseEntity.ok(ApiResponse.<AdminUserListItemResponse>builder()
+                .message("Cập nhật trạng thái tài khoản thành công")
+                .data(data)
+                .build());
     }
 
     // ============================================================

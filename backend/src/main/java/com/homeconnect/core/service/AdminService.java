@@ -2,14 +2,25 @@ package com.homeconnect.core.service;
 
 import com.homeconnect.core.dto.request.BroadcastNotificationRequest;
 import com.homeconnect.core.dto.request.HelperReviewRequest;
+import com.homeconnect.core.dto.request.admin.AdminUpdateUserStatusRequest;
 import com.homeconnect.core.dto.request.admin.CreateCategoryRequest;
 import com.homeconnect.core.dto.request.admin.CreateServiceRequest;
 import com.homeconnect.core.dto.request.admin.UpdateCategoryRequest;
 import com.homeconnect.core.dto.request.admin.UpdateServiceRequest;
 import com.homeconnect.core.dto.response.*;
+import com.homeconnect.core.dto.response.admin.AdminBookingDetailResponse;
+import com.homeconnect.core.dto.response.admin.AdminBookingListItemResponse;
+import com.homeconnect.core.dto.response.admin.AdminBookingListResponse;
+import com.homeconnect.core.dto.response.admin.AdminJobPostDetailResponse;
+import com.homeconnect.core.dto.response.admin.AdminJobPostListItemResponse;
+import com.homeconnect.core.dto.response.admin.AdminJobPostListResponse;
+import com.homeconnect.core.dto.response.admin.AdminUserDetailResponse;
+import com.homeconnect.core.dto.response.admin.AdminUserListItemResponse;
+import com.homeconnect.core.dto.response.admin.AdminUserListResponse;
 import com.homeconnect.core.dto.response.admin.ServiceResponse;
 import com.homeconnect.core.dto.response.service.CategoryResponse;
 import com.homeconnect.core.entity.*;
+import com.homeconnect.core.enums.BookingStatus;
 import com.homeconnect.core.enums.KycStatus;
 import com.homeconnect.core.enums.UserRole;
 import com.homeconnect.core.enums.UserStatus;
@@ -20,10 +31,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -48,6 +62,13 @@ public class AdminService {
         private final ServiceCategoryRepository serviceCategoryRepository;
         private final AddressRepository addressRepository;
         private final EmailService emailService;
+        private final WalletRepository walletRepository;
+        private final WalletTransactionRepository walletTransactionRepository;
+        private final BookingRepository bookingRepository;
+        private final JobPostRepository jobPostRepository;
+        private final JobApplicationRepository jobApplicationRepository;
+        private final JobService jobService;
+        private final WithdrawRequestRepository withdrawRequestRepository;
 
         @Transactional
         public HelperReviewResponse reviewHelperKyc(Long helperId, HelperReviewRequest request, String adminEmail) {
@@ -377,7 +398,6 @@ public class AdminService {
          */
         @Transactional(readOnly = true)
         public AdminStatisticsResponse getStatistics() {
-                // thống kê user
                 long totalUsers = userRepository.count();
                 long totalCustomers = userRepository.countByRole(UserRole.CUSTOMER);
                 long totalHelpers = userRepository.countByRole(UserRole.HELPER);
@@ -393,7 +413,6 @@ public class AdminService {
                                 .blockedUsers(blockedUsers)
                                 .build();
 
-                // Thống kế Helper theo KYC status
                 long pendingKyc = helperProfileRepository.countByKycStatus(KycStatus.PENDING);
                 long waitingApproval = helperProfileRepository.countByKycStatus(KycStatus.WAITING_APPROVAL)
                                 + helperProfileRepository.countByKycStatus(KycStatus.IDENTITY_VERIFIED);
@@ -408,19 +427,81 @@ public class AdminService {
                                 .rejectedHelpers(rejectedHelpers)
                                 .build();
 
-                // Thống kê hệ thống: tổng số dịch vụ
                 long totalServices = serviceRepository.count();
+                long totalCategories = serviceCategoryRepository.count();
+                long totalAddresses = addressRepository.count();
 
                 AdminStatisticsResponse.SystemStats systemStats = AdminStatisticsResponse.SystemStats.builder()
                                 .totalServices(totalServices)
+                                .totalCategories(totalCategories)
+                                .totalAddresses(totalAddresses)
+                                .build();
+
+                long totalBookings = bookingRepository.count();
+                long flaggedBookings = bookingRepository.countByIsFlaggedTrue();
+                Map<String, Long> bookingByStatus = toCountMap(bookingRepository.countGroupedByStatus());
+                Map<String, Long> bookingByPayment = toCountMap(bookingRepository.countGroupedByPaymentStatus());
+
+                AdminStatisticsResponse.BookingSnapshot bookingSnap = AdminStatisticsResponse.BookingSnapshot.builder()
+                                .totalBookings(totalBookings)
+                                .flaggedBookings(flaggedBookings)
+                                .countByStatus(bookingByStatus)
+                                .countByPaymentStatus(bookingByPayment)
+                                .build();
+
+                long totalPosts = jobPostRepository.count();
+                Map<String, Long> postByStatus = toCountMap(jobPostRepository.countGroupedByStatus());
+                AdminStatisticsResponse.JobPostSnapshot jobPostSnap = AdminStatisticsResponse.JobPostSnapshot.builder()
+                                .totalPosts(totalPosts)
+                                .countByStatus(postByStatus)
+                                .build();
+
+                long pendingApps = jobApplicationRepository.countByStatus("PENDING");
+                AdminStatisticsResponse.MarketplaceSnapshot marketplaceSnap = AdminStatisticsResponse.MarketplaceSnapshot
+                                .builder()
+                                .pendingJobApplications(pendingApps)
+                                .build();
+
+                long totalWallets = walletRepository.count();
+                BigDecimal sumAvail = walletRepository.sumAvailableBalance();
+                BigDecimal sumHold = walletRepository.sumHoldBalance();
+                BigDecimal sumDebt = walletRepository.sumDebtBalance();
+                Map<String, Long> withdrawBySt = toCountMap(withdrawRequestRepository.countGroupedByStatus());
+
+                AdminStatisticsResponse.FinanceSnapshot financeSnap = AdminStatisticsResponse.FinanceSnapshot.builder()
+                                .totalWallets(totalWallets)
+                                .sumAvailableBalance(sumAvail != null ? sumAvail : BigDecimal.ZERO)
+                                .sumHoldBalance(sumHold != null ? sumHold : BigDecimal.ZERO)
+                                .sumDebtBalance(sumDebt != null ? sumDebt : BigDecimal.ZERO)
+                                .withdrawCountByStatus(withdrawBySt)
                                 .build();
 
                 return AdminStatisticsResponse.builder()
                                 .userStats(userStats)
                                 .helperStats(helperStats)
                                 .systemStats(systemStats)
+                                .booking(bookingSnap)
+                                .jobPost(jobPostSnap)
+                                .marketplace(marketplaceSnap)
+                                .finance(financeSnap)
                                 .message("Thống kê hệ thống HomeConnect")
                                 .build();
+        }
+
+        private static Map<String, Long> toCountMap(List<Object[]> rows) {
+                Map<String, Long> m = new HashMap<>();
+                if (rows == null) {
+                        return m;
+                }
+                for (Object[] row : rows) {
+                        if (row == null || row.length < 2 || row[0] == null) {
+                                continue;
+                        }
+                        String key = row[0].toString();
+                        long n = row[1] instanceof Number ? ((Number) row[1]).longValue() : 0L;
+                        m.put(key, n);
+                }
+                return m;
         }
 
         /**
@@ -706,5 +787,360 @@ public class AdminService {
                                 .orElseThrow(() -> new BadRequestException("Danh mục không tồn tại"));
 
                 serviceCategoryRepository.delete(category);
+        }
+
+        // --- Admin: Quản lý User ---
+
+        @Transactional(readOnly = true)
+        public AdminUserListResponse getUsers(UserRole role, UserStatus status, String search,
+                        Pageable pageable) {
+                Specification<User> spec = UserSpecification.withFilters(role, status, search);
+                Page<User> page = userRepository.findAll(spec, pageable);
+                List<AdminUserListItemResponse> items = page.getContent().stream()
+                                .map(this::mapToAdminUserListItem)
+                                .collect(Collectors.toList());
+                return AdminUserListResponse.builder()
+                                .users(items)
+                                .totalElements(page.getTotalElements())
+                                .totalPages(page.getTotalPages())
+                                .currentPage(page.getNumber())
+                                .pageSize(page.getSize())
+                                .message("Danh sách người dùng")
+                                .build();
+        }
+
+        @Transactional(readOnly = true)
+        public AdminUserDetailResponse getAdminUserDetail(Long userId) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user với ID: " + userId));
+
+                AdminUserDetailResponse.HelperSummary helperSummary = null;
+                if (user.getRole() == UserRole.HELPER) {
+                        helperSummary = helperProfileRepository.findByUser_Id(userId)
+                                        .map(hp -> AdminUserDetailResponse.HelperSummary.builder()
+                                                        .profileId(hp.getProfileId())
+                                                        .kycStatus(hp.getKycStatus())
+                                                        .rejectionReason(hp.getRejectionReason())
+                                                        .isOnline(hp.getIsOnline())
+                                                        .ratingAverage(hp.getRatingAverage())
+                                                        .totalReviews(hp.getTotalReviews())
+                                                        .build())
+                                        .orElse(null);
+                }
+
+                AdminUserDetailResponse.AddressSummary addressSummary = addressRepository
+                                .findByUser_IdAndIsDefaultTrue(userId)
+                                .map(addr -> AdminUserDetailResponse.AddressSummary.builder()
+                                                .addressDetail(addr.getAddressDetail())
+                                                .provinceName(addr.getProvinceName())
+                                                .districtName(addr.getDistrictName())
+                                                .wardName(addr.getWardName())
+                                                .build())
+                                .orElse(null);
+
+                AdminUserDetailResponse.WalletSummary walletSummary = walletRepository.findByUserId(userId)
+                                .map(w -> {
+                                        BigDecimal earnings = walletTransactionRepository
+                                                        .getTotalEarningsByWalletId(w.getWalletId());
+                                        if (earnings == null) {
+                                                earnings = BigDecimal.ZERO;
+                                        }
+                                        return AdminUserDetailResponse.WalletSummary.builder()
+                                                        .walletId(w.getWalletId())
+                                                        .availableBalance(w.getAvailableBalance())
+                                                        .holdBalance(w.getHoldBalance())
+                                                        .debtBalance(w.getDebtBalance())
+                                                        .isFrozen(w.getIsFrozen())
+                                                        .totalEarnings(earnings)
+                                                        .build();
+                                })
+                                .orElse(null);
+
+                long bookingsCustomer = bookingRepository.countByCustomer_Id(userId);
+                long bookingsHelper = bookingRepository.countByHelper_Id(userId);
+                long jobPosts = jobPostRepository.countByCustomerId(userId);
+
+                AdminUserDetailResponse.ActivityStats activity = AdminUserDetailResponse.ActivityStats.builder()
+                                .bookingsAsCustomer(bookingsCustomer)
+                                .bookingsAsHelper(bookingsHelper)
+                                .jobPostsCreated(jobPosts)
+                                .build();
+
+                return AdminUserDetailResponse.builder()
+                                .userId(user.getId())
+                                .fullName(user.getFullName())
+                                .email(user.getEmail())
+                                .phone(user.getPhone())
+                                .role(user.getRole())
+                                .status(user.getStatus())
+                                .gender(user.getGender())
+                                .dateOfBirth(user.getDateOfBirth())
+                                .avatarUrl(user.getAvatarUrl())
+                                .createdAt(user.getCreatedAt())
+                                .updatedAt(user.getUpdatedAt())
+                                .defaultAddress(addressSummary)
+                                .wallet(walletSummary)
+                                .activity(activity)
+                                .helperSummary(helperSummary)
+                                .build();
+        }
+
+        @Transactional
+        public AdminUserListItemResponse updateUserStatus(Long userId, AdminUpdateUserStatusRequest request,
+                        Long adminUserId, String adminEmail) {
+                User target = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user với ID: " + userId));
+
+                if (adminUserId.equals(target.getId())) {
+                        throw new BadRequestException("Không thể khóa hoặc thao tác trên chính tài khoản của bạn.");
+                }
+
+                boolean wantBlocked = "BLOCKED".equalsIgnoreCase(request.getStatus());
+                boolean wantActive = "ACTIVE".equalsIgnoreCase(request.getStatus());
+
+                if (wantBlocked) {
+                        if (target.getStatus() == UserStatus.BLOCKED) {
+                                log.info("Admin {}: idempotent — user {} đã ở trạng thái BLOCKED", adminEmail, userId);
+                                return mapToAdminUserListItem(target);
+                        }
+                        if (target.getRole() == UserRole.ADMIN && target.getStatus() == UserStatus.ACTIVE) {
+                                long activeAdmins = userRepository.countByRoleAndStatus(UserRole.ADMIN,
+                                                UserStatus.ACTIVE);
+                                if (activeAdmins <= 1) {
+                                        throw new BadRequestException(
+                                                        "Không thể khóa tài khoản admin cuối cùng đang hoạt động.");
+                                }
+                        }
+                        target.setStatus(UserStatus.BLOCKED);
+                } else if (wantActive) {
+                        if (target.getStatus() == UserStatus.ACTIVE) {
+                                return mapToAdminUserListItem(target);
+                        }
+                        if (target.getStatus() != UserStatus.BLOCKED) {
+                                throw new BadRequestException(
+                                                "Chỉ có thể mở khóa (ACTIVE) khi tài khoản đang bị khóa (BLOCKED).");
+                        }
+                        target.setStatus(UserStatus.ACTIVE);
+                }
+
+                userRepository.save(target);
+                log.info("Admin {} đã cập nhật status={} cho user id={} (email={}). Ghi chú: {}", adminEmail,
+                                target.getStatus(), userId, target.getEmail(), request.getReason());
+
+                return mapToAdminUserListItem(target);
+        }
+
+        // --- Admin: Quản lý tin đăng (Job posts / chợ việc) ---
+
+        @Transactional(readOnly = true)
+        public AdminJobPostListResponse getAdminJobPosts(
+                        String status,
+                        Integer categoryId,
+                        LocalDate workDateFrom,
+                        LocalDate workDateTo,
+                        Long customerId,
+                        String search,
+                        Pageable pageable) {
+                Specification<JobPost> spec = JobPostSpecification.forAdmin(
+                                status, categoryId, workDateFrom, workDateTo, customerId, search);
+                Page<JobPost> page = jobPostRepository.findAll(spec, pageable);
+                List<AdminJobPostListItemResponse> items = page.getContent().stream()
+                                .map(this::mapToAdminJobPostListItem)
+                                .collect(Collectors.toList());
+                return AdminJobPostListResponse.builder()
+                                .posts(items)
+                                .totalElements(page.getTotalElements())
+                                .totalPages(page.getTotalPages())
+                                .currentPage(page.getNumber())
+                                .pageSize(page.getSize())
+                                .message("Danh sách tin đăng")
+                                .build();
+        }
+
+        @Transactional(readOnly = true)
+        public AdminJobPostDetailResponse getAdminJobPostDetail(Long postId) {
+                JobPost jobPost = jobPostRepository.findById(postId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tin đăng: " + postId));
+                User customer = userRepository.findById(jobPost.getCustomerId())
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng"));
+
+                List<JobApplication> apps = jobApplicationRepository.findByPostId(postId);
+                int pending = (int) apps.stream()
+                                .filter(a -> "PENDING".equals(a.getStatus()))
+                                .count();
+
+                com.homeconnect.core.dto.response.JobPostResponse postDto = jobService.getJobPostDetailForAdmin(postId);
+                Booking linked = bookingRepository.findTopByJobPostIdOrderByCreatedAtDesc(postId).orElse(null);
+
+                return AdminJobPostDetailResponse.builder()
+                                .post(postDto)
+                                .customerId(customer.getId())
+                                .customerName(customer.getFullName())
+                                .customerEmail(customer.getEmail())
+                                .customerPhone(customer.getPhone())
+                                .linkedBookingId(linked != null ? linked.getId() : null)
+                                .linkedBookingStatus(linked != null && linked.getStatus() != null
+                                                ? linked.getStatus().name()
+                                                : null)
+                                .applicationCount(apps.size())
+                                .pendingApplicationCount(pending)
+                                .build();
+        }
+
+        private AdminJobPostListItemResponse mapToAdminJobPostListItem(JobPost jp) {
+                User c = jp.getCustomer();
+                String customerName = c != null ? c.getFullName()
+                                : userRepository.findById(jp.getCustomerId()).map(User::getFullName).orElse("—");
+                String catName = jp.getCategory() != null ? jp.getCategory().getName() : "—";
+                Integer catId = jp.getCategory() != null ? jp.getCategory().getCategoryId() : null;
+                String district = jp.getAddress() != null ? jp.getAddress().getDistrictName() : null;
+                return AdminJobPostListItemResponse.builder()
+                                .postId(jp.getPostId())
+                                .customerId(jp.getCustomerId())
+                                .customerName(customerName)
+                                .title(jp.getTitle())
+                                .categoryId(catId)
+                                .categoryName(catName)
+                                .status(jp.getStatus())
+                                .workDate(jp.getWorkDate())
+                                .startTime(jp.getStartTime())
+                                .offerPrice(jp.getOfferPrice())
+                                .districtName(district)
+                                .createdAt(jp.getCreatedAt())
+                                .build();
+        }
+
+        // --- Admin: Quản lý Booking ---
+
+        @Transactional(readOnly = true)
+        public AdminBookingListResponse getAdminBookings(BookingStatus status, Boolean flaggedOnly,
+                        java.time.LocalDateTime scheduledFrom, java.time.LocalDateTime scheduledTo, String search,
+                        Pageable pageable) {
+                Specification<Booking> spec = BookingSpecification.forAdmin(status, flaggedOnly, scheduledFrom,
+                                scheduledTo, search);
+                Page<Booking> page = bookingRepository.findAll(spec, pageable);
+                List<AdminBookingListItemResponse> items = page.getContent().stream()
+                                .map(this::mapToAdminBookingListItem)
+                                .collect(Collectors.toList());
+                return AdminBookingListResponse.builder()
+                                .bookings(items)
+                                .totalElements(page.getTotalElements())
+                                .totalPages(page.getTotalPages())
+                                .currentPage(page.getNumber())
+                                .pageSize(page.getSize())
+                                .message("Danh sách booking")
+                                .build();
+        }
+
+        @Transactional(readOnly = true)
+        public AdminBookingDetailResponse getAdminBookingDetail(Long bookingId) {
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy booking: " + bookingId));
+                return mapToAdminBookingDetail(booking);
+        }
+
+        private AdminBookingListItemResponse mapToAdminBookingListItem(Booking b) {
+                return AdminBookingListItemResponse.builder()
+                                .bookingId(b.getId())
+                                .customerId(b.getCustomer().getId())
+                                .customerName(b.getCustomer().getFullName())
+                                .helperId(b.getHelper().getId())
+                                .helperName(b.getHelper().getFullName())
+                                .serviceName(b.getCategory() != null ? b.getCategory().getName() : "—")
+                                .status(b.getStatus())
+                                .paymentStatus(b.getPaymentStatus())
+                                .totalPrice(b.getTotalPrice())
+                                .scheduledStartTime(b.getScheduledStartTime())
+                                .scheduledEndTime(b.getScheduledEndTime())
+                                .isFlagged(b.getIsFlagged())
+                                .createdAt(b.getCreatedAt())
+                                .build();
+        }
+
+        private AdminBookingDetailResponse mapToAdminBookingDetail(Booking b) {
+                Address addr = b.getAddress();
+                String formatted = formatAdminBookingAddress(addr);
+                String arrival = resolveAdminArrivalProof(b);
+                Integer catId = b.getCategory() != null ? b.getCategory().getCategoryId() : null;
+                return AdminBookingDetailResponse.builder()
+                                .bookingId(b.getId())
+                                .jobPostId(b.getJobPostId())
+                                .customerId(b.getCustomer().getId())
+                                .customerName(b.getCustomer().getFullName())
+                                .customerEmail(b.getCustomer().getEmail())
+                                .customerPhone(b.getCustomer().getPhone())
+                                .helperId(b.getHelper().getId())
+                                .helperName(b.getHelper().getFullName())
+                                .helperEmail(b.getHelper().getEmail())
+                                .helperPhone(b.getHelper().getPhone())
+                                .serviceName(b.getCategory() != null ? b.getCategory().getName() : "—")
+                                .categoryId(catId)
+                                .addressDetail(addr != null ? addr.getAddressDetail() : null)
+                                .wardName(addr != null ? addr.getWardName() : null)
+                                .districtName(addr != null ? addr.getDistrictName() : null)
+                                .provinceName(addr != null ? addr.getProvinceName() : null)
+                                .addressFormatted(formatted)
+                                .status(b.getStatus())
+                                .paymentStatus(b.getPaymentStatus())
+                                .totalPrice(b.getTotalPrice())
+                                .scheduledStartTime(b.getScheduledStartTime())
+                                .scheduledEndTime(b.getScheduledEndTime())
+                                .expiredAt(b.getExpiredAt())
+                                .arrivedAt(b.getArrivedAt())
+                                .arrivalProofImage(arrival)
+                                .checkinPhotoUrl(b.getCheckinPhotoUrl())
+                                .checkedInAt(b.getCheckedInAt())
+                                .customerArrivalConfirmed(b.getCustomerArrivalConfirmed())
+                                .customerArrivalConfirmedAt(b.getCustomerArrivalConfirmedAt())
+                                .confirmedStartAt(b.getConfirmedStartAt())
+                                .checkoutPhotoUrl(b.getCheckoutPhotoUrl())
+                                .checkoutReason(b.getCheckoutReason())
+                                .checkedOutAt(b.getCheckedOutAt())
+                                .confirmedDoneAt(b.getConfirmedDoneAt())
+                                .isFlagged(b.getIsFlagged())
+                                .createdAt(b.getCreatedAt())
+                                .updatedAt(b.getUpdatedAt())
+                                .build();
+        }
+
+        private static String formatAdminBookingAddress(Address addr) {
+                if (addr == null) {
+                        return null;
+                }
+                return String.format("%s, %s, %s, %s",
+                                nz(addr.getAddressDetail()),
+                                nz(addr.getWardName()),
+                                nz(addr.getDistrictName()),
+                                nz(addr.getProvinceName()));
+        }
+
+        private static String nz(String s) {
+                return s == null ? "" : s;
+        }
+
+        private static String resolveAdminArrivalProof(Booking b) {
+                if (b.getArrivalProofImage() != null && !b.getArrivalProofImage().isBlank()) {
+                        return b.getArrivalProofImage();
+                }
+                if (b.getCheckinPhotoUrl() != null && !b.getCheckinPhotoUrl().isBlank()) {
+                        return b.getCheckinPhotoUrl();
+                }
+                return null;
+        }
+
+        private AdminUserListItemResponse mapToAdminUserListItem(User user) {
+                return AdminUserListItemResponse.builder()
+                                .userId(user.getId())
+                                .fullName(user.getFullName())
+                                .email(user.getEmail())
+                                .phone(user.getPhone())
+                                .role(user.getRole())
+                                .status(user.getStatus())
+                                .gender(user.getGender())
+                                .dateOfBirth(user.getDateOfBirth())
+                                .avatarUrl(user.getAvatarUrl())
+                                .createdAt(user.getCreatedAt())
+                                .updatedAt(user.getUpdatedAt())
+                                .build();
         }
 }

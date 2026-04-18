@@ -39,6 +39,16 @@ const updateHelperProfessionalProfile = (profileData) => {
 };
 
 /**
+ * Bật/tắt trạng thái online (Helper)
+ * Backend: PATCH /api/v1/helper/profile/online-status
+ * @param {boolean} isOnline Trạng thái online của helper
+ * @returns {Promise<Object>} Updated helper profile response
+ */
+const updateHelperOnlineStatus = (isOnline) => {
+    return apiClient.patch('/api/v1/helper/profile/online-status', { isOnline });
+};
+
+/**
  * Xem hồ sơ công khai của Helper
  * Dùng để hiển thị thông tin Helper cho Khách hàng xem trước khi đặt việc
  * @param {number|string} id User ID của Helper cần xem
@@ -100,6 +110,7 @@ const ProfileService = {
     updateProfile,
     getHelperProfessionalProfile,
     updateHelperProfessionalProfile,
+    updateHelperOnlineStatus,
     getPublicHelperProfile,
     getAddressLabels,
     getProvinces,

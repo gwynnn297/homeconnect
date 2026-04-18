@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import './NotificationModal.css';
 
-const NotificationModal = ({ type = 'success', message, onClose, duration = 3000 }) => {
+const NotificationModal = ({ type = 'success', message, onClose, duration = 3000, persistent = false }) => {
     const [isVisible, setIsVisible] = useState(true);
     const [isExiting, setIsExiting] = useState(false);
     const [progress, setProgress] = useState(100);
@@ -24,6 +24,11 @@ const NotificationModal = ({ type = 'success', message, onClose, duration = 3000
     useEffect(() => {
         startTimeRef.current = Date.now();
 
+        if (persistent) {
+            setProgress(100);
+            return undefined;
+        }
+
         // Tự động đóng sau duration
         const timer = setTimeout(() => {
             handleClose();
@@ -42,7 +47,7 @@ const NotificationModal = ({ type = 'success', message, onClose, duration = 3000
             clearTimeout(timer);
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
         };
-    }, [duration, handleClose]);
+    }, [duration, handleClose, persistent]);
 
     if (!isVisible) return null;
 
@@ -89,9 +94,11 @@ const NotificationModal = ({ type = 'success', message, onClose, duration = 3000
 
     return (
         <div className={`notification-modal ${type} ${isExiting ? 'exiting' : ''}`}>
-            <div className="notification-progress-bar">
-                <div className="notification-progress-fill" style={{ width: `${progress}%` }} />
-            </div>
+            {!persistent && (
+                <div className="notification-progress-bar">
+                    <div className="notification-progress-fill" style={{ width: `${progress}%` }} />
+                </div>
+            )}
             <div className="notification-icon">
                 {getIcon()}
             </div>

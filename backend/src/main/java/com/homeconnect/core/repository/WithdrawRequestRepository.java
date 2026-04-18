@@ -5,7 +5,9 @@ import com.homeconnect.core.enums.WithdrawStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface WithdrawRequestRepository extends JpaRepository<WithdrawRequest, Integer> {
@@ -16,4 +18,7 @@ public interface WithdrawRequestRepository extends JpaRepository<WithdrawRequest
     Page<WithdrawRequest> findByWalletUserId(Long userId, Pageable pageable);
 
     java.util.List<WithdrawRequest> findByBankAccountRefBankAccountId(Integer bankAccountId);
+
+    @Query("SELECT w.status, COUNT(w) FROM WithdrawRequest w GROUP BY w.status")
+    List<Object[]> countGroupedByStatus();
 }

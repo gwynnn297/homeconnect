@@ -4,6 +4,7 @@ import com.homeconnect.core.entity.Booking;
 import com.homeconnect.core.enums.BookingStatus;
 import com.homeconnect.core.enums.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,7 +15,12 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface BookingRepository extends JpaRepository<Booking, Long> {
+public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpecificationExecutor<Booking> {
+
+       long countByCustomer_Id(Long customerId);
+
+       long countByHelper_Id(Long helperId);
+
        List<Booking> findByHelperIdAndStatus(Long helperId, BookingStatus status);
 
        Optional<Booking> findByIdAndHelper_Id(Long bookingId, Long helperId);
@@ -29,6 +35,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                      Collection<Long> jobPostIds);
 
        Optional<Booking> findTopByJobPostIdAndCustomer_IdOrderByCreatedAtDesc(Long jobPostId, Long customerId);
+
+       Optional<Booking> findTopByJobPostIdOrderByCreatedAtDesc(Long jobPostId);
 
        @Query("SELECT COUNT(b) FROM Booking b " +
                      "WHERE b.helper.id = :helperId " +
@@ -61,4 +69,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                      @Param("status") BookingStatus status,
                      @Param("paymentStatus") PaymentStatus paymentStatus,
                      @Param("cutoff") LocalDateTime cutoff);
+
+       long countByIsFlaggedTrue();
+
+       @Query("SELECT b.status, COUNT(b) FROM Booking b GROUP BY b.status")
+       List<Object[]> countGroupedByStatus();
+
+       @Query("SELECT b.paymentStatus, COUNT(b) FROM Booking b GROUP BY b.paymentStatus")
+       List<Object[]> countGroupedByPaymentStatus();
 }

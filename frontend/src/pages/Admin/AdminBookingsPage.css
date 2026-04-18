@@ -1,0 +1,16 @@
+.admin-bookings-page .filter-group-wide {
+    grid-column: span 2;
+}
+
+.admin-bookings-date {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 900px) {
+    .admin-bookings-page .filter-group-wide {
+        grid-column: span 1;
+    }
+}
