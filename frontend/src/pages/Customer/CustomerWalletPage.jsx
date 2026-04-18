@@ -4,54 +4,58 @@ import WalletService from '../../services/WalletService';
 import './CustomerWalletPage.css';
 
 const CustomerWalletPage = () => {
-    // 1. STATE FOR WALLET INFO
+    // ===== WALLET INFO =====
     const [wallet, setWallet] = useState(null);
     const [balanceLoading, setBalanceLoading] = useState(true);
 
-    // 2. STATE FOR TRANSACTIONS
+    // ===== TRANSACTIONS =====
     const [transactions, setTransactions] = useState([]);
     const [txLoading, setTxLoading] = useState(false);
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
 
-    // 3. STATE FOR DEPOSIT / QR
+    // ===== TAB =====
+    const [activeTab, setActiveTab] = useState('deposit'); // 'deposit' | 'withdraw'
+
+    // ===== DEPOSIT / QR =====
     const [depositAmount, setDepositAmount] = useState('');
     const [depositState, setDepositState] = useState('idle'); // idle, generating, waiting, success, error
     const [qrInfo, setQrInfo] = useState(null);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
-
-    const [countdown, setCountdown] = useState(600); // 10 minutes in seconds
-
-    // Polling refs
+    const [countdown, setCountdown] = useState(600);
     const pollingIntervalRef = useRef(null);
     const countdownIntervalRef = useRef(null);
     const currentBalanceRef = useRef(null);
 
-    // Initial Fetch
+    // ===== WITHDRAW =====
+    const [withdrawAmount, setWithdrawAmount] = useState('');
+    const [withdrawState, setWithdrawState] = useState('idle'); // idle, confirm, processing, success, error
+    const [withdrawError, setWithdrawError] = useState('');
+
+    // ===== BANK ACCOUNTS =====
+    const [bankAccounts, setBankAccounts] = useState([]);
+    const [banksLoading, setBanksLoading] = useState(false);
+    const [selectedBankId, setSelectedBankId] = useState(null);
+
+    // ===== ADD BANK MODAL =====
+    const [showAddBank, setShowAddBank] = useState(false);
+    const [bankList, setBankList] = useState([]);
+    const [bankSearch, setBankSearch] = useState('');
+    const [selectedVietQR, setSelectedVietQR] = useState(null);
+    const [newAccount, setNewAccount] = useState({ accountNumber: '', accountHolderName: '' });
+    const [addBankLoading, setAddBankLoading] = useState(false);
+    const [addBankError, setAddBankError] = useState('');
+
+    // ===== INITIAL LOAD =====
     useEffect(() => {
         fetchWalletData();
         fetchTransactions(0);
-        return () => {
-            stopPolling();
-            stopCountdown();
-        };
+        fetchBankAccounts();
+        return () => { stopPolling(); stopCountdown(); };
     }, []);
 
-    const stopPolling = () => {
-        if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-        }
-    };
-
-    const stopCountdown = () => {
-        if (countdownIntervalRef.current) {
-            clearInterval(countdownIntervalRef.current);
-            countdownIntervalRef.current = null;
-        }
-    };
-
+    // ===== FETCH HELPERS =====
     const fetchWalletData = async () => {
         try {
             setBalanceLoading(true);
@@ -59,8 +63,8 @@ const CustomerWalletPage = () => {
             const data = res.data || res;
             setWallet(data);
             currentBalanceRef.current = data.availableBalance;
-        } catch (error) {
-            console.error("Error fetching wallet info:", error);
+        } catch (e) {
+            console.error('Lỗi tải ví:', e);
         } finally {
             setBalanceLoading(false);
         }
@@ -82,86 +86,67 @@ const CustomerWalletPage = () => {
                 setTotalPages(1);
             }
             setPage(pageNum);
-        } catch (error) {
-            console.error("Error fetching transactions:", error);
+        } catch (e) {
+            console.error('Lỗi tải giao dịch:', e);
         } finally {
             setTxLoading(false);
         }
     };
 
-    const handleAmountChange = (e) => {
-        const value = e.target.value.replace(/\D/g, '');
-        setDepositAmount(value);
-        setErrorMessage('');
+    const fetchBankAccounts = async () => {
+        setBanksLoading(true);
+        try {
+            const res = await WalletService.getBankAccounts();
+            const data = res.data?.data || res.data || res || [];
+            const accounts = Array.isArray(data) ? data : [];
+            setBankAccounts(accounts);
+            const def = accounts.find(a => a.isDefault) || accounts[0];
+            if (def) setSelectedBankId(def.bankAccountId);
+        } catch (e) {
+            console.error('Lỗi tải ngân hàng:', e);
+        } finally {
+            setBanksLoading(false);
+        }
     };
 
+    // ===== FORMAT HELPERS =====
     const formatCurrency = (amount) => {
         if (amount === undefined || amount === null) return '0 ₫';
         return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
     };
 
     const formatTxType = (type) => {
-        switch(type) {
-            case 'DEPOSIT': return { label: 'Nạp tiền', type: 'success' };
-            case 'HOLD': return { label: 'Giữ tiền', type: 'warning' };
-            case 'PAYMENT': return { label: 'Thanh toán', type: 'danger' };
-            case 'REFUND': return { label: 'Hoàn tiền', type: 'primary' };
-            default: return { label: type, type: 'muted' };
-        }
-    };
-    
-    // Remove formatTxStatus as tx.status does not exist in DTO
-    
-    const handleGenerateQr = async () => {
-        const amountNum = parseInt(depositAmount, 10);
-        if (!amountNum || isNaN(amountNum)) {
-            setErrorMessage('Vui lòng nhập số tiền hợp lệ.');
-            return;
-        }
-        if (amountNum < 10000) {
-            setErrorMessage('Số tiền nạp tối thiểu là 10.000đ.');
-            return;
-        }
-        if (amountNum > 50000000) {
-            setErrorMessage('Số tiền nạp tối đa là 50.000.000đ.');
-            return;
-        }
-
-        try {
-            setDepositState('generating');
-            setErrorMessage('');
-            const res = await WalletService.generateQr(amountNum);
-            const data = res.data || res;
-            
-            setQrInfo(data);
-            setDepositState('waiting');
-            setCountdown(600);
-
-            startCountdown();
-            startPolling();
-
-        } catch (error) {
-            setErrorMessage(error.message || 'Lỗi khi tạo mã QR. Vui lòng thử lại.');
-            setDepositState('error');
+        switch (type) {
+            case 'DEPOSIT': return { label: 'Nạp tiền', cls: 'success' };
+            case 'HOLD': return { label: 'Giữ tiền', cls: 'warning' };
+            case 'PAYMENT': return { label: 'Thanh toán', cls: 'danger' };
+            case 'REFUND': return { label: 'Hoàn tiền', cls: 'primary' };
+            case 'WITHDRAW': return { label: 'Rút tiền', cls: 'muted' };
+            default: return { label: type, cls: 'muted' };
         }
     };
 
+    // ===== COUNTDOWN / POLLING =====
+    const stopPolling = () => {
+        if (pollingIntervalRef.current) { clearInterval(pollingIntervalRef.current); pollingIntervalRef.current = null; }
+    };
+    const stopCountdown = () => {
+        if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+    };
     const startCountdown = () => {
         stopCountdown();
         countdownIntervalRef.current = setInterval(() => {
-            setCountdown((prev) => {
+            setCountdown(prev => {
                 if (prev <= 1) {
-                    stopCountdown();
-                    stopPolling();
+                    stopCountdown(); stopPolling();
                     setDepositState('error');
-                    setErrorMessage('Hết thời gian chờ thanh toán. Vui lòng tạo mã QR mới.');
+                    setErrorMessage('Hết thời gian chờ. Vui lòng tạo mã QR mới.');
                     return 0;
                 }
                 return prev - 1;
             });
         }, 1000);
     };
-
     const startPolling = useCallback(() => {
         stopPolling();
         pollingIntervalRef.current = setInterval(async () => {
@@ -169,35 +154,17 @@ const CustomerWalletPage = () => {
                 const res = await WalletService.getWalletInfo();
                 const data = res.data || res;
                 setWallet(data);
-                
                 if (currentBalanceRef.current !== null && data.availableBalance > currentBalanceRef.current) {
-                    stopPolling();
-                    stopCountdown();
+                    const deposited = data.availableBalance - currentBalanceRef.current;
+                    stopPolling(); stopCountdown();
                     currentBalanceRef.current = data.availableBalance;
                     setDepositState('success');
-                    setSuccessMessage(`Nạp thành công ${formatCurrency(data.availableBalance - currentBalanceRef.current)} vào ví!`);
+                    setSuccessMessage(`Nạp thành công ${formatCurrency(deposited)} vào ví!`);
                     fetchTransactions(0);
                 }
-            } catch (err) {
-                console.error("Polling error:", err);
-            }
+            } catch (e) { console.error('Polling error:', e); }
         }, 4000);
     }, []);
-
-    const handleCopy = (text) => {
-        navigator.clipboard.writeText(text);
-        alert('Đã sao chép: ' + text);
-    };
-
-    const resetDeposit = () => {
-        stopPolling();
-        stopCountdown();
-        setDepositState('idle');
-        setDepositAmount('');
-        setQrInfo(null);
-        setErrorMessage('');
-        setSuccessMessage('');
-    };
 
     const renderCountdown = () => {
         const m = Math.floor(countdown / 60).toString().padStart(2, '0');
@@ -205,15 +172,143 @@ const CustomerWalletPage = () => {
         return `${m}:${s}`;
     };
 
+    // ===== DEPOSIT ACTIONS =====
+    const handleAmountChange = (e) => {
+        setDepositAmount(e.target.value.replace(/\D/g, ''));
+        setErrorMessage('');
+    };
+
+    const handleGenerateQr = async () => {
+        const amountNum = parseInt(depositAmount, 10);
+        if (amountNum < 3000) {
+            setErrorMessage('Số tiền nạp tối thiểu là 3.000 ₫.'); return;
+        }
+        if (amountNum > 50000000) { setErrorMessage('Số tiền nạp tối đa là 50.000.000 ₫.'); return; }
+        try {
+            setDepositState('generating'); setErrorMessage('');
+            const res = await WalletService.generateQr(amountNum);
+            setQrInfo(res.data || res);
+            setDepositState('waiting');
+            setCountdown(600);
+            startCountdown(); startPolling();
+        } catch (e) {
+            setErrorMessage(e.message || 'Lỗi khi tạo mã QR.');
+            setDepositState('error');
+        }
+    };
+
+    const handleCopy = (text) => { navigator.clipboard.writeText(text); };
+
+    const resetDeposit = () => {
+        stopPolling(); stopCountdown();
+        setDepositState('idle'); setDepositAmount(''); setQrInfo(null);
+        setErrorMessage(''); setSuccessMessage('');
+    };
+
+    // ===== WITHDRAW ACTIONS =====
+    const handleWithdrawAmountChange = (e) => {
+        setWithdrawAmount(e.target.value.replace(/\D/g, ''));
+        setWithdrawError('');
+    };
+
+    const handleRequestWithdraw = () => {
+        const amountNum = parseInt(withdrawAmount, 10);
+        if (!amountNum || isNaN(amountNum)) { setWithdrawError('Vui lòng nhập số tiền.'); return; }
+        if (amountNum < 3000) { setWithdrawError('Số tiền rút tối thiểu là 3.000 ₫.'); return; }
+        if (amountNum > (wallet?.availableBalance || 0)) { setWithdrawError('Số dư không đủ.'); return; }
+        if (!selectedBankId && bankAccounts.length > 0) { setWithdrawError('Vui lòng chọn ngân hàng nhận tiền.'); return; }
+        if (bankAccounts.length === 0) { setWithdrawError('Bạn chưa liên kết ngân hàng nào.'); return; }
+        setWithdrawError('');
+        setWithdrawState('confirm');
+    };
+
+    const confirmWithdraw = async () => {
+        setWithdrawState('processing');
+        try {
+            await WalletService.requestWithdraw(parseInt(withdrawAmount, 10), selectedBankId);
+            setWithdrawState('success');
+            fetchWalletData();
+            fetchTransactions(0);
+        } catch (e) {
+            setWithdrawError(e.response?.data?.message || 'Gửi yêu cầu thất bại.');
+            setWithdrawState('error');
+        }
+    };
+
+    const resetWithdraw = () => {
+        setWithdrawState('idle'); setWithdrawAmount(''); setWithdrawError('');
+    };
+
+    // ===== BANK ACCOUNT ACTIONS =====
+    const handleSetDefault = async (bankAccountId, e) => {
+        e.stopPropagation();
+        try {
+            await WalletService.setDefaultBankAccount(bankAccountId);
+            await fetchBankAccounts();
+        } catch (e) {
+            alert(e.response?.data?.message || 'Không thể đặt mặc định.');
+        }
+    };
+
+    const handleDeleteBank = async (bankAccountId, e) => {
+        e.stopPropagation();
+        if (!window.confirm('Bạn có chắc muốn xóa tài khoản này?')) return;
+        try {
+            await WalletService.deleteBankAccount(bankAccountId);
+            await fetchBankAccounts();
+        } catch (e) {
+            alert(e.response?.data?.message || 'Không thể xóa.');
+        }
+    };
+
+    // Add bank modal
+    useEffect(() => {
+        if (showAddBank && bankList.length === 0) {
+            WalletService.getBankList().then(setBankList).catch(console.error);
+        }
+    }, [showAddBank]);
+
+    const filteredBankList = bankList.filter(b =>
+        b.shortName?.toLowerCase().includes(bankSearch.toLowerCase()) ||
+        b.name?.toLowerCase().includes(bankSearch.toLowerCase())
+    );
+
+    const handleAddBank = async () => {
+        setAddBankError('');
+        if (!selectedVietQR) { setAddBankError('Vui lòng chọn ngân hàng.'); return; }
+        if (!newAccount.accountNumber.trim()) { setAddBankError('Vui lòng nhập số tài khoản.'); return; }
+        if (!newAccount.accountHolderName.trim()) { setAddBankError('Vui lòng nhập tên chủ tài khoản.'); return; }
+        setAddBankLoading(true);
+        try {
+            await WalletService.addBankAccount({
+                bankName: selectedVietQR.shortName,
+                bankCode: selectedVietQR.code,
+                accountNumber: newAccount.accountNumber.trim(),
+                accountHolderName: newAccount.accountHolderName.trim().toUpperCase(),
+            });
+            setShowAddBank(false);
+            setSelectedVietQR(null);
+            setNewAccount({ accountNumber: '', accountHolderName: '' });
+            setBankSearch('');
+            await fetchBankAccounts();
+        } catch (e) {
+            setAddBankError(e.response?.data?.message || 'Liên kết thất bại. Tên chủ tài khoản phải khớp với tên tài khoản HomeConnect.');
+        } finally {
+            setAddBankLoading(false);
+        }
+    };
+
+    const selectedBank = bankAccounts.find(b => b.bankAccountId === selectedBankId);
+
     return (
         <CustomerLayout>
-             <div className="vw-page">
+            <div className="vw-page">
                 <div className="vw-header">
-                    <h2 className="vw-title">Ví thẻ của tôi</h2>
-                    <p className="vw-subtitle">Quản lý số dư, nạp tiền và theo dõi lịch sử giao dịch một cách dễ dàng.</p>
+                    <h2 className="vw-title">Ví của tôi</h2>
+                    <p className="vw-subtitle">Quản lý số dư, nạp tiền và theo dõi lịch sử giao dịch.</p>
                 </div>
 
-                {/* TOP SECTION: BALANCE CARDS */}
+                {/* BALANCE CARDS */}
                 <div className="vw-balance-grid">
                     <div className="vw-balance-card vw-main-balance">
                         <div className="vw-card-icon">
@@ -225,18 +320,14 @@ const CustomerWalletPage = () => {
                         </div>
                         <div className="vw-balance-info">
                             <span className="vw-balance-label">Số dư khả dụng</span>
-                            <h3 className="vw-balance-amount">
-                                {balanceLoading ? '---' : formatCurrency(wallet?.availableBalance)}
-                            </h3>
+                            <h3 className="vw-balance-amount">{balanceLoading ? '---' : formatCurrency(wallet?.availableBalance)}</h3>
                             <div className="vw-wallet-status">
-                                Trạng thái: 
-                                <span className={`vw-badge vw-badge-${(wallet?.status || 'ACTIVE').toLowerCase()}`}>
+                                Trạng thái: <span className={`vw-badge vw-badge-${(wallet?.status || 'ACTIVE').toLowerCase()}`}>
                                     {wallet?.status === 'ACTIVE' ? 'Hoạt động' : wallet?.status}
                                 </span>
                             </div>
                         </div>
                     </div>
-
                     <div className="vw-balance-card">
                         <div className="vw-card-icon vw-icon-warning">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -245,13 +336,10 @@ const CustomerWalletPage = () => {
                             </svg>
                         </div>
                         <div className="vw-balance-info">
-                            <span className="vw-balance-label">Tiền đang giữ (Hold)</span>
-                            <h3 className="vw-balance-amount vw-text-warning">
-                                {balanceLoading ? '---' : formatCurrency(wallet?.holdBalance)}
-                            </h3>
+                            <span className="vw-balance-label">Tiền đang giữ</span>
+                            <h3 className="vw-balance-amount vw-text-warning">{balanceLoading ? '---' : formatCurrency(wallet?.holdBalance)}</h3>
                         </div>
                     </div>
-
                     <div className="vw-balance-card">
                         <div className="vw-card-icon vw-icon-danger">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -260,71 +348,59 @@ const CustomerWalletPage = () => {
                             </svg>
                         </div>
                         <div className="vw-balance-info">
-                            <span className="vw-balance-label">Tổng nợ (Debt)</span>
-                            <h3 className="vw-balance-amount vw-text-danger">
-                                {balanceLoading ? '---' : formatCurrency(wallet?.debtBalance)}
-                            </h3>
+                            <span className="vw-balance-label">Tổng nợ</span>
+                            <h3 className="vw-balance-amount vw-text-danger">{balanceLoading ? '---' : formatCurrency(wallet?.debtBalance)}</h3>
                         </div>
                     </div>
                 </div>
 
                 <div className="vw-content-layout">
-                    {/* LEFT COLUMN: TRANSACTIONS */}
+                    {/* LEFT: TRANSACTIONS */}
                     <div className="vw-transactions-col">
                         <div className="vw-card">
                             <div className="vw-card-header">
                                 <h3>Lịch sử giao dịch</h3>
                                 <button className="vw-btn-icon" onClick={() => fetchTransactions(0)} title="Làm mới">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="23 4 23 10 17 10"></polyline>
-                                        <polyline points="1 20 1 14 7 14"></polyline>
+                                        <polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline>
                                         <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                                     </svg>
                                 </button>
                             </div>
-                            
                             <div className="vw-card-body">
                                 {txLoading ? (
-                                    <div className="vw-empty-state">
-                                        <div className="vw-spinner"></div>
-                                        <p>Đang tải dữ liệu...</p>
-                                    </div>
+                                    <div className="vw-empty-state"><div className="vw-spinner"></div><p>Đang tải...</p></div>
                                 ) : transactions.length === 0 ? (
                                     <div className="vw-empty-state">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                                            <line x1="16" y1="2" x2="16" y2="6"></line>
-                                            <line x1="8" y1="2" x2="8" y2="6"></line>
-                                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                                            <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
                                         </svg>
-                                        <p>Chưa có giao dịch nào gần đây.</p>
+                                        <p>Chưa có giao dịch nào.</p>
                                     </div>
                                 ) : (
                                     <div className="vw-tx-list">
                                         {transactions.map(tx => {
                                             const typeInfo = formatTxType(tx.transactionType || tx.type);
                                             const isPositive = ['DEPOSIT', 'REFUND'].includes(tx.transactionType || tx.type);
-                                            
-                                            // Handle dates that come in different formats (sometimes array from Java LocalDateTime)
                                             let dateStr = 'N/A';
                                             if (tx.createdAt) {
-                                                const d = typeof tx.createdAt === 'string' ? new Date(tx.createdAt) : new Date(tx.createdAt[0], tx.createdAt[1]-1, tx.createdAt[2], tx.createdAt[3], tx.createdAt[4], tx.createdAt[5]);
+                                                const d = typeof tx.createdAt === 'string' ? new Date(tx.createdAt)
+                                                    : new Date(tx.createdAt[0], tx.createdAt[1] - 1, tx.createdAt[2], tx.createdAt[3], tx.createdAt[4], tx.createdAt[5]);
                                                 dateStr = d.toLocaleString('vi-VN');
                                             }
-
                                             return (
                                                 <div className="vw-tx-item" key={tx.id || tx.transactionId}>
-                                                    <div className={`vw-tx-icon vw-bg-${typeInfo.type}-soft vw-text-${typeInfo.type}`}>
-                                                        {isPositive ? (
-                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
-                                                        ) : (
-                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
-                                                        )}
+                                                    <div className={`vw-tx-icon vw-bg-${typeInfo.cls}-soft vw-text-${typeInfo.cls}`}>
+                                                        {isPositive
+                                                            ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+                                                            : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+                                                        }
                                                     </div>
                                                     <div className="vw-tx-content">
                                                         <div className="vw-tx-title">{tx.description}</div>
                                                         <div className="vw-tx-meta">
-                                                            <span className={`vw-tx-type vw-text-${typeInfo.type}`}>{typeInfo.label}</span>
+                                                            <span className={`vw-tx-type vw-text-${typeInfo.cls}`}>{typeInfo.label}</span>
                                                             <span className="vw-tx-dot">&bull;</span>
                                                             <span className="vw-tx-time">{dateStr}</span>
                                                         </div>
@@ -333,168 +409,384 @@ const CustomerWalletPage = () => {
                                                         {isPositive ? '+' : '-'}{formatCurrency(tx.amount)}
                                                     </div>
                                                 </div>
-                                            )
+                                            );
                                         })}
                                     </div>
                                 )}
                             </div>
-
                             {!txLoading && totalPages > 1 && (
                                 <div className="vw-pagination">
-                                    <button disabled={page === 0} onClick={() => fetchTransactions(page - 1)}>
-                                        &lsaquo; Trước
-                                    </button>
+                                    <button disabled={page === 0} onClick={() => fetchTransactions(page - 1)}>&lsaquo; Trước</button>
                                     <span>Trang {page + 1} / {totalPages}</span>
-                                    <button disabled={page >= totalPages - 1} onClick={() => fetchTransactions(page + 1)}>
-                                        Sau &rsaquo;
-                                    </button>
+                                    <button disabled={page >= totalPages - 1} onClick={() => fetchTransactions(page + 1)}>Sau &rsaquo;</button>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* RIGHT COLUMN: DEPOSIT ACTION */}
+                    {/* RIGHT: DEPOSIT / WITHDRAW TABS */}
                     <div className="vw-deposit-col">
+                        {/* TAB SWITCHER */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                            <button
+                                className={`vw-btn ${activeTab === 'deposit' ? 'vw-btn-primary' : 'vw-btn-outline'}`}
+                                style={{ flex: 1 }}
+                                onClick={() => setActiveTab('deposit')}
+                            >
+                                💰 Nạp tiền
+                            </button>
+                            <button
+                                className={`vw-btn ${activeTab === 'withdraw' ? 'vw-btn-primary' : 'vw-btn-outline'}`}
+                                style={{ flex: 1 }}
+                                onClick={() => setActiveTab('withdraw')}
+                            >
+                                🏦 Rút tiền
+                            </button>
+                        </div>
+
                         <div className="vw-card vw-sticky">
-                            <div className="vw-card-header">
-                                <h3>Nạp tiền vào ví</h3>
-                            </div>
-                            
-                            <div className="vw-card-body">
-                                {depositState === 'idle' && (
-                                    <div className="vw-deposit-form">
-                                        <label className="vw-input-label">Số tiền cần nạp (VNĐ)</label>
-                                        <div className="vw-input-group">
-                                            <input 
-                                                type="text" 
-                                                value={depositAmount ? new Intl.NumberFormat('vi-VN').format(depositAmount) : ''} 
-                                                onChange={handleAmountChange} 
-                                                placeholder="0" 
-                                                className="vw-input"
-                                            />
-                                            <span className="vw-input-suffix">₫</span>
-                                        </div>
-                                        
-                                        <div className="vw-amount-suggestions">
-                                            <button onClick={() => setDepositAmount('50000')}>50.000₫</button>
-                                            <button onClick={() => setDepositAmount('100000')}>100.000₫</button>
-                                            <button onClick={() => setDepositAmount('200000')}>200.000₫</button>
-                                            <button onClick={() => setDepositAmount('500000')}>500.000₫</button>
-                                        </div>
-                                        
-                                        {errorMessage && (
-                                            <div className="vw-alert vw-alert-danger">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                                                {errorMessage}
+                            {/* ==================== TAB: NẠP TIỀN ==================== */}
+                            {activeTab === 'deposit' && (
+                                <>
+                                    <div className="vw-card-header"><h3>Nạp tiền vào ví</h3></div>
+                                    <div className="vw-card-body">
+                                        {depositState === 'idle' && (
+                                            <div className="vw-deposit-form">
+                                                <label className="vw-input-label">Số tiền cần nạp (VNĐ)</label>
+                                                <div className="vw-input-group">
+                                                    <input
+                                                        type="text"
+                                                        value={depositAmount ? new Intl.NumberFormat('vi-VN').format(depositAmount) : ''}
+                                                        onChange={handleAmountChange}
+                                                        placeholder="0"
+                                                        className="vw-input"
+                                                    />
+                                                    <span className="vw-input-suffix">₫</span>
+                                                </div>
+                                                <div className="vw-amount-suggestions">
+                                                    {[50000, 100000, 200000, 500000].map(v => (
+                                                        <button key={v} onClick={() => setDepositAmount(String(v))}>
+                                                            {new Intl.NumberFormat('vi-VN').format(v)}₫
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                {errorMessage && (
+                                                    <div className="vw-alert vw-alert-danger" style={{ marginTop: '12px' }}>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                                        {errorMessage}
+                                                    </div>
+                                                )}
+                                                <button className="vw-btn vw-btn-primary vw-btn-block" disabled={!depositAmount} onClick={handleGenerateQr} style={{ marginTop: '16px' }}>
+                                                    Tạo mã nạp tiền
+                                                </button>
+                                                <p className="vw-deposit-hint">Hỗ trợ nạp tiền 24/7 qua chuyển khoản VietQR tự động.</p>
                                             </div>
                                         )}
-                                        
-                                        <button 
-                                            className="vw-btn vw-btn-primary vw-btn-block" 
-                                            disabled={!depositAmount}
-                                            onClick={handleGenerateQr}
-                                        >
-                                            Tạo mã nạp tiền
-                                        </button>
-                                        <p className="vw-deposit-hint">
-                                            Hỗ trợ nạp tiền 24/7 qua chuyển khoản quét mã VietQR tự động.
-                                        </p>
-                                    </div>
-                                )}
 
-                                {depositState === 'generating' && (
-                                    <div className="vw-deposit-state">
-                                        <div className="vw-spinner vw-spinner-lg vw-text-primary"></div>
-                                        <h4>Đang tạo mã QR...</h4>
-                                        <p>Vui lòng đợi trong giây lát.</p>
-                                    </div>
-                                )}
-
-                                {depositState === 'waiting' && qrInfo && (
-                                    <div className="vw-qr-section">
-                                        <div className="vw-qr-timer">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                                            Mã hết hạn sau: <span>{renderCountdown()}</span>
-                                        </div>
-                                        
-                                        <div className="vw-qr-box">
-                                            <img src={qrInfo.qrCodeUrl} alt="QR Code Bank" className="vw-qr-img" />
-                                        </div>
-                                        
-                                        <p className="vw-qr-inst">
-                                            Mở ứng dụng ngân hàng và quét mã để thanh toán.
-                                        </p>
-
-                                        <div className="vw-qr-info">
-                                            <div className="vw-info-row">
-                                                <span className="vw-info-lbl">Ngân hàng</span>
-                                                <span className="vw-info-val">{qrInfo.bankCode}</span>
+                                        {depositState === 'generating' && (
+                                            <div className="vw-deposit-state">
+                                                <div className="vw-spinner vw-spinner-lg vw-text-primary"></div>
+                                                <h4>Đang tạo mã QR...</h4>
+                                                <p>Vui lòng đợi trong giây lát.</p>
                                             </div>
-                                            <div className="vw-info-row">
-                                                <span className="vw-info-lbl">Số tài khoản</span>
-                                                <div className="vw-info-copy">
-                                                    <span className="vw-info-val">{qrInfo.accountNumber}</span>
-                                                    <button className="vw-btn-copy" onClick={() => handleCopy(qrInfo.accountNumber)}>Copy</button>
+                                        )}
+
+                                        {depositState === 'waiting' && qrInfo && (
+                                            <div className="vw-qr-section">
+                                                <div className="vw-qr-timer">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                                    Mã hết hạn sau: <span>{renderCountdown()}</span>
                                                 </div>
-                                            </div>
-                                            <div className="vw-info-row">
-                                                <span className="vw-info-lbl">Số tiền</span>
-                                                <span className="vw-info-val vw-text-primary">{formatCurrency(qrInfo.amount)}</span>
-                                            </div>
-                                            
-                                            <div className="vw-qr-alert">
-                                                <div className="vw-alert-title">NỘI DUNG CHUYỂN KHOẢN</div>
-                                                <div className="vw-alert-content">
-                                                    <span className="vw-transfer-code">{qrInfo.transferContent}</span>
-                                                    <button className="vw-btn-copy" onClick={() => handleCopy(qrInfo.transferContent)}>Copy</button>
+                                                <div className="vw-qr-box">
+                                                    <img src={qrInfo.qrCodeUrl} alt="QR Code" className="vw-qr-img" />
                                                 </div>
-                                                <div className="vw-alert-warn">
-                                                    ⚠️ Phải nhập chính xác nội dung này để được tự động cộng tiền.
+                                                <p className="vw-qr-inst">Mở ứng dụng ngân hàng và quét mã để thanh toán.</p>
+                                                <div className="vw-qr-info">
+                                                    <div className="vw-info-row">
+                                                        <span className="vw-info-lbl">Ngân hàng</span>
+                                                        <span className="vw-info-val">{qrInfo.bankCode}</span>
+                                                    </div>
+                                                    <div className="vw-info-row">
+                                                        <span className="vw-info-lbl">Số tài khoản</span>
+                                                        <div className="vw-info-copy">
+                                                            <span className="vw-info-val">{qrInfo.accountNumber}</span>
+                                                            <button className="vw-btn-copy" onClick={() => handleCopy(qrInfo.accountNumber)}>Copy</button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="vw-info-row">
+                                                        <span className="vw-info-lbl">Số tiền</span>
+                                                        <span className="vw-info-val vw-text-primary">{formatCurrency(qrInfo.amount)}</span>
+                                                    </div>
+                                                    <div className="vw-qr-alert">
+                                                        <div className="vw-alert-title">NỘI DUNG CHUYỂN KHOẢN</div>
+                                                        <div className="vw-alert-content">
+                                                            <span className="vw-transfer-code">{qrInfo.transferContent}</span>
+                                                            <button className="vw-btn-copy" onClick={() => handleCopy(qrInfo.transferContent)}>Copy</button>
+                                                        </div>
+                                                        <div className="vw-alert-warn">⚠️ Phải nhập chính xác nội dung này để được tự động cộng tiền.</div>
+                                                    </div>
                                                 </div>
+                                                <div className="vw-polling-indicator">
+                                                    <div className="vw-spinner vw-spinner-sm"></div>
+                                                    <span>Hệ thống đang chờ bạn thanh toán...</span>
+                                                </div>
+                                                <button className="vw-btn vw-btn-outline vw-btn-block" onClick={resetDeposit}>Hủy giao dịch</button>
                                             </div>
-                                        </div>
+                                        )}
 
-                                        <div className="vw-polling-indicator">
-                                            <div className="vw-spinner vw-spinner-sm"></div>
-                                            <span>Hệ thống đang chờ bạn thanh toán...</span>
-                                        </div>
+                                        {depositState === 'success' && (
+                                            <div className="vw-deposit-state">
+                                                <div className="vw-icon-circle vw-bg-success-soft vw-text-success">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                </div>
+                                                <h4 className="vw-text-success">Nạp tiền thành công!</h4>
+                                                <p>{successMessage}</p>
+                                                <button className="vw-btn vw-btn-primary vw-btn-block" onClick={resetDeposit}>Thực hiện giao dịch mới</button>
+                                            </div>
+                                        )}
 
-                                        <button className="vw-btn vw-btn-outline vw-btn-block" onClick={resetDeposit}>
-                                            Hủy giao dịch
-                                        </button>
+                                        {depositState === 'error' && (
+                                            <div className="vw-deposit-state">
+                                                <div className="vw-icon-circle vw-bg-danger-soft vw-text-danger">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                                </div>
+                                                <h4 className="vw-text-danger">Giao dịch thất bại</h4>
+                                                <p>{errorMessage}</p>
+                                                <button className="vw-btn vw-btn-primary vw-btn-block" onClick={resetDeposit}>Quay lại thử lại</button>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                </>
+                            )}
 
-                                {depositState === 'success' && (
-                                    <div className="vw-deposit-state">
-                                        <div className="vw-icon-circle vw-bg-success-soft vw-text-success">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                        </div>
-                                        <h4 className="vw-text-success">Nạp tiền thành công!</h4>
-                                        <p>{successMessage}</p>
-                                        <button className="vw-btn vw-btn-primary vw-btn-block" onClick={resetDeposit}>
-                                            Thực hiện giao dịch mới
-                                        </button>
-                                    </div>
-                                )}
+                            {/* ==================== TAB: RÚT TIỀN ==================== */}
+                            {activeTab === 'withdraw' && (
+                                <>
+                                    <div className="vw-card-header"><h3>Rút tiền</h3></div>
+                                    <div className="vw-card-body">
 
-                                {depositState === 'error' && (
-                                    <div className="vw-deposit-state">
-                                        <div className="vw-icon-circle vw-bg-danger-soft vw-text-danger">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                                        </div>
-                                        <h4 className="vw-text-danger">Giao dịch thất bại</h4>
-                                        <p>{errorMessage}</p>
-                                        <button className="vw-btn vw-btn-primary vw-btn-block" onClick={resetDeposit}>
-                                            Quay lại thử lại
-                                        </button>
+                                        {withdrawState === 'idle' && (
+                                            <div className="vw-deposit-form">
+                                                {/* Danh sách ngân hàng */}
+                                                <label className="vw-input-label">Tài khoản nhận tiền</label>
+                                                {banksLoading ? (
+                                                    <p style={{ color: 'var(--muted)', fontSize: '13px', marginBottom: '12px' }}>Đang tải...</p>
+                                                ) : (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                                                        {bankAccounts.length === 0 && (
+                                                            <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Bạn chưa liên kết ngân hàng nào.</p>
+                                                        )}
+                                                        {bankAccounts.map(bank => (
+                                                            <div
+                                                                key={bank.bankAccountId}
+                                                                onClick={() => setSelectedBankId(bank.bankAccountId)}
+                                                                style={{
+                                                                    padding: '12px 14px',
+                                                                    border: selectedBankId === bank.bankAccountId ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                                                    borderRadius: '12px',
+                                                                    cursor: 'pointer',
+                                                                    display: 'flex',
+                                                                    justifyContent: 'space-between',
+                                                                    alignItems: 'center',
+                                                                    background: selectedBankId === bank.bankAccountId ? 'var(--primary-soft, #f0f4ff)' : '#fff'
+                                                                }}
+                                                            >
+                                                                <div>
+                                                                    <div style={{ fontWeight: '600', fontSize: '14px' }}>{bank.bankName}</div>
+                                                                    <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{bank.accountNumber} · {bank.accountHolderName}</div>
+                                                                    {bank.isDefault && (
+                                                                        <span style={{ fontSize: '11px', background: '#e8f0fe', color: '#4a6cf7', padding: '2px 6px', borderRadius: '4px', marginTop: '4px', display: 'inline-block' }}>Mặc định</span>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{ display: 'flex', gap: '4px' }}>
+                                                                    {!bank.isDefault && (
+                                                                        <button onClick={(e) => handleSetDefault(bank.bankAccountId, e)} title="Đặt mặc định"
+                                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>⭐</button>
+                                                                    )}
+                                                                    <button onClick={(e) => handleDeleteBank(bank.bankAccountId, e)} title="Xóa"
+                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px' }}>🗑️</button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                        <button className="vw-btn vw-btn-outline" onClick={() => setShowAddBank(true)}
+                                                            style={{ borderStyle: 'dashed', textAlign: 'center', marginTop: '4px' }}>
+                                                            + Thêm tài khoản ngân hàng
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {/* Số tiền rút */}
+                                                <label className="vw-input-label">Số tiền rút (VNĐ)</label>
+                                                <div className="vw-input-group">
+                                                    <input
+                                                        type="text"
+                                                        value={withdrawAmount ? new Intl.NumberFormat('vi-VN').format(withdrawAmount) : ''}
+                                                        onChange={handleWithdrawAmountChange}
+                                                        placeholder="0"
+                                                        className="vw-input"
+                                                    />
+                                                    <span className="vw-input-suffix">₫</span>
+                                                </div>
+                                                <div className="vw-amount-suggestions">
+                                                    {[100000, 500000, 1000000].map(v => (
+                                                        <button key={v} onClick={() => setWithdrawAmount(String(v))}>
+                                                            {new Intl.NumberFormat('vi-VN').format(v)}₫
+                                                        </button>
+                                                    ))}
+                                                    <button onClick={() => setWithdrawAmount(String(Math.floor(wallet?.availableBalance || 0)))}>
+                                                        Tất cả
+                                                    </button>
+                                                </div>
+
+                                                {withdrawError && (
+                                                    <div className="vw-alert vw-alert-danger" style={{ marginTop: '12px' }}>
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                                        {withdrawError}
+                                                    </div>
+                                                )}
+
+                                                <button
+                                                    className="vw-btn vw-btn-primary vw-btn-block"
+                                                    disabled={!withdrawAmount || bankAccounts.length === 0}
+                                                    onClick={handleRequestWithdraw}
+                                                    style={{ marginTop: '16px' }}
+                                                >
+                                                    Gửi yêu cầu rút tiền
+                                                </button>
+                                                <p className="vw-deposit-hint">Yêu cầu sẽ được Admin duyệt trong 1–3 ngày làm việc.</p>
+                                            </div>
+                                        )}
+
+                                        {withdrawState === 'confirm' && (
+                                            <div className="vw-deposit-form">
+                                                <h4 style={{ marginBottom: '16px' }}>Xác nhận yêu cầu rút tiền</h4>
+                                                <div style={{ background: 'var(--bg-light, #f8fafc)', borderRadius: '12px', padding: '16px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                        <span style={{ color: 'var(--muted)' }}>Số tiền rút</span>
+                                                        <strong style={{ color: 'var(--danger)' }}>{formatCurrency(parseInt(withdrawAmount, 10))}</strong>
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                        <span style={{ color: 'var(--muted)' }}>Ngân hàng</span>
+                                                        <strong>{selectedBank?.bankName}</strong>
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                        <span style={{ color: 'var(--muted)' }}>Số tài khoản</span>
+                                                        <strong>{selectedBank?.accountNumber}</strong>
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                        <span style={{ color: 'var(--muted)' }}>Chủ tài khoản</span>
+                                                        <strong>{selectedBank?.accountHolderName}</strong>
+                                                    </div>
+                                                </div>
+                                                <button className="vw-btn vw-btn-primary vw-btn-block" onClick={confirmWithdraw}>Xác nhận gửi yêu cầu</button>
+                                                <button className="vw-btn vw-btn-outline vw-btn-block" onClick={resetWithdraw} style={{ marginTop: '10px' }}>Hủy</button>
+                                            </div>
+                                        )}
+
+                                        {withdrawState === 'processing' && (
+                                            <div className="vw-deposit-state">
+                                                <div className="vw-spinner vw-spinner-lg vw-text-primary"></div>
+                                                <h4>Đang xử lý...</h4>
+                                            </div>
+                                        )}
+
+                                        {withdrawState === 'success' && (
+                                            <div className="vw-deposit-state">
+                                                <div className="vw-icon-circle vw-bg-success-soft vw-text-success">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                </div>
+                                                <h4 className="vw-text-success">Đã gửi yêu cầu rút tiền!</h4>
+                                                <p>Yêu cầu sẽ được xử lý trong 1–3 ngày làm việc.</p>
+                                                <button className="vw-btn vw-btn-primary vw-btn-block" onClick={resetWithdraw}>Trở lại</button>
+                                            </div>
+                                        )}
+
+                                        {withdrawState === 'error' && (
+                                            <div className="vw-deposit-state">
+                                                <div className="vw-icon-circle vw-bg-danger-soft vw-text-danger">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                                </div>
+                                                <h4 className="vw-text-danger">Gửi yêu cầu thất bại</h4>
+                                                <p>{withdrawError}</p>
+                                                <button className="vw-btn vw-btn-primary vw-btn-block" onClick={resetWithdraw}>Thử lại</button>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* ==================== MODAL: THÊM NGÂN HÀNG ==================== */}
+            {showAddBank && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', width: '420px', maxWidth: '95vw', padding: '28px', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <button onClick={() => { setShowAddBank(false); setSelectedVietQR(null); setAddBankError(''); setNewAccount({ accountNumber: '', accountHolderName: '' }); }}
+                            style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '22px', lineHeight: 1 }}>&times;</button>
+
+                        <h3 style={{ marginBottom: '20px' }}>Thêm tài khoản ngân hàng</h3>
+
+                        {/* Chọn ngân hàng */}
+                        {selectedVietQR ? (
+                            <div style={{ marginBottom: '16px', padding: '12px', border: '2px solid var(--primary)', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <strong>{selectedVietQR.shortName}</strong>
+                                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>{selectedVietQR.name}</div>
+                                </div>
+                                <button onClick={() => setSelectedVietQR(null)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '13px' }}>Đổi</button>
+                            </div>
+                        ) : (
+                            <div style={{ marginBottom: '16px' }}>
+                                <label className="vw-input-label">Chọn ngân hàng</label>
+                                <input type="text" className="vw-input" placeholder="Tìm kiếm ngân hàng..." value={bankSearch} onChange={e => setBankSearch(e.target.value)} />
+                                {bankList.length === 0 ? (
+                                    <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '8px' }}>Đang tải danh sách ngân hàng...</p>
+                                ) : (
+                                    <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', marginTop: '8px' }}>
+                                        {filteredBankList.map(b => (
+                                            <div key={b.code} onClick={() => setSelectedVietQR(b)}
+                                                style={{ padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: '13px' }}
+                                                onMouseEnter={e => e.currentTarget.style.background = '#f4f6f9'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                            >
+                                                <strong>{b.shortName}</strong> — {b.name}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Số tài khoản */}
+                        <label className="vw-input-label">Số tài khoản</label>
+                        <input type="text" className="vw-input" style={{ marginBottom: '14px' }}
+                            placeholder="Nhập số tài khoản"
+                            value={newAccount.accountNumber}
+                            onChange={e => setNewAccount({ ...newAccount, accountNumber: e.target.value })} />
+
+                        {/* Tên chủ TK */}
+                        <label className="vw-input-label">Tên chủ tài khoản</label>
+                        <input type="text" className="vw-input" style={{ marginBottom: '14px' }}
+                            placeholder="VD: NGUYEN VAN A"
+                            value={newAccount.accountHolderName}
+                            onChange={e => setNewAccount({ ...newAccount, accountHolderName: e.target.value.toUpperCase() })} />
+
+                        <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px' }}>
+                            ⚠️ Tên chủ tài khoản phải khớp với tên tài khoản HomeConnect của bạn (không dấu, viết hoa).
+                        </p>
+
+                        {addBankError && (
+                            <div className="vw-alert vw-alert-danger" style={{ marginBottom: '14px' }}>{addBankError}</div>
+                        )}
+
+                        <button className="vw-btn vw-btn-primary vw-btn-block" onClick={handleAddBank} disabled={addBankLoading}>
+                            {addBankLoading ? 'Đang xử lý...' : 'Liên kết tài khoản'}
+                        </button>
+                    </div>
+                </div>
+            )}
         </CustomerLayout>
     );
 };

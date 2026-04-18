@@ -44,14 +44,24 @@ public class XGateWebhookController {
             }
         }
 
-        // 2. Kiểm tra nếu là giao dịch CHI RA (số tiền âm hoặc type=OUT)
-        // Lưu ý: Tùy vào Provider (xGate/PayOS) mà dấu hiệu CHI RA khác nhau.
-        // Ở đây ta giả định nếu content chứa "HOMIRT" thì là lệnh rút tiền.
+        // 2. Phân loại giao dịch theo nội dung chuyển khoản
+        // HOMIRT = rút tiền (Helper withdraw), HOMIE = nạp tiền (Customer deposit)
         if (description != null && description.toUpperCase().contains("HOMIRT")) {
+            // Luồng rút tiền - xGate chuyển tiền cho Helper
             walletService.processWithdrawWebhook(description, amount.abs());
+
+        } else if (description != null && description.toUpperCase().contains("HOMIE")) {
+            // Luồng nạp tiền - Customer chuyển tiền vào tài khoản Admin
+            // Lấy transaction ID từ payload (id hoặc reference)
+            Object idObj = payload.get("id");
+            if (idObj == null) idObj = payload.get("reference");
+            if (idObj == null) idObj = payload.get("transactionId");
+            String transactionId = (idObj != null) ? String.valueOf(idObj) : ("XGATE_" + System.currentTimeMillis());
+
+            walletService.processXGateDepositWebhook(description, amount.abs(), transactionId);
+
         } else {
-            // Luồng nạp tiền cũ (HOMIE...)
-            // walletService.processWebhookDeposit(...)
+            log.warn("⚠️ Webhook không khớp định dạng HOMIE/HOMIRT. Description: {}", description);
         }
 
         return ResponseEntity.ok("OK");

@@ -214,6 +214,78 @@ public class WalletService {
     }
 
     /**
+     * [BE-Wallet-05B] Xử lý webhook NẠPER TIỀN (Deposit) từ xGate
+     * Được gọi khi Customer chuyển tiền vào tài khoản Admin với nội dung "HOMIE{userId}"
+     * Logic: Parse userId → Idempotency check → Cộng tiền → Lưu lịch sử → Thông báo
+     */
+    @Transactional
+    public void processXGateDepositWebhook(String description, BigDecimal amount, String transactionId) {
+        log.info("💰 Xử lý webhook deposit xGate - TransactionID: {}, Amount: {}, Description: {}",
+                transactionId, amount, description);
+
+        // 1. Validate amount
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            log.warn("⚠️ Số tiền nạp không hợp lệ: {}", amount);
+            return;
+        }
+
+        // 2. Parse userId từ description (format: "HOMIE123" hoặc "HOMIE123 NAP TIEN")
+        Long userId = extractUserIdFromDescription(description);
+        if (userId == null) {
+            log.error("❌ Không thể parse userId từ description: {}", description);
+            return; // Luôn trả về 200 OK để tránh xGate retry
+        }
+
+        // 3. Lấy ví của user
+        Wallet wallet = walletRepository.findByUserId(userId).orElse(null);
+        if (wallet == null) {
+            log.error("❌ Không tìm thấy ví của User ID: {}", userId);
+            return;
+        }
+
+        // 4. Idempotency check - chống duplicate webhook
+        Integer referenceId = parseReferenceId(transactionId);
+        if (transactionRepository.findByReferenceIdAndReferenceTypeWebhook(referenceId).isPresent()) {
+            log.warn("⚠️ Giao dịch HOMIE đã xử lý rồi, bỏ qua. TransactionID = {}", transactionId);
+            return;
+        }
+
+        // 5. Cộng tiền vào available_balance
+        BigDecimal oldBalance = wallet.getAvailableBalance();
+        wallet.setAvailableBalance(oldBalance.add(amount));
+        walletRepository.save(wallet);
+
+        log.info("✅ Đã cộng {} VNĐ vào ví User ID: {}. Số dư: {} → {}",
+                amount, userId, oldBalance, wallet.getAvailableBalance());
+
+        // 6. Lưu lịch sử giao dịch
+        WalletTransaction transaction = WalletTransaction.builder()
+                .wallet(wallet)
+                .amount(amount)
+                .type(TransactionType.DEPOSIT)
+                .referenceType(ReferenceType.WEBHOOK)
+                .referenceId(referenceId)
+                .description("Nạp tiền qua xGate #" + transactionId)
+                .build();
+        transactionRepository.save(transaction);
+
+        // 7. Gửi push notification cho Customer
+        try {
+            notificationService.createNotification(
+                    userId,
+                    "Nạp tiền thành công 🎉",
+                    String.format("Bạn vừa nạp thành công %,.0f VNĐ vào ví. Số dư hiện tại: %,.0f VNĐ",
+                            amount.doubleValue(), wallet.getAvailableBalance().doubleValue()),
+                    "DEPOSIT_SUCCESS"
+            );
+        } catch (Exception e) {
+            log.error("Lỗi gửi thông báo deposit cho User {}: {}", userId, e.getMessage());
+        }
+
+        log.info("💾 Webhook deposit xử lý xong. TransactionID: {}", transactionId);
+    }
+
+    /**
      * [BE-Wallet-06] Hold tiền khi User đăng tin hoặc đặt booking
      * INTERNAL SERVICE - Không phải API public
      * 
