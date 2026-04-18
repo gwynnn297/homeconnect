@@ -15,15 +15,15 @@
   --success-soft: #DCFCE7;
   --radius: 14px;
   --radius-sm: 10px;
-  --shadow: 0 1px 3px rgba(15,44,36,.06), 0 4px 14px rgba(15,44,36,.04);
-  --shadow-lg: 0 4px 20px rgba(15,44,36,.08);
+  --shadow: 0 1px 3px rgba(15, 44, 36, .06), 0 4px 14px rgba(15, 44, 36, .04);
+  --shadow-lg: 0 4px 20px rgba(15, 44, 36, .08);
 }
 
 .vw-page {
   padding: 32px;
   max-width: 1200px;
   margin: 0 auto;
-  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--text-main);
   background-color: var(--bg-main);
   min-height: 100vh;
@@ -132,7 +132,8 @@
 
 .vw-icon-warning {
   background: var(--warning-soft);
-  color: #B45309; /* Darker warning icon for contrast */
+  color: #B45309;
+  /* Darker warning icon for contrast */
 }
 
 .vw-icon-danger {
@@ -260,11 +261,25 @@
   height: 20px;
 }
 
-.vw-bg-success-soft { background-color: var(--success-soft); }
-.vw-bg-warning-soft { background-color: var(--warning-soft); }
-.vw-bg-danger-soft { background-color: var(--danger-soft); }
-.vw-bg-primary-soft { background-color: var(--primary-soft); }
-.vw-bg-muted-soft { background-color: #F3F4F6; }
+.vw-bg-success-soft {
+  background-color: var(--success-soft);
+}
+
+.vw-bg-warning-soft {
+  background-color: var(--warning-soft);
+}
+
+.vw-bg-danger-soft {
+  background-color: var(--danger-soft);
+}
+
+.vw-bg-primary-soft {
+  background-color: var(--primary-soft);
+}
+
+.vw-bg-muted-soft {
+  background-color: #F3F4F6;
+}
 
 .vw-tx-content {
   flex: 1;
@@ -494,8 +509,14 @@
   margin-bottom: 20px;
 }
 
-.vw-qr-timer svg { width: 16px; height: 16px; }
-.vw-qr-timer span { font-weight: 700; }
+.vw-qr-timer svg {
+  width: 16px;
+  height: 16px;
+}
+
+.vw-qr-timer span {
+  font-weight: 700;
+}
 
 .vw-qr-box {
   background: white;
@@ -508,6 +529,45 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* MODALS (Shared with Helper) */
+.hw-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 44, 36, 0.45);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.hw-modal {
+  background: white;
+  width: 95%;
+  max-width: 480px;
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.hw-modal-header {
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  min-height: 64px;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .vw-qr-img {
@@ -639,8 +699,18 @@
   animation: spin 1s linear infinite;
 }
 
-.vw-spinner-sm { width: 16px; height: 16px; border-width: 2px; }
-.vw-spinner-lg { width: 48px; height: 48px; border-width: 4px; margin: 0 auto; }
+.vw-spinner-sm {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.vw-spinner-lg {
+  width: 48px;
+  height: 48px;
+  border-width: 4px;
+  margin: 0 auto;
+}
 
 .vw-empty-state {
   display: flex;
@@ -691,8 +761,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 900px) {

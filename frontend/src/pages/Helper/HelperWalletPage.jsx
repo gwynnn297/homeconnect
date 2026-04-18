@@ -329,9 +329,15 @@ const HelperWalletPage = () => {
                                                         onClick={() => setSelectedBank(bank)}
                                                     >
                                                         <div className="hw-bank-icon">
-                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line>
-                                                            </svg>
+                                                            <img
+                                                                src={`https://api.vietqr.io/img/${bank.bankCode}.png`}
+                                                                alt={bank.bankName}
+                                                                style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 4 }}
+                                                                onError={(e) => {
+                                                                    e.target.onerror = null;
+                                                                    e.target.src = 'https://img.icons8.com/color/48/bank.png'; // Fallback icon
+                                                                }}
+                                                            />
                                                         </div>
                                                         <div className="hw-bank-details">
                                                             <span className="hw-bank-name">{bank.bankName}</span>
@@ -501,10 +507,12 @@ const HelperWalletPage = () => {
                 {showAddBank && (
                     <div className="hw-modal-overlay" onClick={() => setShowAddBank(false)}>
                         <div className="hw-modal" onClick={(e) => e.stopPropagation()}>
-                            <div className="hw-modal-header">
-                                <h3>Liên kết tài khoản ngân hàng</h3>
-                                <button className="hw-modal-close" onClick={() => setShowAddBank(false)}>
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <div className="hw-modal-header" style={{ borderBottom: '1px solid var(--border)', minHeight: '60px' }}>
+                                <div className="hw-modal-title" style={{ fontSize: '18px', fontWeight: '600', color: '#0F2C24', margin: 0 }}>
+                                    Liên kết tài khoản ngân hàng
+                                </div>
+                                <button className="hw-modal-close" onClick={() => setShowAddBank(false)} style={{ color: '#6B7280' }}>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
                                         <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
                                     </svg>
                                 </button>
