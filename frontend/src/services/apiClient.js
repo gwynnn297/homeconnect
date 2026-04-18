@@ -1,5 +1,10 @@
 import axios from 'axios';
 
+/** Lỗi 403 khi admin khóa tài khoản — đã xử lý ở AccountBlockedGate, không cần toast trùng. */
+export function isAccountBlockedError(err) {
+    return err?.code === 'ACCOUNT_BLOCKED' || err?.silent === true;
+}
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const apiClient = axios.create({
@@ -33,6 +38,31 @@ apiClient.interceptors.response.use(
         return response;
     },
     (error) => {
+        const status = error.response?.status;
+        const data = error.response?.data;
+        if (status === 403 && data?.code === 'ACCOUNT_BLOCKED') {
+            try {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+            } catch (_) {
+                /* ignore */
+            }
+            window.dispatchEvent(
+                new CustomEvent('account-blocked', {
+                    detail: {
+                        message:
+                            data?.message ||
+                            'Tài khoản của bạn đã bị khóa. Bạn sẽ được chuyển về trang đăng nhập.',
+                    },
+                })
+            );
+            throw {
+                ...data,
+                silent: true,
+                code: 'ACCOUNT_BLOCKED',
+                message: data?.message,
+            };
+        }
         if (error.response && error.response.data) {
             throw error.response.data;
         }

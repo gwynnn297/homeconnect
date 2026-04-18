@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import ProfileService from '../../services/ProfileService';
-import apiClient from '../../services/apiClient';
+import apiClient, { isAccountBlockedError } from '../../services/apiClient';
 import './CustomerDashboardPage.css';
 
 const JOB_LIST_ENDPOINTS = ['/api/v1/jobs/my', '/api/v1/jobs/customer', '/api/v1/jobs'];
@@ -164,6 +164,7 @@ const CustomerDashboardPage = () => {
                 const list = res?.data ?? res;
                 setCategories(Array.isArray(list) ? list : []);
             } catch (err) {
+                if (isAccountBlockedError(err)) return;
                 setCategories([]);
                 setCategoriesError(err?.message || 'Không thể tải danh sách dịch vụ. Vui lòng thử lại.');
             } finally {
@@ -191,6 +192,10 @@ const CustomerDashboardPage = () => {
                         break;
                     }
                 } catch (err) {
+                    if (isAccountBlockedError(err)) {
+                        setIsLoadingJobs(false);
+                        return;
+                    }
                     lastErr = err;
                 }
             }

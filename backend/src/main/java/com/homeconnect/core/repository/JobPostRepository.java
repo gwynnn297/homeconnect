@@ -2,6 +2,7 @@ package com.homeconnect.core.repository;
 
 import com.homeconnect.core.entity.JobPost;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,7 +13,9 @@ import java.util.List;
 import java.util.Collection;
 
 @Repository
-public interface JobPostRepository extends JpaRepository<JobPost, Long> {
+public interface JobPostRepository extends JpaRepository<JobPost, Long>, JpaSpecificationExecutor<JobPost> {
+
+    long countByCustomerId(Long customerId);
 
     List<JobPost> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
 
@@ -30,4 +33,7 @@ public interface JobPostRepository extends JpaRepository<JobPost, Long> {
     List<JobPost> findExpiredJobPosts(@Param("today") LocalDate today, @Param("currentTime") LocalTime currentTime);
     List<JobPost> findByPostIdInOrderByCreatedAtDesc(Collection<Long> postIds);
     boolean existsByAddress_AddressId(Integer addressId);
+
+    @Query("SELECT jp.status, COUNT(jp) FROM JobPost jp GROUP BY jp.status")
+    List<Object[]> countGroupedByStatus();
 }

@@ -1,0 +1,40 @@
+.admin-booking-detail .admin-booking-meta {
+    font-size: 0.9rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.admin-booking-detail .admin-booking-jobpost-link {
+    color: #346252;
+    font-weight: 600;
+    text-decoration: none;
+    margin-left: 0.5rem;
+}
+
+.admin-booking-detail .admin-booking-jobpost-link:hover {
+    text-decoration: underline;
+}
+
+.admin-booking-address {
+    margin: 0 0 0.75rem;
+    line-height: 1.5;
+    color: #0f172a;
+}
+
+.admin-booking-user-link {
+    color: #346252;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.admin-booking-user-link:hover {
+    text-decoration: underline;
+}
+
+.admin-booking-actions {
+    margin-bottom: 2rem;
+}
+
+.modal-content-wide {
+    max-width: 520px;
+}

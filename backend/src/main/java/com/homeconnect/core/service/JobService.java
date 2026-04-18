@@ -78,6 +78,7 @@ public class JobService {
     private final NotificationService notificationService;
     private final HelperScheduleRepository helperScheduleRepository;
     private final BookingRepository bookingRepository;
+    private final BookingService bookingService;
     private final ObjectMapper objectMapper;
 
     public EstimatePriceResponse estimatePrice(EstimatePriceRequest request) {
@@ -666,6 +667,17 @@ public class JobService {
     }
 
     /**
+     * Chi tiết bài đăng cho Admin — đầy đủ địa chỉ, không kiểm tra chủ sở hữu.
+     */
+    @Transactional(readOnly = true)
+    public JobPostResponse getJobPostDetailForAdmin(Long postId) {
+        JobPost jobPost = jobPostRepository.findById(postId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy bài đăng", HttpStatus.NOT_FOUND));
+        Booking booking = bookingRepository.findTopByJobPostIdOrderByCreatedAtDesc(postId).orElse(null);
+        return mapToJobPostResponse(jobPost, true, booking);
+    }
+
+    /**
      * [BE-Post-05] Cập nhật bài đăng (Chỉ cho phép khi status = PUBLISHED)
      */
     @Transactional
@@ -854,6 +866,59 @@ public class JobService {
         log.info(
                 "Khách hàng {} đã hủy Job Post #{} thành công. Tiền đã hoàn, các lời mời đã hủy và gửi thông báo cho thợ.",
                 customerId, jobId);
+    }
+
+    /**
+     * Admin hủy tin đăng: PUBLISHED → cùng luồng hủy như khách (hoàn hold, hủy ứng tuyển PENDING).
+     * ASSIGNED → hủy booking đang hoạt động theo luật admin, sau đó đóng tin.
+     */
+    @Transactional
+    public void cancelJobPostByAdmin(Long postId, String reason, String adminEmail) {
+        JobPost jobPost = jobPostRepository.findById(postId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy bài đăng", HttpStatus.NOT_FOUND));
+
+        String st = jobPost.getStatus();
+        if ("CANCELLED".equals(st)) {
+            throw new ApiException("Bài đăng đã bị hủy trước đó", HttpStatus.BAD_REQUEST);
+        }
+        if ("EXPIRED".equals(st)) {
+            throw new ApiException("Bài đăng đã hết hạn, không cần hủy thủ công", HttpStatus.BAD_REQUEST);
+        }
+        if ("COMPLETED".equals(st)) {
+            throw new ApiException("Bài đăng ở trạng thái hoàn thành, không thể hủy", HttpStatus.BAD_REQUEST);
+        }
+
+        if ("PUBLISHED".equals(st)) {
+            cancelJobPost(postId, jobPost.getCustomerId());
+            notificationService.createNotification(
+                    jobPost.getCustomerId(),
+                    "Tin đăng bị hủy (Admin)",
+                    String.format("Tin #%d đã bị hủy bởi quản trị viên. Lý do: %s", postId, reason),
+                    "JOB_POST_ADMIN_CANCEL");
+            log.info("Admin {} đã hủy tin PUBLISHED #{}", adminEmail, postId);
+            return;
+        }
+
+        if ("ASSIGNED".equals(st)) {
+            var bookingOpt = bookingRepository.findTopByJobPostIdOrderByCreatedAtDesc(postId);
+            if (bookingOpt.isPresent()) {
+                Booking booking = bookingOpt.get();
+                if (booking.getStatus() == BookingStatus.COMPLETED) {
+                    throw new ApiException("Đơn hàng gắn với tin này đã hoàn thành, không thể hủy bài đăng",
+                            HttpStatus.BAD_REQUEST);
+                }
+                if (booking.getStatus() != BookingStatus.CANCELLED) {
+                    bookingService.cancelBookingByAdmin(booking.getId(),
+                            "(Hủy từ quản lý bài đăng) " + reason, adminEmail);
+                }
+            }
+            jobPost.setStatus("CANCELLED");
+            jobPostRepository.save(jobPost);
+            log.info("Admin {} đã đóng tin ASSIGNED #{} sau khi xử lý booking liên quan", adminEmail, postId);
+            return;
+        }
+
+        throw new ApiException("Không thể hủy bài đăng ở trạng thái: " + st, HttpStatus.BAD_REQUEST);
     }
 
     private BigDecimal calculatePrice(JobPost jobPost) {

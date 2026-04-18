@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import AdminService from '../services/AdminService';
 import './AdminSidebarComponent.css';
 
 const AdminSidebarComponent = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [stats, setStats] = useState(null);
 
     useEffect(() => {
@@ -20,6 +21,23 @@ const AdminSidebarComponent = () => {
     }, [stats]);
 
     const linkClass = ({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`;
+
+    /** Cùng pathname /admin/helpers nhưng query khác nhau — NavLink mặc định bật cả hai. */
+    const isKycQueueView = useMemo(() => {
+        if (location.pathname !== '/admin/helpers') return false;
+        return new URLSearchParams(location.search).get('status') === 'WAITING_APPROVAL';
+    }, [location.pathname, location.search]);
+
+    const isHelperSection = useMemo(() => {
+        if (location.pathname === '/admin/helpers') return true;
+        return /^\/admin\/helpers\/\d+$/.test(location.pathname);
+    }, [location.pathname]);
+
+    const helperManageLinkClass = () =>
+        `sidebar-link ${isHelperSection && !isKycQueueView ? 'active' : ''}`;
+
+    const kycReviewLinkClass = () =>
+        `sidebar-link ${location.pathname === '/admin/helpers' && isKycQueueView ? 'active' : ''}`;
 
     const handleLogout = () => {
         localStorage.removeItem('user');
@@ -50,7 +68,7 @@ const AdminSidebarComponent = () => {
 
                 <NavLink
                     to="/admin/helpers"
-                    className={linkClass}
+                    className={helperManageLinkClass}
                 >
                     <div className="sidebar-link-left">
                         <div className="icon-wrapper">
@@ -69,7 +87,7 @@ const AdminSidebarComponent = () => {
                 {/* Duyệt KYC */}
                 <NavLink
                     to="/admin/helpers?status=WAITING_APPROVAL"
-                    className={linkClass}
+                    className={kycReviewLinkClass}
                 >
                     <div className="sidebar-link-left">
                         <div className="icon-wrapper">
@@ -111,6 +129,21 @@ const AdminSidebarComponent = () => {
                             </svg>
                         </div>
                         <span>Quản lý Booking</span>
+                    </div>
+                </NavLink>
+
+                <NavLink to="/admin/job-posts" className={linkClass}>
+                    <div className="sidebar-link-left">
+                        <div className="icon-wrapper">
+                            <svg className="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                        </div>
+                        <span>Quản lý tin đăng</span>
                     </div>
                 </NavLink>
 

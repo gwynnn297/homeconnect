@@ -1,0 +1,73 @@
+.admin-users-main .filter-group-wide {
+    grid-column: span 2;
+}
+
+@media (max-width: 900px) {
+    .admin-users-main .filter-group-wide {
+        grid-column: span 1;
+    }
+}
+
+.admin-users-search-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+
+.admin-users-search-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.admin-users-search-input:focus {
+    border-color: #346252;
+    outline: none;
+}
+
+.admin-users-search-btn {
+    padding: 0.5rem 1rem;
+    background: #346252;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.admin-users-search-btn:hover {
+    filter: brightness(1.05);
+}
+
+.admin-users-empty {
+    padding: 1.5rem;
+    text-align: center;
+    color: #64748b;
+    background: #fff;
+    border-radius: 12px;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 0.75rem;
+}
+
+.pagination-controls button {
+    padding: 0.4rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    cursor: pointer;
+}
+
+.pagination-controls button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}

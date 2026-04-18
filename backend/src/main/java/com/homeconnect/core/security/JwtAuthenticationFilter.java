@@ -1,5 +1,7 @@
 package com.homeconnect.core.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.homeconnect.core.dto.response.ErrorResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,6 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
+    private final ObjectMapper objectMapper;
 
     @Override
     protected void doFilterInternal(
@@ -45,23 +49,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // Token cũ có thể chưa có userId claim.
                 }
 
-                String role = null;
-                try {
-                    role = jwtUtil.extractRole(jwt);
-                } catch (Exception ignored) {
-                    // Token cũ có thể chưa có role claim.
-                }
-
-                UserDetails userDetails;
-                if (role != null && !role.isBlank()) {
-                    userDetails = org.springframework.security.core.userdetails.User.builder()
-                            .username(email)
-                            .password("")
-                            .authorities("ROLE_" + role)
-                            .build();
-                } else {
-                    // Fallback tương thích cho token cũ.
-                    userDetails = userDetailsService.loadUserByUsername(email);
+                // Luôn tải user từ DB để áp dụng trạng thái BLOCKED và role hiện tại (không tin claim trong token).
+                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+                if (!userDetails.isEnabled()) {
+                    log.warn("Từ chối truy cập: tài khoản bị khóa hoặc vô hiệu: {}", email);
+                    writeAccountBlockedResponse(request, response);
+                    return;
                 }
 
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -103,5 +96,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         return null;
+    }
+
+    private void writeAccountBlockedResponse(HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
+        response.setContentType("application/json;charset=UTF-8");
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        ErrorResponse body = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpServletResponse.SC_FORBIDDEN)
+                .error("Forbidden")
+                .message("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ bộ phận hỗ trợ nếu cần trợ giúp.")
+                .path(request.getRequestURI())
+                .code("ACCOUNT_BLOCKED")
+                .build();
+        response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }

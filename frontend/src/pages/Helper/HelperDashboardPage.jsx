@@ -5,6 +5,7 @@ import HelperLayout from '../../layouts/HelperLayout';
 import ProfileService from '../../services/ProfileService';
 import HelperJobService from '../../services/HelperJobService';
 import WalletService from '../../services/WalletService';
+import { isAccountBlockedError } from '../../services/apiClient';
 import './HelperDashboardPage.css';
 
 const StatCard = ({ label, value, unit, trend, trendUp }) => (
@@ -108,6 +109,7 @@ const HelperDashboardPage = () => {
             syncUserToLocalStorage(basic, helper);
             return latestStatus;
         } catch (err) {
+            if (isAccountBlockedError(err)) return null;
             console.error('[HelperDashboardPage] fetchLatestProfileStatus failed:', err);
             return null;
         }
@@ -162,6 +164,7 @@ const HelperDashboardPage = () => {
                     setNewJobs(latestUnassigned);
                 }
             } catch (err) {
+                if (isAccountBlockedError(err)) return;
                 console.error('[HelperDashboardPage] loadNewJobs failed:', err);
                 if (!cancelled) {
                     setNewJobs([]);
@@ -229,6 +232,7 @@ const HelperDashboardPage = () => {
                     setMonthlyEarning(monthIncome);
                 }
             } catch (err) {
+                if (isAccountBlockedError(err)) return;
                 console.error('[HelperDashboardPage] loadMonthlyEarning failed:', err);
                 if (!cancelled) {
                     setMonthlyEarning(0);
@@ -298,6 +302,7 @@ const HelperDashboardPage = () => {
                     setCompletedJobs(latestCompleted);
                 }
             } catch (err) {
+                if (isAccountBlockedError(err)) return;
                 console.error('[HelperDashboardPage] loadCompletedJobs failed:', err);
                 if (!cancelled) {
                     setCompletedJobs([]);

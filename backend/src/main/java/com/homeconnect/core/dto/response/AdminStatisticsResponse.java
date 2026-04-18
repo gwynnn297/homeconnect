@@ -5,9 +5,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+import java.util.Map;
+
 /**
- * Response DTO cho Admin Statistics Dashboard
- * Sử dụng cho GET /api/v1/admin/statistics
+ * Response DTO cho Admin Statistics Dashboard & Báo cáo
+ * GET /api/v1/admin/statistics
  */
 @Data
 @Builder
@@ -15,18 +18,23 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AdminStatisticsResponse {
 
-    // ========== USER STATISTICS ==========
     private UserStats userStats;
-
-    // ========== HELPER STATISTICS ==========
     private HelperStats helperStats;
-
-    // ========== SYSTEM STATISTICS ==========
     private SystemStats systemStats;
 
-    private String message;
+    /** Booking: phân bổ trạng thái đơn, thanh toán, cờ bất thường */
+    private BookingSnapshot booking;
 
-    // ========== NESTED CLASSES ==========
+    /** Tin đăng chợ việc theo trạng thái */
+    private JobPostSnapshot jobPost;
+
+    /** Ứng tuyển đang chờ (toàn hệ thống) */
+    private MarketplaceSnapshot marketplace;
+
+    /** Ví tổng hợp + yêu cầu rút tiền */
+    private FinanceSnapshot finance;
+
+    private String message;
 
     @Data
     @Builder
@@ -47,10 +55,10 @@ public class AdminStatisticsResponse {
     @AllArgsConstructor
     public static class HelperStats {
         private long totalHelpers;
-        private long pendingKyc; // PENDING
-        private long waitingApproval; // WAITING_APPROVAL
-        private long verifiedHelpers; // VERIFIED
-        private long rejectedHelpers; // REJECTED
+        private long pendingKyc;
+        private long waitingApproval;
+        private long verifiedHelpers;
+        private long rejectedHelpers;
     }
 
     @Data
@@ -58,7 +66,56 @@ public class AdminStatisticsResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class SystemStats {
+        /** Dịch vụ con (services) */
         private long totalServices;
-        // Có thể thêm sau: totalBookings, totalRevenue, etc.
+        /** Danh mục cha (service_categories) */
+        private long totalCategories;
+        /** Địa chỉ đã lưu (addresses) */
+        private long totalAddresses;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BookingSnapshot {
+        private long totalBookings;
+        private long flaggedBookings;
+        /** key = tên enum BookingStatus */
+        private Map<String, Long> countByStatus;
+        /** key = tên enum PaymentStatus */
+        private Map<String, Long> countByPaymentStatus;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class JobPostSnapshot {
+        private long totalPosts;
+        /** key = PUBLISHED, ASSIGNED, ... */
+        private Map<String, Long> countByStatus;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MarketplaceSnapshot {
+        /** Ứng tuyển status = PENDING (chờ khách chọn / chờ xử lý) */
+        private long pendingJobApplications;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FinanceSnapshot {
+        private long totalWallets;
+        private BigDecimal sumAvailableBalance;
+        private BigDecimal sumHoldBalance;
+        private BigDecimal sumDebtBalance;
+        /** key = PENDING, PROCESSING, COMPLETED, REJECTED */
+        private Map<String, Long> withdrawCountByStatus;
     }
 }

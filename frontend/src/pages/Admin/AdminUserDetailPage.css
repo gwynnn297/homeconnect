@@ -1,0 +1,218 @@
+.admin-back-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.admin-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 1.1rem 0.55rem 0.65rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    color: #334155;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.admin-back-btn:hover {
+    border-color: #346252;
+    color: #1e293b;
+    box-shadow: 0 4px 12px rgba(52, 98, 82, 0.12);
+    transform: translateY(-1px);
+}
+
+.admin-back-btn:active {
+    transform: translateY(0);
+}
+
+.admin-back-btn-icon {
+    display: flex;
+    width: 2rem;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    border-radius: 50%;
+    color: #346252;
+}
+
+.admin-back-btn-icon svg {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.admin-back-btn-text {
+    padding-right: 0.25rem;
+}
+
+.admin-user-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.admin-user-stat-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.admin-user-stat-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.admin-user-stat-value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+}
+
+.admin-user-link-kyc {
+    color: #346252;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.admin-user-link-kyc:hover {
+    text-decoration: underline;
+}
+
+.admin-user-detail .detail-title {
+    font-size: 1.5rem;
+    margin-bottom: 1.25rem;
+    color: #1e293b;
+}
+
+.admin-user-dl {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 0.5rem 1rem;
+    margin: 0;
+}
+
+.admin-user-dl dt {
+    margin: 0;
+    font-weight: 600;
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.admin-user-dl dd {
+    margin: 0;
+    color: #0f172a;
+}
+
+.admin-user-actions-hint {
+    color: #64748b;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0 0 1rem;
+}
+
+.admin-user-actions-btns {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.btn-primary-action {
+    padding: 0.6rem 1.25rem;
+    background: #346252;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-primary-action:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-danger-action {
+    padding: 0.6rem 1.25rem;
+    background: #b91c1c;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-danger-action:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    padding: 0.6rem 1rem;
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.modal-content {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.25rem;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.modal-content h3 {
+    margin: 0 0 0.5rem;
+}
+
+.modal-textarea {
+    width: 100%;
+    margin: 0.75rem 0;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 600px) {
+    .admin-user-dl {
+        grid-template-columns: 1fr;
+    }
+}

@@ -582,10 +582,22 @@ public class BookingService {
             throw new RuntimeException("Đơn hàng đã hoàn thành hoặc đã bị hủy trước đó");
         }
 
+        applyWalletRefundOnCancel(booking);
+
+        booking.setStatus(BookingStatus.CANCELLED);
+        bookingRepository.save(booking);
+    }
+
+    /**
+     * Hoàn tiền hold / phạt theo cùng quy tắc hủy của khách (sát giờ vs sớm).
+     */
+    private void applyWalletRefundOnCancel(Booking booking) {
+        Long customerId = booking.getCustomer().getId();
+        Long bookingId = booking.getId();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startTime = booking.getScheduledStartTime();
 
-        if (booking.getPaymentStatus() == com.homeconnect.core.enums.PaymentStatus.HOLDING) {
+        if (booking.getPaymentStatus() == PaymentStatus.HOLDING) {
             long diffInMinutes = java.time.Duration.between(now, startTime).toMinutes();
 
             if (diffInMinutes < 120) {
@@ -599,8 +611,48 @@ public class BookingService {
                 walletService.refundHold(customerId, booking.getTotalPrice(), bookingId, "Hủy đơn sớm (> 2h)");
             }
         }
+    }
+
+    /**
+     * Admin hủy đơn — áp dụng cùng luật hoàn/hold như khách hủy; bắt buộc ghi lý do.
+     */
+    @Transactional
+    public void cancelBookingByAdmin(Long bookingId, String reason, String adminEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+
+        if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
+            throw new ApiException("Đơn hàng đã hoàn thành hoặc đã hủy trước đó", HttpStatus.BAD_REQUEST);
+        }
+
+        applyWalletRefundOnCancel(booking);
 
         booking.setStatus(BookingStatus.CANCELLED);
         bookingRepository.save(booking);
+
+        String msg = "Đơn #" + bookingId + " đã bị hủy bởi quản trị viên. Lý do: " + reason;
+        notificationService.createNotification(booking.getCustomer().getId(), "Đơn hàng bị hủy (Admin)", msg,
+                "BOOKING_ADMIN_CANCEL");
+        notificationService.createNotification(booking.getHelper().getId(), "Đơn hàng bị hủy (Admin)", msg,
+                "BOOKING_ADMIN_CANCEL");
+
+        log.info("Admin {} đã hủy booking {}. Lý do: {}", adminEmail, bookingId, reason);
+    }
+
+    /**
+     * Gỡ cờ bất thường (checkout sớm) sau khi admin đã xem xét.
+     */
+    @Transactional
+    public void clearBookingFlagByAdmin(Long bookingId, String adminEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+
+        if (!Boolean.TRUE.equals(booking.getIsFlagged())) {
+            throw new ApiException("Đơn hàng không có cờ cảnh báo", HttpStatus.BAD_REQUEST);
+        }
+
+        booking.setIsFlagged(false);
+        bookingRepository.save(booking);
+        log.info("Admin {} đã gỡ cờ bất thường cho booking {}", adminEmail, bookingId);
     }
 }

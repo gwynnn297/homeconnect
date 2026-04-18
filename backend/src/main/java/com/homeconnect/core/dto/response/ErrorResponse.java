@@ -15,4 +15,6 @@ public class ErrorResponse {
     private String error;
     private String message;
     private String path;
+    /** Mã lỗi ứng dụng (vd: ACCOUNT_BLOCKED). */
+    private String code;
 }

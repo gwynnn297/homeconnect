@@ -1,5 +1,6 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import AccountBlockedGate from '../components/AccountBlockedGate'
 import HomePage from '../pages/Home/HomePage'
 import LoginPage from '../pages/Login/LoginPage'
 import RegisterPage from '../pages/Register/RegisterPage'
@@ -16,7 +17,11 @@ import AdminHelpersPage from '../pages/Admin/AdminHelpersPage'
 import AdminHelperDetailPage from '../pages/Admin/AdminHelperDetailPage'
 import AdminNotificationsPage from '../pages/Admin/AdminNotificationsPage'
 import AdminUsersPage from '../pages/Admin/AdminUsersPage'
+import AdminUserDetailPage from '../pages/Admin/AdminUserDetailPage'
 import AdminBookingsPage from '../pages/Admin/AdminBookingsPage'
+import AdminBookingDetailPage from '../pages/Admin/AdminBookingDetailPage'
+import AdminJobPostsPage from '../pages/Admin/AdminJobPostsPage'
+import AdminJobPostDetailPage from '../pages/Admin/AdminJobPostDetailPage'
 import AdminWalletTransactionsPage from '../pages/Admin/AdminWalletTransactionsPage'
 import AdminComplaintsPage from '../pages/Admin/AdminComplaintsPage'
 import AdminReportsPage from '../pages/Admin/AdminReportsPage'
@@ -34,6 +39,7 @@ import CustomerBookingDetailPage from '../pages/Customer/CustomerBookingDetailPa
 const AuthRouter = () => {
   return (
     <BrowserRouter>
+      <AccountBlockedGate />
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<HomePage />} />
@@ -60,7 +66,11 @@ const AuthRouter = () => {
         <Route path="/admin/services" element={<ServiceManagerPage />} />
         <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
         <Route path="/admin/users" element={<AdminUsersPage />} />
+        <Route path="/admin/users/:userId" element={<AdminUserDetailPage />} />
         <Route path="/admin/bookings" element={<AdminBookingsPage />} />
+        <Route path="/admin/bookings/:bookingId" element={<AdminBookingDetailPage />} />
+        <Route path="/admin/job-posts" element={<AdminJobPostsPage />} />
+        <Route path="/admin/job-posts/:postId" element={<AdminJobPostDetailPage />} />
         <Route path="/admin/wallet-transactions" element={<AdminWalletTransactionsPage />} />
         <Route path="/admin/withdrawals" element={<AdminWithdrawalsPage />} />
         <Route path="/admin/complaints" element={<AdminComplaintsPage />} />

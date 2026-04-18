@@ -1,43 +1,56 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../../layouts/AdminLayout';
 import NotificationModal from '../../components/NotificationModal';
 import AdminService from '../../services/AdminService';
+import ServiceManagerService from '../../services/ServiceManagerService';
 import './AdminHelpersPage.css';
-import './AdminUsersPage.css';
-
-const ROLE_OPTIONS = [
-    { value: '', label: 'Tất cả vai trò' },
-    { value: 'CUSTOMER', label: 'Khách hàng' },
-    { value: 'HELPER', label: 'Helper' },
-    { value: 'ADMIN', label: 'Admin' },
-];
+import './AdminBookingsPage.css';
 
 const STATUS_OPTIONS = [
     { value: '', label: 'Tất cả trạng thái' },
-    { value: 'PENDING_OTP', label: 'Chờ xác thực OTP' },
-    { value: 'DRAFT', label: 'Đang điền hồ sơ' },
-    { value: 'PROFILE_COMPLETED', label: 'Đã hoàn tất hồ sơ' },
-    { value: 'PENDING_REVIEW', label: 'Chờ phê duyệt hồ sơ' },
-    { value: 'ACTIVE', label: 'Đang hoạt động' },
-    { value: 'BLOCKED', label: 'Bị khóa' },
-    { value: 'REJECTED', label: 'Bị từ chối hồ sơ' },
+    { value: 'PUBLISHED', label: 'Đang tìm thợ' },
+    { value: 'ASSIGNED', label: 'Đã chốt thợ' },
+    { value: 'COMPLETED', label: 'Hoàn thành' },
+    { value: 'CANCELLED', label: 'Đã hủy' },
+    { value: 'EXPIRED', label: 'Hết hạn' },
 ];
 
-const fmtDate = (d) => (d ? new Date(d).toLocaleString('vi-VN') : '—');
+const STATUS_BADGE = {
+    PUBLISHED: 'status-waiting',
+    ASSIGNED: 'status-verified',
+    COMPLETED: 'status-verified',
+    CANCELLED: 'status-rejected',
+    EXPIRED: 'status-rejected',
+};
 
-const AdminUsersPage = () => {
+const fmtMoney = (n) =>
+    n == null ? '—' : Number(n).toLocaleString('vi-VN', { style: 'currency', currency: 'VND' });
+
+const fmtWorkDate = (wd) => {
+    if (wd == null || wd === '') return '—';
+    if (Array.isArray(wd)) {
+        const [y, m, day] = wd;
+        return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+    return String(wd);
+};
+
+const AdminJobPostsPage = () => {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
 
-    const [users, setUsers] = useState([]);
+    const [posts, setPosts] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
 
-    const [role, setRole] = useState(searchParams.get('role') || '');
     const [status, setStatus] = useState(searchParams.get('status') || '');
+    const [categoryId, setCategoryId] = useState(searchParams.get('categoryId') || '');
     const [q, setQ] = useState(searchParams.get('q') || '');
     const [qInput, setQInput] = useState(searchParams.get('q') || '');
+    const [fromDate, setFromDate] = useState(searchParams.get('from') || '');
+    const [toDate, setToDate] = useState(searchParams.get('to') || '');
     const [page, setPage] = useState(Number(searchParams.get('page')) || 0);
     const [size, setSize] = useState(Number(searchParams.get('size')) || 20);
     const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'createdAt');
@@ -46,45 +59,70 @@ const AdminUsersPage = () => {
     const [totalPages, setTotalPages] = useState(0);
     const [totalElements, setTotalElements] = useState(0);
 
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await ServiceManagerService.getParentCategories();
+                const list = res?.data ?? res;
+                const arr = Array.isArray(list) ? list : [];
+                setCategories(
+                    arr.map((c) => ({
+                        categoryId: c?.categoryId ?? c?.category_id ?? c?.id,
+                        name: c?.name ?? '',
+                    })),
+                );
+            } catch {
+                setCategories([]);
+            }
+        })();
+    }, []);
+
     const syncUrl = useCallback(() => {
         const next = new URLSearchParams();
-        if (role) next.set('role', role);
         if (status) next.set('status', status);
+        if (categoryId) next.set('categoryId', categoryId);
         if (q) next.set('q', q);
+        if (fromDate) next.set('from', fromDate);
+        if (toDate) next.set('to', toDate);
         if (page) next.set('page', String(page));
         if (size !== 20) next.set('size', String(size));
         if (sortBy !== 'createdAt') next.set('sortBy', sortBy);
         if (sortDir !== 'desc') next.set('sortDir', sortDir);
         setSearchParams(next, { replace: true });
-    }, [role, status, q, page, size, sortBy, sortDir, setSearchParams]);
+    }, [status, categoryId, q, fromDate, toDate, page, size, sortBy, sortDir, setSearchParams]);
 
     useEffect(() => {
         syncUrl();
     }, [syncUrl]);
 
-    const fetchUsers = useCallback(async () => {
+    const buildParams = useCallback(() => {
+        const params = { page, size, sortBy, sortDir };
+        if (status) params.status = status;
+        if (categoryId) params.categoryId = Number(categoryId);
+        if (q.trim()) params.q = q.trim();
+        if (fromDate) params.workDateFrom = fromDate;
+        if (toDate) params.workDateTo = toDate;
+        return params;
+    }, [page, size, sortBy, sortDir, status, categoryId, q, fromDate, toDate]);
+
+    const fetchPosts = useCallback(async () => {
         setLoading(true);
         try {
-            const params = { page, size, sortBy, sortDir };
-            if (role) params.role = role;
-            if (status) params.status = status;
-            if (q.trim()) params.q = q.trim();
-            const res = await AdminService.getUsers(params);
-            setUsers(res.users || []);
+            const res = await AdminService.getJobPosts(buildParams());
+            setPosts(res.posts || []);
             setTotalPages(res.totalPages ?? 0);
             setTotalElements(res.totalElements ?? 0);
         } catch (err) {
-            const msg = err?.message || err?.error || 'Không thể tải danh sách người dùng';
-            setToast({ type: 'error', message: msg });
-            setUsers([]);
+            setToast({ type: 'error', message: err?.message || 'Không tải được danh sách tin đăng' });
+            setPosts([]);
         } finally {
             setLoading(false);
         }
-    }, [page, size, sortBy, sortDir, role, status, q]);
+    }, [buildParams]);
 
     useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+        fetchPosts();
+    }, [fetchPosts]);
 
     const applySearch = (e) => {
         e?.preventDefault();
@@ -92,19 +130,9 @@ const AdminUsersPage = () => {
         setPage(0);
     };
 
-    const roleLabel = (r) => ROLE_OPTIONS.find((o) => o.value === r)?.label || r;
-    const statusLabel = (s) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
-
-    const badgeClass = (s) => {
-        if (s === 'ACTIVE') return 'status-verified';
-        if (s === 'BLOCKED') return 'status-rejected';
-        if (s === 'REJECTED') return 'status-rejected';
-        return 'status-waiting';
-    };
-
     return (
         <AdminLayout>
-            <div className="admin-helpers-main admin-users-main">
+            <div className="admin-helpers-main admin-bookings-page">
                 {toast && (
                     <NotificationModal
                         message={toast.message}
@@ -114,29 +142,13 @@ const AdminUsersPage = () => {
                 )}
 
                 <div className="page-header">
-                    <h1>Quản lý User</h1>
-                    <p>Tổng: {totalElements} tài khoản</p>
+                    <h1>Quản lý tin đăng</h1>
+                    <p>Tổng: {totalElements} tin (chợ việc)</p>
                 </div>
 
                 <form className="filter-section" onSubmit={applySearch}>
                     <div className="filter-group">
-                        <label>Vai trò</label>
-                        <select
-                            value={role}
-                            onChange={(e) => {
-                                setRole(e.target.value);
-                                setPage(0);
-                            }}
-                        >
-                            {ROLE_OPTIONS.map((o) => (
-                                <option key={o.value || 'all'} value={o.value}>
-                                    {o.label}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="filter-group">
-                        <label>Trạng thái tài khoản</label>
+                        <label>Trạng thái tin</label>
                         <select
                             value={status}
                             onChange={(e) => {
@@ -145,21 +157,62 @@ const AdminUsersPage = () => {
                             }}
                         >
                             {STATUS_OPTIONS.map((o) => (
-                                <option key={o.value || 'all-s'} value={o.value}>
+                                <option key={o.value || 'all'} value={o.value}>
                                     {o.label}
                                 </option>
                             ))}
                         </select>
                     </div>
+                    <div className="filter-group">
+                        <label>Danh mục</label>
+                        <select
+                            value={categoryId}
+                            onChange={(e) => {
+                                setCategoryId(e.target.value);
+                                setPage(0);
+                            }}
+                        >
+                            <option value="">Tất cả</option>
+                            {categories.map((c) => (
+                                <option key={c.categoryId} value={String(c.categoryId)}>
+                                    {c.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="filter-group">
+                        <label>Từ ngày làm</label>
+                        <input
+                            type="date"
+                            className="admin-bookings-date"
+                            value={fromDate}
+                            onChange={(e) => {
+                                setFromDate(e.target.value);
+                                setPage(0);
+                            }}
+                        />
+                    </div>
+                    <div className="filter-group">
+                        <label>Đến ngày làm</label>
+                        <input
+                            type="date"
+                            className="admin-bookings-date"
+                            value={toDate}
+                            onChange={(e) => {
+                                setToDate(e.target.value);
+                                setPage(0);
+                            }}
+                        />
+                    </div>
                     <div className="filter-group filter-group-wide">
-                        <label>Tìm kiếm (tên, email, SĐT)</label>
+                        <label>Tìm (mã tin, tiêu đề, khách)</label>
                         <div className="admin-users-search-row">
                             <input
                                 type="search"
                                 className="admin-users-search-input"
                                 value={qInput}
                                 onChange={(e) => setQInput(e.target.value)}
-                                placeholder="Nhập và nhấn Tìm..."
+                                placeholder="VD: 12 hoặc tiêu đề / email"
                             />
                             <button type="submit" className="admin-users-search-btn">
                                 Tìm
@@ -175,11 +228,10 @@ const AdminUsersPage = () => {
                                 setPage(0);
                             }}
                         >
-                            <option value="createdAt">Ngày tạo</option>
-                            <option value="updatedAt">Ngày cập nhật</option>
-                            <option value="fullName">Họ tên</option>
-                            <option value="email">Email</option>
-                            <option value="phone">SĐT</option>
+                            <option value="createdAt">Ngày đăng tin</option>
+                            <option value="workDate">Ngày làm việc</option>
+                            <option value="offerPrice">Giá đề xuất</option>
+                            <option value="status">Trạng thái</option>
                         </select>
                     </div>
                     <div className="filter-group">
@@ -211,42 +263,47 @@ const AdminUsersPage = () => {
                     </div>
                 </form>
 
-                {loading && <p className="text-center">Đang tải dữ liệu...</p>}
+                {loading && <p className="text-center">Đang tải...</p>}
 
-                {!loading && users.length > 0 && (
+                {!loading && posts.length > 0 && (
                     <div className="helpers-table-wrapper">
                         <table className="helpers-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Họ tên</th>
-                                    <th>Email</th>
-                                    <th>SĐT</th>
-                                    <th>Vai trò</th>
-                                    <th>Trạng thái</th>
-                                    <th>Ngày tạo</th>
-                                    <th>Hành động</th>
+                                    <th>Mã tin</th>
+                                    <th>Khách</th>
+                                    <th>Tiêu đề</th>
+                                    <th>Danh mục</th>
+                                    <th>Ngày làm</th>
+                                    <th>Quận</th>
+                                    <th>Giá</th>
+                                    <th>TT</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {users.map((u) => (
-                                    <tr key={u.userId}>
-                                        <td>{u.userId}</td>
-                                        <td>{u.fullName}</td>
-                                        <td>{u.email}</td>
-                                        <td>{u.phone}</td>
-                                        <td>{roleLabel(u.role)}</td>
+                                {posts.map((p) => (
+                                    <tr key={p.postId}>
+                                        <td>{p.postId}</td>
+                                        <td>{p.customerName}</td>
+                                        <td>{p.title || '—'}</td>
+                                        <td>{p.categoryName || '—'}</td>
                                         <td>
-                                            <span className={`status-badge ${badgeClass(u.status)}`}>
-                                                {statusLabel(u.status)}
+                                            {fmtWorkDate(p.workDate)}
+                                            {p.startTime ? ` · ${String(p.startTime).slice(0, 5)}` : ''}
+                                        </td>
+                                        <td>{p.districtName || '—'}</td>
+                                        <td>{fmtMoney(p.offerPrice)}</td>
+                                        <td>
+                                            <span className={`status-badge ${STATUS_BADGE[p.status] || ''}`}>
+                                                {STATUS_OPTIONS.find((o) => o.value === p.status)?.label || p.status}
                                             </span>
                                         </td>
-                                        <td>{fmtDate(u.createdAt)}</td>
                                         <td>
                                             <button
                                                 type="button"
                                                 className="btn-view-detail"
-                                                onClick={() => navigate(`/admin/users/${u.userId}`)}
+                                                onClick={() => navigate(`/admin/job-posts/${p.postId}`)}
                                             >
                                                 Chi tiết
                                             </button>
@@ -258,17 +315,13 @@ const AdminUsersPage = () => {
                     </div>
                 )}
 
-                {!loading && users.length === 0 && (
-                    <p className="admin-users-empty">Không có người dùng phù hợp bộ lọc.</p>
+                {!loading && posts.length === 0 && (
+                    <p className="admin-users-empty">Không có tin đăng phù hợp.</p>
                 )}
 
                 {!loading && totalPages > 1 && (
                     <div className="pagination-controls">
-                        <button
-                            type="button"
-                            disabled={page <= 0}
-                            onClick={() => setPage((p) => Math.max(0, p - 1))}
-                        >
+                        <button type="button" disabled={page <= 0} onClick={() => setPage((x) => Math.max(0, x - 1))}>
                             ← Trước
                         </button>
                         <span>
@@ -277,7 +330,7 @@ const AdminUsersPage = () => {
                         <button
                             type="button"
                             disabled={page >= totalPages - 1}
-                            onClick={() => setPage((p) => p + 1)}
+                            onClick={() => setPage((x) => x + 1)}
                         >
                             Sau →
                         </button>
@@ -288,4 +341,4 @@ const AdminUsersPage = () => {
     );
 };
 
-export default AdminUsersPage;
+export default AdminJobPostsPage;
