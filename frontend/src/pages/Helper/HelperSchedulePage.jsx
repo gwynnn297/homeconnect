@@ -114,6 +114,13 @@ const HelperSchedulePage = () => {
     const [updatingShiftId, setUpdatingShiftId] = useState(null);
     const [updatingShiftDate, setUpdatingShiftDate] = useState(null);
     const [isBulkUpdateMode, setIsBulkUpdateMode] = useState(false);
+
+    const [isCancelShiftModalOpen, setIsCancelShiftModalOpen] = useState(false);
+    const [cancelShiftReason, setCancelShiftReason] = useState('Bận việc cá nhân');
+    const [cancelingShiftId, setCancelingShiftId] = useState(null);
+    const [cancelingShiftIsBulk, setCancelingShiftIsBulk] = useState(false);
+    const [isSubmittingCancelShift, setIsSubmittingCancelShift] = useState(false);
+
     const [openShiftMenuId, setOpenShiftMenuId] = useState(null);
     const [processingShiftId, setProcessingShiftId] = useState(null);
     const [shiftMenuStyle, setShiftMenuStyle] = useState({ top: 0, left: 0 });
@@ -584,29 +591,41 @@ const HelperSchedulePage = () => {
         }
     };
 
-    const handleCancelAction = async (shiftId, isBulk) => {
-        const reason = window.prompt('Nhập lý do hủy đăng kí ca:', 'Bận việc cá nhân');
-        if (reason === null) {
-            setOpenShiftMenuId(null);
-            return;
-        }
+    const handleCancelAction = (shiftId, isBulk) => {
+        setOpenShiftMenuId(null);
+        setCancelingShiftId(shiftId);
+        setCancelingShiftIsBulk(isBulk);
+        setCancelShiftReason('Bận việc cá nhân');
+        setIsCancelShiftModalOpen(true);
+    };
+
+    const closeCancelShiftModal = () => {
+        if (isSubmittingCancelShift) return;
+        setIsCancelShiftModalOpen(false);
+        setCancelingShiftId(null);
+    };
+
+    const confirmCancelShift = async () => {
+        if (!cancelingShiftId) return;
 
         try {
-            setProcessingShiftId(shiftId);
-            setOpenShiftMenuId(null);
+            setIsSubmittingCancelShift(true);
+            setProcessingShiftId(cancelingShiftId);
             setErrorMessage('');
 
-            if (isBulk) {
-                await HelperScheduleService.bulkCancelSchedule(shiftId, reason.trim() || 'No reason provided');
+            if (cancelingShiftIsBulk) {
+                await HelperScheduleService.bulkCancelSchedule(cancelingShiftId, cancelShiftReason.trim() || 'Không có lý do');
             } else {
-                await HelperScheduleService.cancelSchedule(shiftId, reason.trim() || 'No reason provided');
+                await HelperScheduleService.cancelSchedule(cancelingShiftId, cancelShiftReason.trim() || 'Không có lý do');
             }
 
             await loadMonthlySchedule();
+            setIsCancelShiftModalOpen(false);
         } catch (error) {
             const message = error?.message || 'Không thể hủy đăng kí ca. Vui lòng thử lại.';
             showApiNotification(message);
         } finally {
+            setIsSubmittingCancelShift(false);
             setProcessingShiftId(null);
         }
     };
@@ -1062,6 +1081,48 @@ const HelperSchedulePage = () => {
                                 disabled={isSubmittingUpdateShift}
                             >
                                 {isSubmittingUpdateShift ? 'Đang cập nhật...' : 'Cập nhật'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isCancelShiftModalOpen && (
+                <div className="schedule-modal-overlay" onClick={closeCancelShiftModal}>
+                    <div
+                        className="schedule-register-modal"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="schedule-register-modal-header">Lý do hủy đăng kí ca</div>
+                        <div className="schedule-register-modal-body">
+                            <div className="register-field">
+                                <label htmlFor="cancelShiftReason">Nhập lý do hủy</label>
+                                <textarea
+                                    id="cancelShiftReason"
+                                    value={cancelShiftReason}
+                                    onChange={(e) => setCancelShiftReason(e.target.value)}
+                                    rows="3"
+                                    placeholder="Ví dụ: Bận việc riêng..."
+                                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', resize: 'vertical' }}
+                                />
+                            </div>
+                        </div>
+                        <div className="schedule-register-modal-footer">
+                            <button
+                                type="button"
+                                className="register-cancel-button"
+                                onClick={closeCancelShiftModal}
+                                disabled={isSubmittingCancelShift}
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                type="button"
+                                className="register-submit-button"
+                                onClick={confirmCancelShift}
+                                disabled={isSubmittingCancelShift || !cancelShiftReason.trim()}
+                            >
+                                {isSubmittingCancelShift ? 'Đang hủy...' : 'Đồng ý hủy'}
                             </button>
                         </div>
                     </div>

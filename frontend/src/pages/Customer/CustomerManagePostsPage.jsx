@@ -119,7 +119,7 @@ const CustomerManagePostsPage = () => {
                     description: post?.description || 'Không có mô tả.',
                     addressText: addressText || post?.address_detail || 'Chưa có địa chỉ',
                     createdAt: post?.createdAt ?? post?.created_at,
-                    status: post?.status || 'PUBLISHED',
+                    status: String(post?.bookingStatus).toUpperCase() === 'COMPLETED' ? 'COMPLETED' : (post?.status || 'PUBLISHED'),
                     estimatedPrice: Number(post?.offerPrice ?? post?.estimated_price ?? 0),
                 };
             }),
@@ -294,14 +294,10 @@ const CustomerManagePostsPage = () => {
                                         <div className="cmp-post-card-body">
                                             {isAssigned ? (
                                                 <div className="cmp-assigned-banner">
-                                                    ✅ Bài đăng đã chốt helper. Theo dõi chi tiết để xem tiến độ làm việc.
+                                                    Bài đăng đã chốt helper. Theo dõi chi tiết để xem tiến độ làm việc.
                                                 </div>
                                             ) : null}
-                                            {canOpenBooking ? (
-                                                <div className="cmp-assigned-banner" style={{ marginTop: 8 }}>
-                                                    Booking #{post.bookingId} - Trạng thái: {post.bookingStatus || '---'}
-                                                </div>
-                                            ) : null}
+
                                             <h3 className="cmp-post-title">{post.title}</h3>
                                             <p className="cmp-post-desc">{post.description}</p>
                                             
@@ -371,37 +367,38 @@ const CustomerManagePostsPage = () => {
                                                 </div>
                                             ) : null}
 
-                                            {canOpenBooking ? (
+                                            {canOpenBooking && hasArrivalProof ? (
                                                 <div style={{ marginTop: 12 }}>
-                                                    {hasArrivalProof ? (
-                                                        <div className="cmp-assigned-banner" style={{ marginBottom: 8 }}>
-                                                            Đã có ảnh địa điểm helper gửi để xác minh đúng nhà.
-                                                        </div>
-                                                    ) : null}
-                                                    <button
-                                                        type="button"
-                                                        className="cmp-btn-outline cmp-btn-action"
-                                                        onClick={() => navigate(`/customer/bookings/${post.bookingId}`)}
-                                                    >
-                                                        {shouldShowArrivalCta
-                                                            ? (post.customerArrivalConfirmed
-                                                                ? 'Xem xác nhận helper đã đến'
-                                                                : 'Xem ảnh địa điểm và xác nhận helper đã đến đúng nhà')
-                                                            : 'Xem chi tiết booking'}
-                                                    </button>
+                                                    <div className="cmp-assigned-banner" style={{ marginBottom: 0 }}>
+                                                        Đã có ảnh địa điểm helper gửi để xác minh đúng nhà.
+                                                    </div>
                                                 </div>
                                             ) : null}
                                         </div>
 
-                                        <div className="cmp-post-card-footer">
+                                        <div className="cmp-post-card-footer" style={{ display: 'flex', gap: '10px' }}>
                                             <button
                                                 className="cmp-btn-outline"
-                                                style={{ borderColor: service.color, color: service.color }}
+                                                style={{ borderColor: service.color, color: service.color, flex: 1, padding: '10px 4px' }}
                                                 type="button"
                                                 onClick={() => navigate(`/customer/manage-posts/${post.postId}`)}
                                             >
                                                 Xem chi tiết
                                             </button>
+                                            {canOpenBooking && (
+                                                <button
+                                                    type="button"
+                                                    className="cmp-btn-outline cmp-btn-action"
+                                                    style={{ margin: 0, flex: 1, maxWidth: 'none', padding: '10px 4px' }}
+                                                    onClick={() => navigate(`/customer/bookings/${post.bookingId}`)}
+                                                >
+                                                    {shouldShowArrivalCta
+                                                        ? (post.customerArrivalConfirmed
+                                                            ? 'Xác nhận'
+                                                            : 'Chi tiết xác nhận')
+                                                        : 'Chi tiết booking'}
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 );

@@ -4,6 +4,7 @@ import apiClient from '../../services/apiClient';
 import ProfileService from '../../services/ProfileService';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import './CustomerPostJobPage.css';
+import NotificationModal from '../../components/NotificationModal';
 
 const extractPayload = (res) => (res && typeof res === 'object' && 'data' in res ? res.data : res);
 
@@ -460,6 +461,8 @@ const CustomerPostJobPage = () => {
     const bookingKey = `${categoryId}|${parsedWorkDate}|${parsedStartTime}|${parsedDurationHours}|${parsedServiceIdsKey}`;
     const [categoryName, setCategoryName] = useState('');
 
+    const [notification, setNotification] = useState(null);
+
     const [step, setStep] = useState(1);
 
     const [jobData, setJobData] = useState({
@@ -591,11 +594,13 @@ const CustomerPostJobPage = () => {
                     : {})
             };
             const res = await apiClient.post('/api/v1/jobs', payload);
-            alert(res?.message || "Đăng tin thành công! Bạn có thể xem tin đã đăng ở phần Quản lý bài đăng.");
-            navigate('/customer/manage-posts');
+            setNotification({ type: 'success', message: res?.message || "Đăng tin thành công! Bạn có thể xem tin đã đăng ở phần Quản lý bài đăng." });
+            setTimeout(() => {
+                navigate('/customer/manage-posts');
+            }, 2000);
         } catch (error) {
             console.error("Error creating job", error);
-            alert(error.message || "Có lỗi xảy ra khi thanh toán và đăng tin.");
+            setNotification({ type: 'error', message: error.message || "Có lỗi xảy ra khi thanh toán và đăng tin." });
         } finally {
             setLoadingSubmit(false);
         }
@@ -663,6 +668,14 @@ const CustomerPostJobPage = () => {
 
     return (
         <CustomerLayout>
+            {notification && (
+                <NotificationModal
+                    type={notification.type}
+                    message={notification.message}
+                    onClose={() => setNotification(null)}
+                    duration={2000}
+                />
+            )}
             <div className="customer-post-job-page">
                 {step === 1 && (
                     <AddressStep
@@ -2102,7 +2115,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                     ) : null}
 
                                     <label className="pj-label" style={{ marginTop: 20 }}>
-                                        💵 Tiền hàng ứng trước (ước tính) *
+                                        Tiền hàng ứng trước (ước tính) *
                                     </label>
                                     <p className="pj-cleaning-lead pj-cooking-hint">
                                         Chọn mức gợi ý hoặc nhập số khác từ{' '}

@@ -106,6 +106,7 @@ public class BookingService {
     /**
      * Lấy danh sách thợ đã ứng tuyển cho một Job Post
      */
+    @Transactional(readOnly = true)
     public List<JobApplicantResponse> getApplicants(Long jobId) {
         List<JobApplication> applications = jobApplicationRepository.findByPostId(jobId);
         return applications.stream().map(app -> {
@@ -558,6 +559,7 @@ public class BookingService {
         return mapToBookingResponse(booking, customerId);
     }
 
+    @Transactional(readOnly = true)
     public BookingResponse getBookingDetail(Long bookingId, Long userId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
