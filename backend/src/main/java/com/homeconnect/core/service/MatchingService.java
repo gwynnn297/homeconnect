@@ -10,7 +10,6 @@ import com.homeconnect.core.repository.JobPostRepository;
 import com.homeconnect.core.repository.HelperProfileRepository;
 import com.homeconnect.core.repository.HelperWorkingDistrictRepository;
 import com.homeconnect.core.repository.UserRepository;
-import com.homeconnect.core.repository.AddressRepository;
 import com.homeconnect.core.repository.NotificationRepository;
 import com.homeconnect.core.repository.ServiceRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
 // BE-Match-01: Matching Engine Service
 // Tự động tìm helper phù hợp và chỉ gửi email + thông báo (không tạo JobApplication).
@@ -42,11 +43,75 @@ public class MatchingService {
     private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
     private final JobApplicationRepository jobApplicationRepository;
     private final UserRepository userRepository;
-    private final AddressRepository addressRepository;
     private final NotificationRepository notificationRepository;
     private final ServiceRepository serviceRepository;
     private final EmailService emailService;
     private final NotificationService notificationService;
+
+    public enum MatchFailureReason {
+        NONE,
+        INVALID_INPUT,
+        NO_AVAILABLE_SLOT,
+        NO_HELPER_IN_DISTRICT,
+        NO_HELPER_MEET_RATING
+    }
+
+    public static class MatchResult {
+        private final List<Long> helperIds;
+        private final MatchFailureReason failureReason;
+
+        public MatchResult(List<Long> helperIds, MatchFailureReason failureReason) {
+            this.helperIds = helperIds;
+            this.failureReason = failureReason;
+        }
+
+        public List<Long> getHelperIds() {
+            return helperIds;
+        }
+
+        public MatchFailureReason getFailureReason() {
+            return failureReason;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> findMatchingHelperIds(Integer categoryId, LocalDate workDate, LocalTime startTime,
+            Integer durationHours,
+            String districtName) {
+        return findMatchingHelperIdsWithReason(categoryId, workDate, startTime, durationHours, districtName).getHelperIds();
+    }
+
+    @Transactional(readOnly = true)
+    public MatchResult findMatchingHelperIdsWithReason(Integer categoryId, LocalDate workDate, LocalTime startTime,
+            Integer durationHours,
+            String districtName) {
+        if (categoryId == null || workDate == null || startTime == null || durationHours == null
+                || durationHours <= 0) {
+            return new MatchResult(List.of(), MatchFailureReason.INVALID_INPUT);
+        }
+
+        long durationSecs = (long) durationHours * 3600;
+        List<Long> eligibleHelperIds = helperProfileRepository.findEligibleHelperIdsWithSchedule(
+                categoryId,
+                workDate,
+                startTime,
+                durationSecs);
+
+        if (eligibleHelperIds.isEmpty()) {
+            return new MatchResult(List.of(), MatchFailureReason.NO_AVAILABLE_SLOT);
+        }
+
+        List<Long> districtMatchedIds = filterHelpersByWorkingDistrict(eligibleHelperIds, districtName);
+        if (districtMatchedIds.isEmpty()) {
+            return new MatchResult(List.of(), MatchFailureReason.NO_HELPER_IN_DISTRICT);
+        }
+
+        List<Long> finalIds = filterAndSortByRating(districtMatchedIds);
+        if (finalIds.isEmpty()) {
+            return new MatchResult(List.of(), MatchFailureReason.NO_HELPER_MEET_RATING);
+        }
+        return new MatchResult(finalIds, MatchFailureReason.NONE);
+    }
 
     @Value("${matching.min-rating:3.0}")
     private BigDecimal MIN_RATING;
@@ -57,15 +122,17 @@ public class MatchingService {
     @Value("${matching.notification-cooldown-minutes:120}")
     private long matchingNotificationCooldownMinutes;
 
-
-    // BE-Match-01: Tìm helper phù hợp — chỉ notify (email + in-app), không tạo INVITED.
+    // BE-Match-01: Tìm helper phù hợp — chỉ notify (email + in-app), không tạo
+    // INVITED.
     // Dùng cho cả tạo mới lẫn cập nhật bài đăng.
     // Khi cập nhật (các đơn PENDING đã có — chủ yếu do thợ đã APPLIED):
-    //   - Thợ VẪN phù hợp  → Thông báo cập nhật tin
-    //   - Thợ KHÔNG còn phù hợp → Hủy application + thông báo
-    // Thợ mới phù hợp → Chỉ gửi email + thông báo; họ vào feed và bấm ứng tuyển nếu muốn.
+    // - Thợ VẪN phù hợp → Thông báo cập nhật tin
+    // - Thợ KHÔNG còn phù hợp → Hủy application + thông báo
+    // Thợ mới phù hợp → Chỉ gửi email + thông báo; họ vào feed và bấm ứng tuyển nếu
+    // muốn.
     @Async
     @Transactional
+    @SuppressWarnings("null")
     public void findAndInviteHelpers(Long postId) {
         log.info("[Matching] Bắt đầu matching cho Job Post ID: {}", postId);
 
@@ -100,7 +167,8 @@ public class MatchingService {
             log.info("[Matching] Job #{}: {} thợ sau lọc rating", postId, finalHelperIds.size());
 
             // ===== BƯỚC 5: Xử lý tất cả application PENDING hiện tại =====
-            // Phân loại: thợ VẪN phù hợp → thông báo cập nhật; thợ KHÔNG còn phù hợp → hủy + thông báo hủy
+            // Phân loại: thợ VẪN phù hợp → thông báo cập nhật; thợ KHÔNG còn phù hợp → hủy
+            // + thông báo hủy
             List<JobApplication> existingPendingApps = jobApplicationRepository.findByPostId(postId).stream()
                     .filter(app -> "PENDING".equals(app.getStatus()))
                     .collect(Collectors.toList());
@@ -109,13 +177,13 @@ public class MatchingService {
                 if (finalHelperIds.contains(app.getHelperId())) {
                     // Thợ VẪN phù hợp → Thông báo bài đăng đã cập nhật
                     notificationService.createNotification(
-                        app.getHelperId(),
-                        "Công việc đã cập nhật thông tin",
-                        String.format("Công việc '%s' (#%d) bạn đang quan tâm vừa được khách hàng chỉnh sửa thông tin. " +
-                                      "Bạn vẫn phù hợp với khu vực làm việc. Vui lòng kiểm tra lại.",
-                                      jobPost.getTitle(), postId),
-                        "JOB_UPDATED"
-                    );
+                            app.getHelperId(),
+                            "Công việc đã cập nhật thông tin",
+                            String.format(
+                                    "Công việc '%s' (#%d) bạn đang quan tâm vừa được khách hàng chỉnh sửa thông tin. " +
+                                            "Bạn vẫn phù hợp với khu vực làm việc. Vui lòng kiểm tra lại.",
+                                    jobPost.getTitle(), postId),
+                            "JOB_UPDATED");
                     log.info("[Matching] Job #{}: Thợ #{} ({}) vẫn phù hợp → Báo cập nhật",
                             postId, app.getHelperId(), app.getType());
                 } else {
@@ -124,17 +192,18 @@ public class MatchingService {
                     jobApplicationRepository.save(app);
 
                     String msg = "INVITED".equals(app.getType())
-                        ? String.format("Lời mời công việc '%s' (#%d) của bạn đã bị hủy do khách hàng đổi sang khu vực làm việc mới không phù hợp với bạn.",
-                                        jobPost.getTitle(), postId)
-                        : String.format("Đơn ứng tuyển công việc '%s' (#%d) của bạn đã bị hủy tự động do khách hàng thay đổi khu vực làm việc.",
-                                        jobPost.getTitle(), postId);
+                            ? String.format(
+                                    "Lời mời công việc '%s' (#%d) của bạn đã bị hủy do khách hàng đổi sang khu vực làm việc mới không phù hợp với bạn.",
+                                    jobPost.getTitle(), postId)
+                            : String.format(
+                                    "Đơn ứng tuyển công việc '%s' (#%d) của bạn đã bị hủy tự động do khách hàng thay đổi khu vực làm việc.",
+                                    jobPost.getTitle(), postId);
 
                     notificationService.createNotification(
-                        app.getHelperId(),
-                        "Lời mời bị hủy do thay đổi khu vực",
-                        msg,
-                        "INVITATION_CANCELLED"
-                    );
+                            app.getHelperId(),
+                            "Lời mời bị hủy do thay đổi khu vực",
+                            msg,
+                            "INVITATION_CANCELLED");
                     log.info("[Matching] Job #{}: Thợ #{} ({}) không còn phù hợp → Hủy + thông báo",
                             postId, app.getHelperId(), app.getType());
                 }
@@ -144,18 +213,18 @@ public class MatchingService {
             if (finalHelperIds.isEmpty()) {
                 log.warn("[Matching] Job #{}: Không tìm được thợ phù hợp. Thông báo cho khách hàng.", postId);
                 notificationService.createNotification(
-                    jobPost.getCustomerId(),
-                    "Chưa tìm được thợ phù hợp",
-                    String.format("Hệ thống chưa tìm được thợ phù hợp cho công việc '%s' tại '%s'. " +
-                                  "Bạn có thể thử điều chỉnh khu vực hoặc thời gian.", jobPost.getTitle(), jobDistrict),
-                    "NO_HELPER_FOUND"
-                );
+                        jobPost.getCustomerId(),
+                        "Chưa tìm được thợ phù hợp",
+                        String.format("Hệ thống chưa tìm được thợ phù hợp cho công việc '%s' tại '%s'. " +
+                                "Bạn có thể thử điều chỉnh khu vực hoặc thời gian.", jobPost.getTitle(), jobDistrict),
+                        "NO_HELPER_FOUND");
                 return;
             }
 
             int notifyCount = 0;
             for (Long helperId : finalHelperIds) {
-                Optional<JobApplication> existingApp = jobApplicationRepository.findByPostIdAndHelperId(postId, helperId);
+                Optional<JobApplication> existingApp = jobApplicationRepository.findByPostIdAndHelperId(postId,
+                        helperId);
 
                 if (existingApp.isPresent()) {
                     String status = existingApp.get().getStatus();
@@ -166,7 +235,8 @@ public class MatchingService {
                     if ("ACCEPTED".equals(status) || "ASSIGNED".equals(status)) {
                         continue;
                     }
-                    // CANCELLED / REJECTED / EXPIRED: có thể nhắc lại qua notify (thợ tự apply lại trên feed)
+                    // CANCELLED / REJECTED / EXPIRED: có thể nhắc lại qua notify (thợ tự apply lại
+                    // trên feed)
                 }
 
                 if (!shouldNotifyHelperForPost(helperId, postId)) {
@@ -176,10 +246,13 @@ public class MatchingService {
                 notificationService.createMatchingNotification(helperId, postId, jobPost);
                 sendJobInvitationEmail(helperId, postId, jobPost);
                 notifyCount++;
-                log.debug("[Matching] Job #{}: Đã gửi thông báo + email cho thợ #{} (không tạo JobApplication)", postId, helperId);
+                log.debug("[Matching] Job #{}: Đã gửi thông báo + email cho thợ #{} (không tạo JobApplication)", postId,
+                        helperId);
             }
 
-            log.info("[Matching] Job #{}: Hoàn tất. Đã gửi {} thông báo (email + in-app), thợ ứng tuyển chủ động trên feed.", postId, notifyCount);
+            log.info(
+                    "[Matching] Job #{}: Hoàn tất. Đã gửi {} thông báo (email + in-app), thợ ứng tuyển chủ động trên feed.",
+                    postId, notifyCount);
 
         } catch (Exception e) {
             log.error("[Matching] Lỗi khi thực hiện matching cho Job Post ID: {}", postId, e);
@@ -201,7 +274,6 @@ public class MatchingService {
                 since);
         return !recentlyNotified;
     }
-
 
     // Filter helper theo khu vực làm việc đã đăng ký
     private List<Long> filterHelpersByWorkingDistrict(List<Long> helperIds, String jobDistrictName) {
@@ -225,8 +297,7 @@ public class MatchingService {
         return helperIds.stream()
                 .filter(helperId -> districtMapByHelper.getOrDefault(helperId, List.of()).stream()
                         .map(this::normalizeLocationText)
-                        .anyMatch(district ->
-                                !district.isBlank() && normalizedJobDistrict.equals(district)))
+                        .anyMatch(district -> !district.isBlank() && normalizedJobDistrict.equals(district)))
                 .toList();
     }
 
@@ -249,7 +320,8 @@ public class MatchingService {
                     int totalReviews = profile.getTotalReviews() != null ? profile.getTotalReviews() : 0;
                     boolean hasReviewHistory = totalReviews > 0;
 
-                    // Cho thợ mới (chưa có review) đi qua bước lọc để tránh false-negative khi hệ thống mới.
+                    // Cho thợ mới (chưa có review) đi qua bước lọc để tránh false-negative khi hệ
+                    // thống mới.
                     boolean passRating = !hasReviewHistory
                             || profile.getRatingAverage() == null
                             || profile.getRatingAverage().compareTo(MIN_RATING) >= 0;
@@ -285,8 +357,8 @@ public class MatchingService {
                 .trim();
     }
 
-
     // Gửi email mời việc cho helper
+    @SuppressWarnings("null")
     private void sendJobInvitationEmail(Long helperId, Long postId, JobPost jobPost) {
         try {
             User helper = userRepository.findById(helperId).orElse(null);
@@ -312,12 +384,15 @@ public class MatchingService {
         // Resolve service names
         String categoryName = jobPost.getCategory() != null ? jobPost.getCategory().getName() : "N/A";
         StringBuilder serviceDetails = new StringBuilder(categoryName);
-        
+
         List<Integer> childServiceIds = parseServiceIds(jobPost.getServiceId());
         if (!childServiceIds.isEmpty()) {
             serviceDetails.append(" (Bao gồm: ");
             List<String> childNames = new java.util.ArrayList<>();
             for (Integer id : childServiceIds) {
+                if (id == null) {
+                    continue;
+                }
                 serviceRepository.findById(id).ifPresent(s -> childNames.add(s.getName()));
             }
             serviceDetails.append(String.join(", ", childNames)).append(")");
@@ -325,21 +400,21 @@ public class MatchingService {
 
         return String.format("""
                 Xin chào %s,
- 
+
                 Bạn có một cơ hội việc mới phù hợp với kỹ năng và lịch rảnh của bạn!
- 
+
                 Chi tiết việc:
                 • Dịch vụ: %s
                 • Ngày: %s
- 
+
                 • Giờ: %s (%d giờ)
                 • Địa điểm: %s
                 • Giá: %,d VNĐ
- 
+
                 Vui lòng mở ứng dụng, xem việc trong danh sách và ứng tuyển nếu bạn muốn nhận việc.
- 
+
                 Hãy nhanh chóng - các helper khác cũng có thể nhận việc này!
- 
+
                 Trân trọng,
                 HomeConnect Team
                 """,
@@ -348,10 +423,9 @@ public class MatchingService {
                 jobPost.getWorkDate(),
                 jobPost.getStartTime(),
                 jobPost.getDurationHours(),
-                jobPost.getAddress() != null ? 
-                    String.format("%s, %s, %s", 
+                jobPost.getAddress() != null ? String.format("%s, %s, %s",
                         jobPost.getAddress().getWardName(),
-jobPost.getAddress().getDistrictName(), 
+                        jobPost.getAddress().getDistrictName(),
                         jobPost.getAddress().getProvinceName()) : "N/A",
                 jobPost.getOfferPrice().longValue());
     }
@@ -363,7 +437,8 @@ jobPost.getAddress().getDistrictName(),
             for (String idStr : split) {
                 try {
                     sIds.add(Integer.parseInt(idStr.trim()));
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) {
+                }
             }
         }
         return sIds;

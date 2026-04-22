@@ -1,5 +1,6 @@
 import json
 import re
+import unicodedata
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -12,16 +13,131 @@ from .schemas import ParseChatResponse
 
 
 SERVICE_KEYWORDS = {
-    1: ["dọn nhà", "don nha", "dọn dẹp", "don dep", "lau nhà", "lau nha", "vệ sinh nhà", "ve sinh nha"],
-    2: ["nấu ăn", "nau an", "nấu cơm", "nau com", "đầu bếp", "dich vu nau", "nau toi", "nau bua toi"],
-    3: ["đi chợ", "di cho", "mua hộ", "mua do", "mua đồ"],
-    4: ["văn phòng", "van phong", "dọn văn phòng", "ve sinh van phong", "vệ sinh văn phòng", "ve sinh vp"],
-    5: ["trông trẻ", "trong tre", "giữ trẻ", "giu tre", "chăm bé", "cham be", "trong be", "giu be"],
-    6: ["làm vườn", "lam vuon", "cắt tỉa", "cat tia", "tưới cây", "tuoi cay"],
-    7: ["sơn sửa", "son sua", "sửa nhà", "sua nha", "sơn tường", "son tuong"],
+    1: [
+        "don nha",
+        "don dep",
+        "lau nha",
+        "ve sinh nha",
+        "tap vu",
+        "giup viec",
+        "lau chui",
+        "quet don",
+        "don phong",
+        "tong ve sinh",
+        "lau kinh",
+        "giat rem",
+    ],
+    2: [
+        "nau an",
+        "nau com",
+        "dau bep",
+        "dich vu nau",
+        "nau toi",
+        "nau bua toi",
+        "nau bua",
+        "chuan bi bua",
+        "nau ho",
+        "nau co",
+        "nau tiec nho",
+        "soan bua",
+    ],
+    3: ["di cho", "mua ho", "mua do"],
+    4: ["van phong", "don van phong", "ve sinh van phong", "ve sinh vp"],
+    5: [
+        "trong tre",
+        "giu tre",
+        "cham be",
+        "trong be",
+        "giu be",
+        "trong em be",
+        "giu em",
+        "cham em be",
+        "trong con",
+        "giu con",
+        "trong be so sinh",
+    ],
+    6: ["lam vuon", "cat tia", "tuoi cay"],
+    7: ["son sua", "sua nha", "son tuong"],
 }
 
-ADDRESS_HINTS = (" tại ", " o ", " ở ", " số ", " đường ", " quận ", " phường ", " huyện ", " tỉnh ", " thành phố ")
+ADDRESS_HINTS = (" tai ", " o ", " so ", " duong ", " quan ", " phuong ", " huyen ", " tinh ", " thanh pho ")
+ADDRESS_SHORTCUT_HINTS = (" q1", " q2", " q3", " q4", " q5", " q6", " q7", " q8", " q9", " q10", " q11", " q12", " q.", " p", " tp hcm", " tphcm", " hcm", " sg", " hn")
+INVALID_REQUEST_MESSAGE = "Yêu cầu không đúng, vui lòng nhập lại yêu cầu."
+BOOKING_HINT_KEYWORDS = (
+    "dat",
+    "book",
+    "giup",
+    "can",
+    "dk lich",
+    "dat keo",
+    "dat slot",
+    "dat lich ho",
+    "chot lich",
+    "giu slot",
+    "check lich",
+    "xin lich",
+    "sap lich",
+    "xep lich",
+    "len lich",
+    "can nguoi",
+    "kiem nguoi",
+    "thue",
+    "tim",
+    "hen",
+    "lich",
+    "hom nay",
+    "ngay mai",
+    "ngay kia",
+    "ngay mot",
+    "mai mot",
+    "tuan",
+    "thu ",
+    "t2",
+    "t3",
+    "t4",
+    "t5",
+    "t6",
+    "t7",
+    "cn",
+    "chunhat",
+    "thu2",
+    "thu3",
+    "thu4",
+    "thu5",
+    "thu6",
+    "thu7",
+    "t.2",
+    "t.3",
+    "t.4",
+    "t.5",
+    "t.6",
+    "t.7",
+    "c.n",
+    "cnhat",
+    "chieu",
+    "xe chieu",
+    "sang",
+    "toi",
+    "truoc",
+    "sau",
+    "gio",
+    "g",
+    "p",
+    "tieng",
+    "ruoi",
+)
+TYPO_REPLACEMENTS = (
+    ("dăt", "dat"),
+    ("donj", "don"),
+    ("trongr", "trong"),
+    ("nauw", "nau"),
+    ("chunhat", "chu nhat"),
+    ("ddon", "don"),
+    ("donn", "don"),
+    ("trogn", "trong"),
+    ("chieefu", "chieu"),
+    ("sangs", "sang"),
+)
 
 
 @dataclass
@@ -39,15 +155,21 @@ class ChatParserService:
         self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
 
     def parse(self, message: str) -> ParseChatResponse:
+        normalized_message = self._normalize_text(message)
+        invalid_minute_token = self._extract_invalid_minute_token(normalized_message)
+
         rule_result = self._parse_rule_based(message)
+        rule_result = self._apply_minute_granularity_guard(rule_result, invalid_minute_token)
         if not self.client:
-            return rule_result
+            return self._apply_invalid_request_fallback(message, rule_result)
 
         try:
             ai_result = self._parse_with_openai(message)
-            return self._merge_results(rule_result, ai_result)
+            merged = self._merge_results(rule_result, ai_result)
+            merged = self._apply_minute_granularity_guard(merged, invalid_minute_token)
+            return self._apply_invalid_request_fallback(message, merged)
         except Exception:
-            return rule_result
+            return self._apply_invalid_request_fallback(message, rule_result)
 
     def _parse_rule_based(self, message: str) -> ParseChatResponse:
         text = self._normalize_text(message)
@@ -149,12 +271,49 @@ class ChatParserService:
         return result
 
     def _extract_category(self, text: str) -> int | None:
+        # Câu có nhiều dịch vụ: ưu tiên dịch vụ xuất hiện đầu tiên trong câu.
+        best_match: tuple[int, int] | None = None
         for category_id, keywords in SERVICE_KEYWORDS.items():
-            if any(keyword in text for keyword in keywords):
-                return category_id
-        return None
+            for keyword in keywords:
+                idx = text.find(keyword)
+                if idx < 0:
+                    continue
+                if best_match is None or idx < best_match[1]:
+                    best_match = (category_id, idx)
+        return best_match[0] if best_match else None
 
     def _extract_duration_hours(self, text: str) -> int | None:
+        if "nua buoi" in text:
+            return 4
+        if "nua tieng" in text:
+            return 1
+
+        decimal_hours = re.search(r"\b(\d{1,2})[\.,](\d)\s*(?:tieng|gio|h)\b", text)
+        if decimal_hours:
+            whole = int(decimal_hours.group(1))
+            decimal = int(decimal_hours.group(2))
+            duration = whole + (decimal / 10.0)
+            return max(1, min(12, int(round(duration))))
+
+        half_hours = re.search(r"\b(\d{1,2})\s*(?:tieng|gio|h)\s*ruoi\b", text)
+        if half_hours:
+            duration = int(half_hours.group(1)) + 0.5
+            return max(1, min(12, int(round(duration))))
+
+        # Chỉ coi là duration khi user viết rõ "tiếng/giờ + phút" (vd: "1 tieng 30"),
+        # tránh bắt nhầm định dạng giờ bắt đầu như "6h45".
+        mixed_hours = re.search(r"\b(\d{1,2})\s*(?:tieng|gio)\s+(\d{1,2})\b", text)
+        if mixed_hours:
+            whole = int(mixed_hours.group(1))
+            minutes = int(mixed_hours.group(2))
+            duration = whole + (minutes / 60.0)
+            return max(1, min(12, int(round(duration))))
+
+        minute_only = re.search(r"\b(\d{2,3})\s*p\b", text)
+        if minute_only:
+            duration = int(minute_only.group(1)) / 60.0
+            return max(1, min(12, int(round(duration))))
+
         range_match = re.search(
             r"\b(?:từ|tu)\s*(\d{1,2})\s*(?:[:h\.](\d{2}))?\s*(?:đến|den)\s*(\d{1,2})\s*(?:[:h\.](\d{2}))?\b",
             text,
@@ -164,6 +323,26 @@ class ChatParserService:
             start_minute = int(range_match.group(2) or 0)
             end_hour = int(range_match.group(3))
             end_minute = int(range_match.group(4) or 0)
+            if "chieu" in text or "toi" in text:
+                if start_hour < 12:
+                    start_hour += 12
+                if end_hour < 12:
+                    end_hour += 12
+            start_total = start_hour * 60 + start_minute
+            end_total = end_hour * 60 + end_minute
+            if end_total > start_total:
+                duration = (end_total - start_total) / 60
+                return max(1, min(12, int(round(duration))))
+
+        dash_range_match = re.search(
+            r"\b(\d{1,2})\s*(?:[:h\.](\d{2}))?\s*-\s*(\d{1,2})\s*(?:[:h\.](\d{2}))?\s*(?:h)?\b",
+            text,
+        )
+        if dash_range_match:
+            start_hour = int(dash_range_match.group(1))
+            start_minute = int(dash_range_match.group(2) or 0)
+            end_hour = int(dash_range_match.group(3))
+            end_minute = int(dash_range_match.group(4) or 0)
             start_total = start_hour * 60 + start_minute
             end_total = end_hour * 60 + end_minute
             if end_total > start_total:
@@ -191,6 +370,8 @@ class ChatParserService:
                 "tuan ke",
                 "tuần kế tiếp",
                 "tuan ke tiep",
+                "tuan toi nua",
+                "tuần tới nữa",
             )
         )
         has_this_week = any(phrase in text for phrase in ("tuần này", "tuan nay"))
@@ -245,12 +426,73 @@ class ChatParserService:
                 except Exception:
                     return None
 
+        if "hom qua" in text or "hôm qua" in text:
+            return None
+        if "hom kia" in text or "hôm kia" in text:
+            return None
+
+        if "ngay kia nua" in text or "ngày kia nữa" in text:
+            return (now + timedelta(days=3)).strftime("%Y-%m-%d")
+        if "mai mot" in text:
+            return (now + timedelta(days=2)).strftime("%Y-%m-%d")
+        if "ngay mot" in text or "ngày mốt" in text:
+            return (now + timedelta(days=2)).strftime("%Y-%m-%d")
         if "ngày kia" in text or "ngay kia" in text:
             return (now + timedelta(days=2)).strftime("%Y-%m-%d")
 
+        if "cuoi thang sau" in text or "cuối tháng sau" in text:
+            month_after_next = now.month + 2
+            year = now.year
+            if month_after_next > 12:
+                month_after_next -= 12
+                year += 1
+            if month_after_next == 12:
+                next_month = 1
+                next_year = year + 1
+            else:
+                next_month = month_after_next + 1
+                next_year = year
+            first_after_next_month = datetime(year=next_year, month=next_month, day=1, hour=12, minute=0, second=0)
+            last_target_month = first_after_next_month - timedelta(days=1)
+            return last_target_month.strftime("%Y-%m-%d")
         if "cuối tháng" in text or "cuoi thang" in text:
             next_month = now.month + 1
             year = now.year
+        if "dau thang sau" in text or "đầu tháng sau" in text:
+            target_month = now.month + 1
+            target_year = now.year
+            if target_month == 13:
+                target_month = 1
+                target_year += 1
+            return datetime(year=target_year, month=target_month, day=1, hour=12, minute=0, second=0).strftime(
+                "%Y-%m-%d"
+            )
+        if "giua thang" in text or "giữa tháng" in text:
+            return datetime(year=now.year, month=now.month, day=15, hour=12, minute=0, second=0).strftime("%Y-%m-%d")
+
+        mung_day = re.search(r"\bmung\s*(\d{1,2})\b", text)
+        if mung_day:
+            day = int(mung_day.group(1))
+            if 1 <= day <= 31:
+                target_year = now.year
+                target_month = now.month
+                if day < now.day:
+                    target_month += 1
+                    if target_month == 13:
+                        target_month = 1
+                        target_year += 1
+                try:
+                    return datetime(
+                        year=target_year,
+                        month=target_month,
+                        day=day,
+                        hour=12,
+                        minute=0,
+                        second=0,
+                    ).strftime("%Y-%m-%d")
+                except Exception:
+                    return None
+
             if next_month == 13:
                 next_month = 1
                 year += 1
@@ -283,6 +525,11 @@ class ChatParserService:
             if days_until_sat == 0:
                 days_until_sat = 7
             return (now + timedelta(days=days_until_sat + 7)).strftime("%Y-%m-%d")
+        if "cuoi tuan toi nua" in text or "cuối tuần tới nữa" in text:
+            days_until_sat = (5 - now.weekday()) % 7
+            if days_until_sat == 0:
+                days_until_sat = 7
+            return (now + timedelta(days=days_until_sat + 14)).strftime("%Y-%m-%d")
 
         if "cuối tuần này" in text or "cuoi tuan nay" in text:
             days_until_sat = (5 - now.weekday()) % 7
@@ -312,16 +559,44 @@ class ChatParserService:
             "thu 6": 4,
             "thứ 7": 5,
             "thu 7": 5,
+            "thu2": 0,
+            "thu3": 1,
+            "thu4": 2,
+            "thu5": 3,
+            "thu6": 4,
+            "thu7": 5,
+            "t.2": 0,
+            "t.3": 1,
+            "t.4": 2,
+            "t.5": 3,
+            "t.6": 4,
+            "t.7": 5,
+            "t2": 0,
+            "t3": 1,
+            "t4": 2,
+            "t5": 3,
+            "t6": 4,
+            "t7": 5,
             "chủ nhật": 6,
             "chu nhat": 6,
+            "cn": 6,
+            "chunhat": 6,
+            "c.n": 6,
+            "cnhat": 6,
         }
         for label, weekday in weekday_map.items():
             if label in text:
                 days_ahead = (weekday - now.weekday()) % 7
                 if has_week_after_next:
-                    days_ahead += 14
+                    # "thứ X tuần sau nữa": luôn là tuần sau nữa (2 tuần kể từ tuần hiện tại)
+                    if days_ahead <= (6 - now.weekday()):
+                        days_ahead += 14
+                    else:
+                        days_ahead += 7
                 elif has_next_week:
-                    days_ahead += 7
+                    # "thứ X tuần sau/tuần tới": chỉ +7 khi X vẫn nằm trong tuần hiện tại.
+                    if days_ahead <= (6 - now.weekday()):
+                        days_ahead += 7
                 elif has_this_week:
                     days_ahead = days_ahead
                 elif days_ahead == 0:
@@ -330,17 +605,58 @@ class ChatParserService:
         return None
 
     def _extract_start_time(self, text: str) -> str | None:
+        half_hour_short = re.search(r"\b(\d{1,2})\s*r\b", text)
+        if half_hour_short:
+            hour = int(half_hour_short.group(1))
+            if 0 <= hour <= 23:
+                return f"{hour:02d}:30"
+
+        less_than_hour = re.search(r"\b(\d{1,2})\s*h\s*kem\s*(\d{1,2})\b", text)
+        if less_than_hour:
+            hour = int(less_than_hour.group(1))
+            minute = int(less_than_hour.group(2))
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                total_min = hour * 60 - minute
+                if total_min >= 0:
+                    return f"{total_min // 60:02d}:{total_min % 60:02d}"
+
+        before_hour = re.search(r"\b(?:truoc)\s*(\d{1,2})\s*h\b", text)
+        if before_hour:
+            hour = int(before_hour.group(1))
+            if 1 <= hour <= 23:
+                return f"{hour - 1:02d}:00"
+
         after_hour = re.search(r"\b(?:sau)\s*(\d{1,2})\s*h\b", text)
         if after_hour:
             hour = int(after_hour.group(1))
             if 0 <= hour <= 22:
                 return f"{hour + 1:02d}:00"
 
+        exact_hg = re.search(r"\b(\d{1,2})\s*g\b", text)
+        if exact_hg:
+            hour = int(exact_hg.group(1))
+            if 0 <= hour <= 23:
+                return f"{hour:02d}:00"
+
+        hour_word_minute = re.search(r"\b(\d{1,2})\s*gio\s*(\d{2})\b", text)
+        if hour_word_minute:
+            hour = int(hour_word_minute.group(1))
+            minute = int(hour_word_minute.group(2))
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                return f"{hour:02d}:{minute:02d}"
+
+        exact_gmm = re.search(r"\b(\d{1,2})\s*g\s*(\d{2})\b", text)
+        if exact_gmm:
+            hour = int(exact_gmm.group(1))
+            minute = int(exact_gmm.group(2))
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                return f"{hour:02d}:{minute:02d}"
+
         exact_hhmm = re.search(r"\b(\d{1,2})[:h\.](\d{2})\b", text)
         if exact_hhmm:
             hour = int(exact_hhmm.group(1))
             minute = int(exact_hhmm.group(2))
-            if 0 <= hour <= 23 and minute in (0, 30):
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
                 return f"{hour:02d}:{minute:02d}"
 
         # Ví dụ: "vào 14h", "14h ngày 17"
@@ -360,14 +676,34 @@ class ChatParserService:
         if exact_hour:
             hour = int(exact_hour.group(2))
             if 0 <= hour <= 23:
+                if "chieu" in text or "toi" in text:
+                    hour = hour + 12 if hour < 12 else hour
                 return f"{hour:02d}:00"
 
         if "đầu giờ chiều" in text or "dau gio chieu" in text:
             return "13:00"
+        if "cuoi gio chieu" in text or "cuối giờ chiều" in text:
+            return "17:00"
+        if "xế chiều" in text or "xe chieu" in text:
+            return "15:00"
         if "đầu giờ sáng" in text or "dau gio sang" in text:
             return "08:00"
+        if "đầu giờ tối" in text or "dau gio toi" in text:
+            return "18:00"
         if "tối nay" in text or "toi nay" in text:
             return "18:00"
+        if "trua nay" in text:
+            return "11:00"
+        if "chieu mai" in text:
+            return "14:00"
+        if "sang mot" in text:
+            return "08:00"
+        if "chieu toi" in text or "chiều tối" in text:
+            return "17:00"
+        if "gan trua" in text or "gần trưa" in text:
+            return "11:00"
+        if "cuoi buoi sang" in text or "cuối buổi sáng" in text:
+            return "10:00"
 
         if "sáng" in text or "sang" in text:
             return "08:00"
@@ -379,9 +715,38 @@ class ChatParserService:
             return "18:00"
         return None
 
+    @staticmethod
+    def _extract_invalid_minute_token(text: str) -> str | None:
+        for match in re.finditer(r"\b(\d{1,2})\s*(?::|h|g|gio)\s*(\d{2})\b", text):
+            hour = int(match.group(1))
+            minute = int(match.group(2))
+            if 0 <= hour <= 23 and 0 <= minute <= 59 and minute not in (0, 30):
+                return f"{hour}:{minute:02d}"
+        return None
+
+    def _apply_minute_granularity_guard(
+        self,
+        result: ParseChatResponse,
+        invalid_minute_token: str | None,
+    ) -> ParseChatResponse:
+        if not invalid_minute_token:
+            return result
+
+        result.startTime = None
+        result.missingFields = [field for field in result.missingFields if field != "startTime"]
+        result.missingFields.append("startTime")
+        result.followUpQuestion = (
+            f"Bạn nhập giờ {invalid_minute_token}. Hệ thống chỉ hỗ trợ mốc phút 00 hoặc 30 "
+            "(ví dụ 06:00 hoặc 06:30), bạn chọn lại giúp mình nhé?"
+        )
+        if result.raw is None:
+            result.raw = {}
+        result.raw["invalidMinuteTime"] = invalid_minute_token
+        return result
+
     def _extract_address_text(self, message: str) -> str | None:
         lowered = self._normalize_text(message)
-        if not any(hint in lowered for hint in ADDRESS_HINTS):
+        if not self._has_address_hint(lowered):
             return None
         return message.strip()
 
@@ -401,4 +766,76 @@ class ChatParserService:
 
     @staticmethod
     def _normalize_text(text: str) -> str:
-        return " ".join(text.lower().strip().split())
+        normalized = unicodedata.normalize("NFD", text)
+        normalized = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+        normalized = normalized.replace("đ", "d").replace("Đ", "d").lower()
+        normalized = re.sub(r"[^a-z0-9:\-\/\. ]+", " ", normalized)
+        normalized = re.sub(r"\bthu[\-\.]?([2-7])\b", r"thu\1", normalized)
+        normalized = re.sub(r"\bt[\-\.]?([2-7])\b", r"t\1", normalized)
+        normalized = normalized.replace("c.n", "cn")
+        normalized = " ".join(normalized.strip().split())
+        for wrong, corrected in TYPO_REPLACEMENTS:
+            normalized = normalized.replace(wrong, corrected)
+        return normalized
+
+    @staticmethod
+    def _has_address_hint(normalized: str) -> bool:
+        return any(hint in normalized for hint in ADDRESS_HINTS) or any(hint in normalized for hint in ADDRESS_SHORTCUT_HINTS)
+
+    def _apply_invalid_request_fallback(self, message: str, result: ParseChatResponse) -> ParseChatResponse:
+        if self._is_invalid_by_missing_and_intent(message, result):
+            return self._build_invalid_request_response()
+        return result
+
+    def _is_invalid_by_missing_and_intent(self, message: str, result: ParseChatResponse) -> bool:
+        normalized = self._normalize_text(message)
+        if not normalized:
+            return False
+
+        has_service_keyword = any(
+            keyword in normalized
+            for keywords in SERVICE_KEYWORDS.values()
+            for keyword in keywords
+        )
+        has_booking_hint = any(hint in normalized for hint in BOOKING_HINT_KEYWORDS)
+        has_address_hint = self._has_address_hint(normalized)
+        has_time_number = bool(re.search(r"\d+\s*(h|gio|tieng|g|p)\b", normalized))
+        has_booking_signal = has_service_keyword or has_booking_hint or has_address_hint or has_time_number
+
+        # Không có tín hiệu đặt lịch -> luôn coi như yêu cầu không hợp lệ,
+        # kể cả khi AI model có thể suy đoán ra vài field.
+        if not has_booking_signal:
+            return True
+
+        # Yêu cầu mới: không bắt được dịch vụ thì coi như không hợp lệ (không đi nhánh "còn thiếu").
+        if result.categoryId is None:
+            return True
+
+        # Trường hợp cực đoan: tất cả field chính đều trống thì cũng coi là không hợp lệ.
+        has_any_core_field = any(
+            (
+                result.categoryId is not None,
+                result.durationHours is not None,
+                result.workDate is not None,
+                result.startTime is not None,
+                bool(result.addressText),
+                bool(result.serviceIds),
+            )
+        )
+        return not has_any_core_field
+
+    def _build_invalid_request_response(self) -> ParseChatResponse:
+        return ParseChatResponse(
+            categoryId=None,
+            durationHours=None,
+            workDate=None,
+            startTime=None,
+            serviceIds=[],
+            addressText=None,
+            needsAddressConfirmation=True,
+            missingFields=["categoryId", "durationHours", "workDate", "startTime"],
+            followUpQuestion=INVALID_REQUEST_MESSAGE,
+            confidence=0.0,
+            source="rule_based",
+            raw={"invalidRequest": True},
+        )
