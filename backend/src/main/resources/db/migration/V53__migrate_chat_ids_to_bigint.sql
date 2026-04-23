@@ -48,6 +48,3 @@ ALTER TABLE chat_messages
 ALTER TABLE chat_sessions
     DROP COLUMN legacy_id;
 
--- 7) Dọn index tạm
-ALTER TABLE chat_messages
-    DROP INDEX idx_chat_messages_session_id_new;
