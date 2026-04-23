@@ -16,6 +16,7 @@ import java.util.List;
 public class ChatHelperCandidateResponse {
     private Long helperId;
     private String fullName;
+    private String avatarUrl;
     private BigDecimal ratingAverage;
     private Integer totalReviews;
     private BigDecimal estimatedPrice;

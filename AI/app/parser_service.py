@@ -807,22 +807,8 @@ class ChatParserService:
         if not has_booking_signal:
             return True
 
-        # Yêu cầu mới: không bắt được dịch vụ thì coi như không hợp lệ (không đi nhánh "còn thiếu").
-        if result.categoryId is None:
-            return True
-
-        # Trường hợp cực đoan: tất cả field chính đều trống thì cũng coi là không hợp lệ.
-        has_any_core_field = any(
-            (
-                result.categoryId is not None,
-                result.durationHours is not None,
-                result.workDate is not None,
-                result.startTime is not None,
-                bool(result.addressText),
-                bool(result.serviceIds),
-            )
-        )
-        return not has_any_core_field
+        # Có tín hiệu đặt lịch thì cho phép đi tiếp để backend merge vào context phiên chat hiện tại.
+        return False
 
     def _build_invalid_request_response(self) -> ParseChatResponse:
         return ParseChatResponse(
@@ -832,8 +818,8 @@ class ChatParserService:
             startTime=None,
             serviceIds=[],
             addressText=None,
-            needsAddressConfirmation=True,
-            missingFields=["categoryId", "durationHours", "workDate", "startTime"],
+            needsAddressConfirmation=False,
+            missingFields=[],
             followUpQuestion=INVALID_REQUEST_MESSAGE,
             confidence=0.0,
             source="rule_based",

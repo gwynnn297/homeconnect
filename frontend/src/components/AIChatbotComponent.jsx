@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AIChatNLPService from '../services/AIChatNLPService';
+import ProfileService from '../services/ProfileService';
 import './AIChatbotComponent.css';
 
 const EXAMPLE_PROMPTS = [
@@ -19,6 +20,17 @@ const CATEGORY_ID_TO_SERVICE_NAME = {
     5: 'Trông trẻ',
     6: 'Làm vườn',
     7: 'Sơn sửa',
+};
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '');
+
+const resolveAvatarUrl = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('data:') || raw.startsWith('blob:')) {
+        return raw;
+    }
+    if (raw.startsWith('/')) return `${API_BASE_URL}${raw}`;
+    return `${API_BASE_URL}/${raw}`;
 };
 
 const formatDateDisplay = (value) => {
@@ -85,6 +97,14 @@ const createWelcomeMessage = () => ({
     text: 'Xin chào! Bạn có thể nhập yêu cầu như "Dọn nhà 3 tiếng sáng mai" để mình hiểu và gợi ý đặt lịch.',
 });
 
+const getAvatarFallback = (fullName = '') => {
+    const text = String(fullName || '').trim();
+    if (!text) return 'H';
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length === 1) return words[0].slice(0, 1).toUpperCase();
+    return `${words[0].slice(0, 1)}${words[words.length - 1].slice(0, 1)}`.toUpperCase();
+};
+
 const mapSessionMessage = (m) => ({
     id: m.id,
     role: m.sender === 'customer' ? 'user' : 'assistant',
@@ -137,6 +157,15 @@ const AIChatbotComponent = () => {
     const [selectedAddressId, setSelectedAddressId] = useState(null);
     const [selectedAddressDisplay, setSelectedAddressDisplay] = useState('');
     const [messages, setMessages] = useState([createWelcomeMessage()]);
+    const [helperProfileModal, setHelperProfileModal] = useState({
+        open: false,
+        loading: false,
+        error: '',
+        helperId: null,
+        helperName: '',
+        helperAvatarUrl: '',
+        profile: null,
+    });
 
     const canSubmit = useMemo(
         () => !isLoading && String(inputValue || '').trim().length > 0,
@@ -570,6 +599,49 @@ const AIChatbotComponent = () => {
         }
     };
 
+    const handleOpenHelperProfile = async (helper) => {
+        const helperId = Number(helper?.helperId);
+        if (!Number.isFinite(helperId) || isLoading) return;
+
+        setHelperProfileModal({
+            open: true,
+            loading: true,
+            error: '',
+            helperId,
+            helperName: String(helper?.fullName || '').trim(),
+            helperAvatarUrl: String(helper?.avatarUrl || '').trim(),
+            profile: null,
+        });
+
+        try {
+            const res = await ProfileService.getPublicHelperProfile(helperId);
+            const payload = extractPayload(res);
+            setHelperProfileModal((prev) => ({
+                ...prev,
+                loading: false,
+                profile: payload || null,
+            }));
+        } catch (error) {
+            setHelperProfileModal((prev) => ({
+                ...prev,
+                loading: false,
+                error: error?.message || 'Không thể tải hồ sơ helper lúc này.',
+            }));
+        }
+    };
+
+    const handleCloseHelperProfile = () => {
+        setHelperProfileModal({
+            open: false,
+            loading: false,
+            error: '',
+            helperId: null,
+            helperName: '',
+            helperAvatarUrl: '',
+            profile: null,
+        });
+    };
+
     const fetchAddressSuggestions = async (query) => {
         const q = String(query || '').trim();
         if (q.length < 3) {
@@ -811,230 +883,259 @@ const AIChatbotComponent = () => {
                                     displayMissingFields
                                 );
                                 return (
-                                <div
-                                    key={message.id}
-                                    className={`ai-chatbot-message ${message.role === 'user' ? 'user' : 'assistant'}`}
-                                >
-                                    <div className="ai-chatbot-bubble">
-                                        <div>{message.text}</div>
+                                    <div
+                                        key={message.id}
+                                        className={`ai-chatbot-message ${message.role === 'user' ? 'user' : 'assistant'}`}
+                                    >
+                                        <div className="ai-chatbot-bubble">
+                                            <div>{message.text}</div>
 
-                                        {message.role === 'assistant' && (hasParsedData(message.parsed) || displayMissingFields.length > 0) && (
-                                            <div className="ai-chatbot-parse-card">
-                                                <div className="ai-chatbot-parse-title">Kết quả hiểu yêu cầu</div>
-                                                {hasParsedData(message.parsed) && (
-                                                    <div className="ai-chatbot-parse-summary">
-                                                        {formatParsedSummary(message.parsed)}
-                                                    </div>
-                                                )}
-
-                                                {(getPresentFields(message.parsed).length > 0 || displayMissingFields.length > 0) && (
-                                                    <div className="ai-chatbot-parse-list">
-                                                        {PARSE_FIELDS.map((field) => {
-                                                            const label = FIELD_VI_LABELS[field] ?? field;
-                                                            const value = message.parsed?.[field];
-                                                            const isMissing = displayMissingFields.includes(field);
-                                                            return (
-                                                                <div key={field} className="ai-chatbot-parse-row">
-                                                                    <span className="ai-chatbot-parse-row-label">{label}:</span>{' '}
-                                                                    <span className={`ai-chatbot-parse-row-value ${isMissing ? 'is-missing' : ''}`}>
-                                                                        {formatFieldDisplayValue(field, value)}
-                                                                    </span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-
-                                                {displayMissingFields.length > 0 ? (
-                                                    <div className="ai-chatbot-warning">
-                                                        {displayFollowUpQuestion}
-                                                    </div>
-                                                ) : null}
-
-                                            </div>
-                                        )}
-
-                                        {message.type === 'helper_list' && Array.isArray(message.helpers) && message.helpers.length > 0 && (
-                                            <div className="ai-chatbot-parse-card">
-                                                <div className="ai-chatbot-parse-title">Helper phù hợp</div>
-                                                <div className="ai-chatbot-helper-list">
-                                                    {message.helpers.map((helper) => (
-                                                        <div key={helper.helperId} className="ai-chatbot-helper-card">
-                                                            <div className="ai-chatbot-helper-name">{helper.fullName}</div>
-                                                            <div className="ai-chatbot-helper-meta">
-                                                                ⭐ {helper.ratingAverage ?? 0} ({helper.totalReviews ?? 0} đánh giá)
-                                                            </div>
-                                                            <div className="ai-chatbot-helper-meta">
-                                                                Giá dự kiến: {helper.estimatedPrice ?? 0} VNĐ
-                                                            </div>
-                                                            {helper.basePrice != null && (
-                                                                <div className="ai-chatbot-helper-meta">
-                                                                    Cơ bản: {helper.basePrice} VNĐ
-                                                                </div>
-                                                            )}
-                                                            {helper.premiumFee != null && Number(helper.premiumFee) > 0 && (
-                                                                <div className="ai-chatbot-helper-meta">
-                                                                    Premium: {helper.premiumFee} VNĐ
-                                                                </div>
-                                                            )}
-                                                            {helper.subServiceTotal != null && Number(helper.subServiceTotal) > 0 && (
-                                                                <div className="ai-chatbot-helper-meta">
-                                                                    Dịch vụ thêm: {helper.subServiceTotal} VNĐ
-                                                                </div>
-                                                            )}
-                                                            {helper.otherFee != null && Number(helper.otherFee) > 0 && (
-                                                                <div className="ai-chatbot-helper-meta">
-                                                                    Phụ phí khác: {helper.otherFee} VNĐ
-                                                                </div>
-                                                            )}
-                                                            {Array.isArray(helper.subServices) && helper.subServices.length > 0 && (
-                                                                <div className="ai-chatbot-helper-meta">
-                                                                    Chi tiết thêm: {helper.subServices.map((s) => `${s.name} (${s.price}đ)`).join(', ')}
-                                                                </div>
-                                                            )}
-                                                            {helper.distanceKm != null && (
-                                                                <div className="ai-chatbot-helper-meta">
-                                                                    Khoảng cách: {helper.distanceKm} km
-                                                                </div>
-                                                            )}
-                                                            {helper.districtName && (
-                                                                <div className="ai-chatbot-helper-meta">Khu vực: {helper.districtName}</div>
-                                                            )}
-                                                            {(helper.availableStartTime || helper.availableEndTime) && (
-                                                                <div className="ai-chatbot-helper-meta">
-                                                                    Slot rảnh: {helper.availableStartTime ?? '--:--'} - {helper.availableEndTime ?? '--:--'}
-                                                                </div>
-                                                            )}
-                                                            <button
-                                                                type="button"
-                                                                className="ai-chatbot-action primary"
-                                                                onClick={() => handleSelectHelper(helper.helperId)}
-                                                                disabled={isLoading}
-                                                            >
-                                                                Chọn helper
-                                                            </button>
+                                            {message.role === 'assistant' && (hasParsedData(message.parsed) || displayMissingFields.length > 0) && (
+                                                <div className="ai-chatbot-parse-card">
+                                                    <div className="ai-chatbot-parse-title">Kết quả hiểu yêu cầu</div>
+                                                    {hasParsedData(message.parsed) && (
+                                                        <div className="ai-chatbot-parse-summary">
+                                                            {formatParsedSummary(message.parsed)}
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
+                                                    )}
 
-                                        {message.type === 'address_list' && Array.isArray(message.addresses) && (
-                                            <div className="ai-chatbot-parse-card">
-                                                <div className="ai-chatbot-parse-title">Chọn địa chỉ làm việc</div>
-                                                {selectedAddressDisplay && (
-                                                    <div className="ai-chatbot-helper-meta">
-                                                        Địa chỉ đang chọn: {selectedAddressDisplay}
-                                                    </div>
-                                                )}
-                                                <div className="ai-chatbot-address-search">
-                                                    <input
-                                                        type="text"
-                                                        className="ai-chatbot-address-input"
-                                                        placeholder={
-                                                            currentCity
-                                                                ? `Nhập địa chỉ mới ở ${currentCity}...`
-                                                                : 'Nhập địa chỉ mới để tìm gợi ý...'
-                                                        }
-                                                        value={addressQuery}
-                                                        onChange={(e) => setAddressQuery(e.target.value)}
-                                                        onKeyDown={handleAddressInputKeyDown}
-                                                        disabled={isLoading || isAddressSuggestLoading || isSavingAddress}
-                                                    />
+                                                    {(getPresentFields(message.parsed).length > 0 || displayMissingFields.length > 0) && (
+                                                        <div className="ai-chatbot-parse-list">
+                                                            {PARSE_FIELDS.map((field) => {
+                                                                const label = FIELD_VI_LABELS[field] ?? field;
+                                                                const value = message.parsed?.[field];
+                                                                const isMissing = displayMissingFields.includes(field);
+                                                                return (
+                                                                    <div key={field} className="ai-chatbot-parse-row">
+                                                                        <span className="ai-chatbot-parse-row-label">{label}:</span>{' '}
+                                                                        <span className={`ai-chatbot-parse-row-value ${isMissing ? 'is-missing' : ''}`}>
+                                                                            {formatFieldDisplayValue(field, value)}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+
+                                                    {displayMissingFields.length > 0 ? (
+                                                        <div className="ai-chatbot-warning">
+                                                            {displayFollowUpQuestion}
+                                                        </div>
+                                                    ) : null}
+
                                                 </div>
-                                                
-                                                {isAddressSuggestLoading && (
-                                                    <div className="ai-chatbot-helper-meta">Đang tìm gợi ý địa chỉ...</div>
-                                                )}
-                                                {addressSuggestError && (
-                                                    <div className="ai-chatbot-warning">{addressSuggestError}</div>
-                                                )}
-                                                {Array.isArray(addressSuggestions) && addressSuggestions.length > 0 && (
-                                                    <div className="ai-chatbot-address-suggestions">
-                                                        {addressSuggestions.map((s) => (
-                                                            <button
-                                                                key={s.place_id || s.placeId || s.description}
-                                                                type="button"
-                                                                className="ai-chatbot-address-item"
-                                                                onClick={() => handlePickAddressSuggestion(s)}
-                                                                disabled={isSavingAddress}
-                                                            >
-                                                                {s.description}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {message.addresses.length === 0 ? (
-                                                    <div className="ai-chatbot-helper-meta">
-                                                        Bạn chưa có địa chỉ lưu sẵn. Hãy nhập địa chỉ mới ở ô bên trên.
-                                                    </div>
-                                                ) : (
+                                            )}
+
+                                            {message.type === 'helper_list' && Array.isArray(message.helpers) && message.helpers.length > 0 && (
+                                                <div className="ai-chatbot-parse-card">
+                                                    <div className="ai-chatbot-parse-title">Helper phù hợp</div>
                                                     <div className="ai-chatbot-helper-list">
-                                                        {message.addresses.map((address) => (
-                                                            <div key={address.addressId} className="ai-chatbot-helper-card">
-                                                                <div className="ai-chatbot-helper-name">
-                                                                    {address.isDefault ? 'Địa chỉ mặc định' : 'Địa chỉ'}
+                                                        {message.helpers.map((helper) => (
+                                                            <div key={helper.helperId} className="ai-chatbot-helper-card">
+                                                                <div className="ai-chatbot-helper-header">
+                                                                    <button
+                                                                        type="button"
+                                                                        className="ai-chatbot-helper-avatar-button"
+                                                                        onClick={() => handleOpenHelperProfile(helper)}
+                                                                        title="Xem hồ sơ helper"
+                                                                    >
+                                                                        {helper.avatarUrl ? (
+                                                                            <img
+                                                                                src={resolveAvatarUrl(helper.avatarUrl)}
+                                                                                alt={helper.fullName || 'Helper'}
+                                                                                className="ai-chatbot-helper-avatar"
+                                                                            />
+                                                                        ) : (
+                                                                            <span className="ai-chatbot-helper-avatar-fallback">
+                                                                                {getAvatarFallback(helper.fullName)}
+                                                                            </span>
+                                                                        )}
+                                                                    </button>
+                                                                    <div className="ai-chatbot-helper-name-wrap">
+                                                                        <div className="ai-chatbot-helper-name">{helper.fullName}</div>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="ai-chatbot-helper-profile-link"
+                                                                            onClick={() => handleOpenHelperProfile(helper)}
+                                                                        >
+                                                                            Xem hồ sơ
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="ai-chatbot-helper-meta">{address.fullAddress}</div>
+                                                                <div className="ai-chatbot-helper-meta">
+                                                                    ⭐ {helper.ratingAverage ?? 0} ({helper.totalReviews ?? 0} đánh giá)
+                                                                </div>
+                                                                <div className="ai-chatbot-helper-meta">
+                                                                    Giá dự kiến: {helper.estimatedPrice ?? 0} VNĐ
+                                                                </div>
+                                                                {helper.basePrice != null && (
+                                                                    <div className="ai-chatbot-helper-meta">
+                                                                        Cơ bản: {helper.basePrice} VNĐ
+                                                                    </div>
+                                                                )}
+                                                                {helper.premiumFee != null && Number(helper.premiumFee) > 0 && (
+                                                                    <div className="ai-chatbot-helper-meta">
+                                                                        Premium: {helper.premiumFee} VNĐ
+                                                                    </div>
+                                                                )}
+                                                                {helper.subServiceTotal != null && Number(helper.subServiceTotal) > 0 && (
+                                                                    <div className="ai-chatbot-helper-meta">
+                                                                        Dịch vụ thêm: {helper.subServiceTotal} VNĐ
+                                                                    </div>
+                                                                )}
+                                                                {helper.otherFee != null && Number(helper.otherFee) > 0 && (
+                                                                    <div className="ai-chatbot-helper-meta">
+                                                                        Phụ phí khác: {helper.otherFee} VNĐ
+                                                                    </div>
+                                                                )}
+                                                                {Array.isArray(helper.subServices) && helper.subServices.length > 0 && (
+                                                                    <div className="ai-chatbot-helper-meta">
+                                                                        Chi tiết thêm: {helper.subServices.map((s) => `${s.name} (${s.price}đ)`).join(', ')}
+                                                                    </div>
+                                                                )}
+                                                                {helper.distanceKm != null && (
+                                                                    <div className="ai-chatbot-helper-meta">
+                                                                        Khoảng cách: {helper.distanceKm} km
+                                                                    </div>
+                                                                )}
+                                                                {helper.districtName && (
+                                                                    <div className="ai-chatbot-helper-meta">Khu vực: {helper.districtName}</div>
+                                                                )}
+                                                                {(helper.availableStartTime || helper.availableEndTime) && (
+                                                                    <div className="ai-chatbot-helper-meta">
+                                                                        Slot rảnh: {helper.availableStartTime ?? '--:--'} - {helper.availableEndTime ?? '--:--'}
+                                                                    </div>
+                                                                )}
                                                                 <button
                                                                     type="button"
                                                                     className="ai-chatbot-action primary"
-                                                                    onClick={() => handleSelectAddress(address.addressId, address.fullAddress)}
+                                                                    onClick={() => handleSelectHelper(helper.helperId)}
                                                                     disabled={isLoading}
                                                                 >
-                                                                    Chọn địa chỉ này
+                                                                    Chọn helper
                                                                 </button>
                                                             </div>
                                                         ))}
                                                     </div>
-                                                )}
-                                            </div>
-                                        )}
+                                                </div>
+                                            )}
 
-                                        {message.type === 'payment_redirect' && message.topupUrl && (
-                                            <div className="ai-chatbot-actions">
-                                                <button
-                                                    type="button"
-                                                    className="ai-chatbot-action primary"
-                                                    onClick={() => {
-                                                        navigate(message.topupUrl);
-                                                        setIsOpen(false);
-                                                    }}
-                                                >
-                                                    Nạp tiền ngay
-                                                </button>
-                                            </div>
-                                        )}
+                                            {message.type === 'address_list' && Array.isArray(message.addresses) && (
+                                                <div className="ai-chatbot-parse-card">
+                                                    <div className="ai-chatbot-parse-title">Chọn địa chỉ làm việc</div>
+                                                    {selectedAddressDisplay && (
+                                                        <div className="ai-chatbot-helper-meta">
+                                                            Địa chỉ đang chọn: {selectedAddressDisplay}
+                                                        </div>
+                                                    )}
+                                                    <div className="ai-chatbot-address-search">
+                                                        <input
+                                                            type="text"
+                                                            className="ai-chatbot-address-input"
+                                                            placeholder={
+                                                                currentCity
+                                                                    ? `Nhập địa chỉ mới ở ${currentCity}...`
+                                                                    : 'Nhập địa chỉ mới để tìm gợi ý...'
+                                                            }
+                                                            value={addressQuery}
+                                                            onChange={(e) => setAddressQuery(e.target.value)}
+                                                            onKeyDown={handleAddressInputKeyDown}
+                                                            disabled={isLoading || isAddressSuggestLoading || isSavingAddress}
+                                                        />
+                                                    </div>
 
-                                        {message.type === 'booking_confirm' && (message.canConfirm || message.bookingUrl) && (
-                                            <div className="ai-chatbot-actions">
-                                                <button
-                                                    type="button"
-                                                    className="ai-chatbot-action primary"
-                                                    onClick={() => handleConfirmBooking()}
-                                                    disabled={isLoading}
-                                                >
-                                                    Xác nhận đặt lịch
-                                                </button>
-                                            </div>
-                                        )}
+                                                    {isAddressSuggestLoading && (
+                                                        <div className="ai-chatbot-helper-meta">Đang tìm gợi ý địa chỉ...</div>
+                                                    )}
+                                                    {addressSuggestError && (
+                                                        <div className="ai-chatbot-warning">{addressSuggestError}</div>
+                                                    )}
+                                                    {Array.isArray(addressSuggestions) && addressSuggestions.length > 0 && (
+                                                        <div className="ai-chatbot-address-suggestions">
+                                                            {addressSuggestions.map((s) => (
+                                                                <button
+                                                                    key={s.place_id || s.placeId || s.description}
+                                                                    type="button"
+                                                                    className="ai-chatbot-address-item"
+                                                                    onClick={() => handlePickAddressSuggestion(s)}
+                                                                    disabled={isSavingAddress}
+                                                                >
+                                                                    {s.description}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {message.addresses.length === 0 ? (
+                                                        <div className="ai-chatbot-helper-meta">
+                                                            Bạn chưa có địa chỉ lưu sẵn. Hãy nhập địa chỉ mới ở ô bên trên.
+                                                        </div>
+                                                    ) : (
+                                                        <div className="ai-chatbot-helper-list">
+                                                            {message.addresses.map((address) => (
+                                                                <div key={address.addressId} className="ai-chatbot-helper-card">
+                                                                    <div className="ai-chatbot-helper-name">
+                                                                        {address.isDefault ? 'Địa chỉ mặc định' : 'Địa chỉ'}
+                                                                    </div>
+                                                                    <div className="ai-chatbot-helper-meta">{address.fullAddress}</div>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="ai-chatbot-action primary"
+                                                                        onClick={() => handleSelectAddress(address.addressId, address.fullAddress)}
+                                                                        disabled={isLoading}
+                                                                    >
+                                                                        Chọn địa chỉ này
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
 
-                                        {message.type === 'booking_created' && message.bookingDetailUrl && (
-                                            <div className="ai-chatbot-actions">
-                                                <button
-                                                    type="button"
-                                                    className="ai-chatbot-action primary"
-                                                    onClick={() => {
-                                                        navigate(message.bookingDetailUrl);
-                                                        setIsOpen(false);
-                                                    }}
-                                                >
-                                                    Xem chi tiết booking
-                                                </button>
-                                            </div>
-                                        )}
+                                            {message.type === 'payment_redirect' && message.topupUrl && (
+                                                <div className="ai-chatbot-actions">
+                                                    <button
+                                                        type="button"
+                                                        className="ai-chatbot-action primary"
+                                                        onClick={() => {
+                                                            navigate(message.topupUrl);
+                                                            setIsOpen(false);
+                                                        }}
+                                                    >
+                                                        Nạp tiền ngay
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {message.type === 'booking_confirm' && (message.canConfirm || message.bookingUrl) && (
+                                                <div className="ai-chatbot-actions">
+                                                    <button
+                                                        type="button"
+                                                        className="ai-chatbot-action primary"
+                                                        onClick={() => handleConfirmBooking()}
+                                                        disabled={isLoading}
+                                                    >
+                                                        Xác nhận đặt lịch
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {message.type === 'booking_created' && message.bookingDetailUrl && (
+                                                <div className="ai-chatbot-actions">
+                                                    <button
+                                                        type="button"
+                                                        className="ai-chatbot-action primary"
+                                                        onClick={() => {
+                                                            navigate(message.bookingDetailUrl);
+                                                            setIsOpen(false);
+                                                        }}
+                                                    >
+                                                        Xem chi tiết booking
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
                                 );
                             })}
 
@@ -1081,6 +1182,76 @@ const AIChatbotComponent = () => {
                             </svg>
                         </button>
                     </div>
+
+                    {helperProfileModal.open && (
+                        <div className="ai-chatbot-profile-modal-backdrop" onClick={handleCloseHelperProfile}>
+                            <div
+                                className="ai-chatbot-profile-modal"
+                                role="dialog"
+                                aria-label="Hồ sơ helper"
+                                onClick={(event) => event.stopPropagation()}
+                            >
+                                <div className="ai-chatbot-profile-modal-header">
+                                    <div className="ai-chatbot-profile-modal-title">Hồ sơ helper</div>
+                                    <button
+                                        type="button"
+                                        className="ai-chatbot-close"
+                                        onClick={handleCloseHelperProfile}
+                                        aria-label="Đóng hồ sơ helper"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                                {helperProfileModal.loading ? (
+                                    <div className="ai-chatbot-helper-meta">Đang tải hồ sơ helper...</div>
+                                ) : helperProfileModal.error ? (
+                                    <div className="ai-chatbot-warning">{helperProfileModal.error}</div>
+                                ) : (
+                                    <div className="ai-chatbot-profile-modal-content">
+                                        <div className="ai-chatbot-helper-header">
+                                            <div className="ai-chatbot-helper-avatar-button no-click">
+                                                {helperProfileModal.helperAvatarUrl ? (
+                                                    <img
+                                                        src={resolveAvatarUrl(helperProfileModal.helperAvatarUrl)}
+                                                        alt={helperProfileModal.helperName || 'Helper'}
+                                                        className="ai-chatbot-helper-avatar"
+                                                    />
+                                                ) : (
+                                                    <span className="ai-chatbot-helper-avatar-fallback">
+                                                        {getAvatarFallback(helperProfileModal.helperName)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="ai-chatbot-helper-name-wrap">
+                                                <div className="ai-chatbot-helper-name">
+                                                    {helperProfileModal.helperName || 'Helper'}
+                                                </div>
+                                                <div className="ai-chatbot-helper-meta">
+                                                    ⭐ {helperProfileModal.profile?.ratingAverage ?? 0}
+                                                    {' '}({helperProfileModal.profile?.totalReviews ?? 0} đánh giá)
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="ai-chatbot-helper-meta">
+                                            Trạng thái: {helperProfileModal.profile?.isOnline ? 'Đang online' : 'Đang offline'}
+                                        </div>
+                                        <div className="ai-chatbot-helper-meta">
+                                            KYC: {helperProfileModal.profile?.kycStatus || 'Chưa xác minh'}
+                                        </div>
+                                        <div className="ai-chatbot-helper-meta">
+                                            Kinh nghiệm: {helperProfileModal.profile?.experienceYears ?? 0} năm
+                                        </div>
+                                        <div className="ai-chatbot-helper-meta">
+                                            Quê quán: {helperProfileModal.profile?.hometownName || '---'}
+                                        </div>
+                                        <div className="ai-chatbot-helper-meta">
+                                            Giới thiệu: {helperProfileModal.profile?.bio || 'Helper chưa cập nhật giới thiệu.'}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

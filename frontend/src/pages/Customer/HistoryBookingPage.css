@@ -1,0 +1,136 @@
+.hbp-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 8px 40px;
+}
+
+.hbp-header h1 {
+    margin: 0;
+    font-size: 30px;
+    color: #0f172a;
+    text-align: center;
+}
+
+.hbp-header p {
+    margin: 8px 0 0;
+    color: #475569;
+    text-align: center;
+}
+
+.hbp-state-card {
+    margin-top: 18px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 18px;
+    color: #1f2937;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.hbp-state-card-error {
+    border-color: #fecaca;
+    background: #fff1f2;
+    color: #b91c1c;
+}
+
+.hbp-action-btn {
+    width: fit-content;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 14px;
+    background: #2f5d50;
+    color: #fff;
+    cursor: pointer;
+}
+
+.hbp-list {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.hbp-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.hbp-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.hbp-service {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.hbp-title {
+    margin: 6px 0 0;
+    color: #0f172a;
+    font-size: 18px;
+    line-height: 1.35;
+}
+
+.hbp-status {
+    background: #dcfce7;
+    color: #166534;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 10px;
+    white-space: nowrap;
+}
+
+.hbp-meta {
+    display: grid;
+    gap: 8px;
+    color: #334155;
+    font-size: 14px;
+}
+
+.hbp-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.hbp-primary-btn,
+.hbp-secondary-btn {
+    flex: 1;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.hbp-primary-btn {
+    border: none;
+    background: #2f5d50;
+    color: #fff;
+}
+
+.hbp-secondary-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+}
+
+@media (max-width: 640px) {
+    .hbp-page {
+        padding: 14px 0 30px;
+    }
+
+    .hbp-list {
+        grid-template-columns: 1fr;
+    }
+}

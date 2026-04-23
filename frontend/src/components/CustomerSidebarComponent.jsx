@@ -4,12 +4,10 @@ import './CustomerSidebarComponent.css';
 
 const csPrimaryLinks = [
     { to: '/customer-dashboard', label: 'Tổng quan', icon: 'grid' },
-    { to: '/customer/book', label: 'Đặt dịch vụ', icon: 'plus' },
     { to: '/customer/manage-posts', label: 'Quản lý bài đăng', icon: 'file' },
 ];
 
 const csAccountLinks = [
-    { to: '/customer/my-bookings', label: 'Lịch đặt', icon: 'calendar' },
     { to: '/customer/history', label: 'Lịch sử dịch vụ', icon: 'clock' },
     { to: '/customer/wallet', label: 'Ví tiền', icon: 'wallet' },
 ];

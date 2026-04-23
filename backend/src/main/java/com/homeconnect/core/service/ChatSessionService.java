@@ -524,7 +524,8 @@ public class ChatSessionService {
         if (parsed == null) {
             return false;
         }
-        boolean isFlaggedInvalid = parsed.getRaw() != null && Boolean.TRUE.equals(parsed.getRaw().get("invalidRequest"));
+        boolean isFlaggedInvalid = parsed.getRaw() != null
+                && Boolean.TRUE.equals(parsed.getRaw().get("invalidRequest"));
         boolean hasInvalidFollowUp = INVALID_REQUEST_MESSAGE.equals(parsed.getFollowUpQuestion());
         return isFlaggedInvalid || hasInvalidFollowUp;
     }
@@ -622,6 +623,7 @@ public class ChatSessionService {
                     return ChatHelperCandidateResponse.builder()
                             .helperId(helperId)
                             .fullName(profile.getUser().getFullName())
+                            .avatarUrl(profile.getUser().getAvatarUrl())
                             .ratingAverage(profile.getRatingAverage())
                             .totalReviews(profile.getTotalReviews())
                             .estimatedPrice(estimatedPrice)
@@ -653,7 +655,8 @@ public class ChatSessionService {
     }
 
     private String mapNoHelperReasonCode(MatchingService.MatchFailureReason reason) {
-        if (reason == null) return "UNKNOWN";
+        if (reason == null)
+            return "UNKNOWN";
         return switch (reason) {
             case INVALID_INPUT -> "INVALID_INPUT";
             case NO_AVAILABLE_SLOT -> "NO_AVAILABLE_SLOT";
@@ -669,8 +672,10 @@ public class ChatSessionService {
         }
         return switch (reason) {
             case NO_AVAILABLE_SLOT -> "Không có helper rảnh đúng khung giờ bạn chọn. Bạn thử đổi giờ hoặc ngày nhé.";
-            case NO_HELPER_IN_DISTRICT -> "Hiện chưa có helper nhận việc tại khu vực này. Bạn thử đổi địa chỉ hoặc khu vực lân cận nhé.";
-            case NO_HELPER_MEET_RATING -> "Hiện chưa có helper phù hợp theo tiêu chí chất lượng. Bạn thử đổi giờ hoặc khu vực nhé.";
+            case NO_HELPER_IN_DISTRICT ->
+                "Hiện chưa có helper nhận việc tại khu vực này. Bạn thử đổi địa chỉ hoặc khu vực lân cận nhé.";
+            case NO_HELPER_MEET_RATING ->
+                "Hiện chưa có helper phù hợp theo tiêu chí chất lượng. Bạn thử đổi giờ hoặc khu vực nhé.";
             case INVALID_INPUT -> "Thông tin đặt lịch chưa hợp lệ. Bạn kiểm tra lại ngày giờ giúp mình nhé.";
             default -> "Mình chưa tìm được helper phù hợp. Bạn thử đổi giờ hoặc khu vực nhé.";
         };
