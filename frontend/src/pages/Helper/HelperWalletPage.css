@@ -213,6 +213,14 @@
     gap: 32px;
 }
 
+.hw-transactions-col {
+    min-width: 0;
+}
+
+.hw-withdraw-col {
+    min-width: 0;
+}
+
 /* ── TRANSACTIONS ── */
 .hw-tx-list {
     display: flex;

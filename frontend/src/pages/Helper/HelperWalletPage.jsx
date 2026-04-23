@@ -297,7 +297,7 @@ const HelperWalletPage = () => {
                         </div>
                     </div>
 
-                    {/* ── RIGHT: WITHDRAW + BANKS ── */}
+                    {/* ── RIGHT: WITHDRAW ── */}
                     <div className="hw-withdraw-col">
 
                         {/* WITHDRAW CARD */}
@@ -502,113 +502,113 @@ const HelperWalletPage = () => {
                         </div>
                     </div>
                 </div>
+            </div>
 
-                {/* ── ADD BANK MODAL ── */}
-                {showAddBank && (
-                    <div className="hw-modal-overlay" onClick={() => setShowAddBank(false)}>
-                        <div className="hw-modal" onClick={(e) => e.stopPropagation()}>
-                            <div className="hw-modal-header" style={{ borderBottom: '1px solid var(--border)', minHeight: '60px' }}>
-                                <div className="hw-modal-title" style={{ fontSize: '18px', fontWeight: '600', color: '#0F2C24', margin: 0 }}>
-                                    Liên kết tài khoản ngân hàng
-                                </div>
-                                <button className="hw-modal-close" onClick={() => setShowAddBank(false)} style={{ color: '#6B7280' }}>
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
-                                        <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
-                                    </svg>
-                                </button>
+            {/* ── ADD BANK MODAL ── */}
+            {showAddBank && (
+                <div className="hw-modal-overlay" onClick={() => setShowAddBank(false)}>
+                    <div className="hw-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="hw-modal-header" style={{ borderBottom: '1px solid var(--border)', minHeight: '60px' }}>
+                            <div className="hw-modal-title" style={{ fontSize: '18px', fontWeight: '600', color: '#0F2C24', margin: 0 }}>
+                                Liên kết tài khoản ngân hàng
                             </div>
-                            <div className="hw-modal-body">
+                            <button className="hw-modal-close" onClick={() => setShowAddBank(false)} style={{ color: '#6B7280' }}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
+                                    <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="hw-modal-body">
 
-                                {/* Bước 1: Chọn ngân hàng */}
-                                <div className="hw-form-group">
-                                    <label className="hw-input-label">Chọn ngân hàng</label>
-                                    {selectedVietQR ? (
-                                        <div className="hw-bank-item active" style={{ marginBottom: 8 }}>
-                                            {selectedVietQR.logo && <img src={selectedVietQR.logo} alt={selectedVietQR.shortName} style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 6 }} />}
-                                            <div className="hw-bank-details">
-                                                <span className="hw-bank-name">{selectedVietQR.shortName}</span>
-                                                <span className="hw-bank-number">{selectedVietQR.name}</span>
-                                            </div>
-                                            <button className="hw-btn-icon" onClick={() => setSelectedVietQR(null)} title="Chọn lại">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 16, height: 16 }}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                                            </button>
+                            {/* Bước 1: Chọn ngân hàng */}
+                            <div className="hw-form-group">
+                                <label className="hw-input-label">Chọn ngân hàng</label>
+                                {selectedVietQR ? (
+                                    <div className="hw-bank-item active" style={{ marginBottom: 8 }}>
+                                        {selectedVietQR.logo && <img src={selectedVietQR.logo} alt={selectedVietQR.shortName} style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 6 }} />}
+                                        <div className="hw-bank-details">
+                                            <span className="hw-bank-name">{selectedVietQR.shortName}</span>
+                                            <span className="hw-bank-number">{selectedVietQR.name}</span>
                                         </div>
-                                    ) : (
-                                        <>
-                                            <input
-                                                type="text"
-                                                className="hw-input"
-                                                style={{ fontSize: 14, marginBottom: 8 }}
-                                                placeholder="Tìm kiếm ngân hàng... (VD: Vietcombank)"
-                                                value={bankSearch}
-                                                onChange={(e) => setBankSearch(e.target.value)}
-                                            />
-                                            <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10, background: '#fff' }}>
-                                                {filteredBankList.length === 0 && <p style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Đang tải danh sách ngân hàng...</p>}
-                                                {filteredBankList.map(b => (
-                                                    <div
-                                                        key={b.code}
-                                                        onClick={() => { setSelectedVietQR(b); setBankSearch(''); }}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
-                                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-soft)'}
-                                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                                    >
-                                                        {b.logo && <img src={b.logo} alt={b.shortName} style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 6 }} />}
-                                                        <div>
-                                                            <div style={{ fontWeight: 600, fontSize: 14 }}>{b.shortName}</div>
-                                                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>{b.name}</div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-
-                                {/* Bước 2: Nhập thông tin */}
-                                <div className="hw-form-group">
-                                    <label className="hw-input-label">Số tài khoản</label>
-                                    <input
-                                        type="text"
-                                        className="hw-input"
-                                        style={{ fontSize: 14 }}
-                                        placeholder="VD: 0123456789"
-                                        value={newBankAccount.accountNumber}
-                                        onChange={(e) => setNewBankAccount(p => ({ ...p, accountNumber: e.target.value }))}
-                                    />
-                                </div>
-                                <div className="hw-form-group">
-                                    <label className="hw-input-label">Tên chủ tài khoản</label>
-                                    <input
-                                        type="text"
-                                        className="hw-input"
-                                        style={{ fontSize: 14 }}
-                                        placeholder="VD: NGUYEN VAN A"
-                                        value={newBankAccount.accountHolderName}
-                                        onChange={(e) => setNewBankAccount(p => ({ ...p, accountHolderName: e.target.value.toUpperCase() }))}
-                                    />
-                                    <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                                        ⚠️ Tên chủ tài khoản phải khớp với tên của bạn trên hệ thống (không dấu, chữ hoa).
-                                    </p>
-                                </div>
-
-                                {addBankError && (
-                                    <div className="hw-alert hw-alert-danger">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                                        {addBankError}
+                                        <button className="hw-btn-icon" onClick={() => setSelectedVietQR(null)} title="Chọn lại">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 16, height: 16 }}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                        </button>
                                     </div>
+                                ) : (
+                                    <>
+                                        <input
+                                            type="text"
+                                            className="hw-input"
+                                            style={{ fontSize: 14, marginBottom: 8 }}
+                                            placeholder="Tìm kiếm ngân hàng... (VD: Vietcombank)"
+                                            value={bankSearch}
+                                            onChange={(e) => setBankSearch(e.target.value)}
+                                        />
+                                        <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10, background: '#fff' }}>
+                                            {filteredBankList.length === 0 && <p style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Đang tải danh sách ngân hàng...</p>}
+                                            {filteredBankList.map(b => (
+                                                <div
+                                                    key={b.code}
+                                                    onClick={() => { setSelectedVietQR(b); setBankSearch(''); }}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
+                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-soft)'}
+                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                >
+                                                    {b.logo && <img src={b.logo} alt={b.shortName} style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 6 }} />}
+                                                    <div>
+                                                        <div style={{ fontWeight: 600, fontSize: 14 }}>{b.shortName}</div>
+                                                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>{b.name}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
                                 )}
                             </div>
-                            <div className="hw-modal-footer">
-                                <button className="hw-btn hw-btn-outline" onClick={() => setShowAddBank(false)}>Hủy</button>
-                                <button className="hw-btn hw-btn-primary" onClick={handleAddBank} disabled={addBankLoading}>
-                                    {addBankLoading ? 'Đang liên kết...' : 'Liên kết ngân hàng'}
-                                </button>
+
+                            {/* Bước 2: Nhập thông tin */}
+                            <div className="hw-form-group">
+                                <label className="hw-input-label">Số tài khoản</label>
+                                <input
+                                    type="text"
+                                    className="hw-input"
+                                    style={{ fontSize: 14 }}
+                                    placeholder="VD: 0123456789"
+                                    value={newBankAccount.accountNumber}
+                                    onChange={(e) => setNewBankAccount(p => ({ ...p, accountNumber: e.target.value }))}
+                                />
                             </div>
+                            <div className="hw-form-group">
+                                <label className="hw-input-label">Tên chủ tài khoản</label>
+                                <input
+                                    type="text"
+                                    className="hw-input"
+                                    style={{ fontSize: 14 }}
+                                    placeholder="VD: NGUYEN VAN A"
+                                    value={newBankAccount.accountHolderName}
+                                    onChange={(e) => setNewBankAccount(p => ({ ...p, accountHolderName: e.target.value.toUpperCase() }))}
+                                />
+                                <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
+                                    ⚠️ Tên chủ tài khoản phải khớp với tên của bạn trên hệ thống (không dấu, chữ hoa).
+                                </p>
+                            </div>
+
+                            {addBankError && (
+                                <div className="hw-alert hw-alert-danger">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                    {addBankError}
+                                </div>
+                            )}
+                        </div>
+                        <div className="hw-modal-footer">
+                            <button className="hw-btn hw-btn-outline" onClick={() => setShowAddBank(false)}>Hủy</button>
+                            <button className="hw-btn hw-btn-primary" onClick={handleAddBank} disabled={addBankLoading}>
+                                {addBankLoading ? 'Đang liên kết...' : 'Liên kết ngân hàng'}
+                            </button>
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
         </HelperLayout>
     );
 };
