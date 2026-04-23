@@ -1,9 +1,11 @@
 package com.homeconnect.core.task;
 
 import com.homeconnect.core.entity.Booking;
+import com.homeconnect.core.entity.WithdrawRequest;
 import com.homeconnect.core.enums.BookingStatus;
 import com.homeconnect.core.enums.PaymentStatus;
 import com.homeconnect.core.repository.BookingRepository;
+import com.homeconnect.core.repository.WithdrawRequestRepository;
 import com.homeconnect.core.service.NotificationService;
 import com.homeconnect.core.service.WalletService;
 import lombok.RequiredArgsConstructor;
@@ -40,9 +42,13 @@ public class WalletScheduler {
     private final BookingRepository bookingRepository;
     private final WalletService walletService;
     private final NotificationService notificationService;
+    private final WithdrawRequestRepository withdrawRequestRepository;
 
     @Value("${wallet.salary.release.delay.hours:2}")
     private int releaseDelayHours;
+
+    @Value("${wallet.withdraw.stale.minutes:5}")
+    private int withdrawStaleMinutes;
 
     /**
      * Cronjob chạy mỗi phút (0 * * * * *).
@@ -139,6 +145,35 @@ public class WalletScheduler {
                 log.info("[AutoConfirm] Booking #{} → COMPLETED (auto).", booking.getId());
             } catch (Exception e) {
                 log.error("[AutoConfirm] Lỗi tự động hoàn thành Booking #{}: {}", booking.getId(), e.getMessage());
+            }
+        }
+    }
+    /**
+     * [Auto-Refund] Tự động hoàn tiền nếu Admin đã duyệt nhưng chưa chuyển tiền sau N phút.
+     * Chạy mỗi phút. Tìm các WithdrawRequest ở trạng thái PROCESSING quá thời gian cho phép.
+     */
+    @Scheduled(cron = "0 * * * * *")
+    public void autoRefundStaleWithdrawals() {
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(withdrawStaleMinutes);
+
+        List<WithdrawRequest> staleRequests = withdrawRequestRepository.findStaleProcessingRequests(threshold);
+
+        if (staleRequests.isEmpty()) return;
+
+        log.warn("[AutoRefund] Tìm thấy {} đơn rút tiền bị treo (PROCESSING > {}p). Đang hoàn tiền...",
+                staleRequests.size(), withdrawStaleMinutes);
+
+        for (WithdrawRequest req : staleRequests) {
+            try {
+                walletService.rejectWithdraw(
+                        req.getRequestId(),
+                        String.format("Tự động hoàn tiền: Admin chưa chuyển khoản sau %d phút. Vui lòng thử lại.", withdrawStaleMinutes),
+                        "SYSTEM"
+                );
+                log.info("[AutoRefund] Đã hoàn {} VNĐ cho yêu cầu rút #{} (User: {}).",
+                        req.getAmount(), req.getRequestId(), req.getWallet().getUser().getId());
+            } catch (Exception e) {
+                log.error("[AutoRefund] Lỗi hoàn tiền đơn #{}: {}", req.getRequestId(), e.getMessage(), e);
             }
         }
     }

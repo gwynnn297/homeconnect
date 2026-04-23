@@ -6,7 +6,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,4 +23,11 @@ public interface WithdrawRequestRepository extends JpaRepository<WithdrawRequest
 
     @Query("SELECT w.status, COUNT(w) FROM WithdrawRequest w GROUP BY w.status")
     List<Object[]> countGroupedByStatus();
+
+    /**
+     * Tìm các yêu cầu PROCESSING đã quá thời gian threshold (chưa được chuyển tiền).
+     * Dùng JOIN FETCH để tránh LazyInitializationException trong scheduler.
+     */
+    @Query("SELECT w FROM WithdrawRequest w JOIN FETCH w.wallet wlt JOIN FETCH wlt.user WHERE w.status = 'PROCESSING' AND w.updatedAt < :threshold")
+    List<WithdrawRequest> findStaleProcessingRequests(@Param("threshold") LocalDateTime threshold);
 }
