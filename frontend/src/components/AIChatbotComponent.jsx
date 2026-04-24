@@ -143,6 +143,7 @@ const AIChatbotComponent = () => {
     const messagesContainerRef = useRef(null);
     const addressDebounceRef = useRef(null);
     const latestAddressQueryRef = useRef('');
+    const resumedSessionRef = useRef(null);
     const [isOpen, setIsOpen] = useState(false);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [sessionId, setSessionId] = useState(null);
@@ -320,6 +321,8 @@ const AIChatbotComponent = () => {
         const params = new URLSearchParams(window.location.search);
         const restoredSessionId = params.get('chatSessionId');
         if (!restoredSessionId) return;
+        if (resumedSessionRef.current === restoredSessionId) return;
+        resumedSessionRef.current = restoredSessionId;
 
         const restore = async () => {
             setIsLoading(true);
@@ -338,13 +341,24 @@ const AIChatbotComponent = () => {
                 const resumeRes = await AIChatNLPService.resumeAfterTopup(restoredSessionId);
                 const resumePayload = extractPayload(resumeRes);
                 const assistant = resumePayload?.assistantMessage;
+                const type = assistant?.messageType || 'text';
+                const text = assistant?.content || 'Mình đã resume phiên chat trước đó.';
                 const structured = assistant?.structuredData ?? {};
-                appendMessage({
-                    role: 'assistant',
-                    type: assistant?.messageType || 'text',
-                    text: assistant?.content || 'Mình đã resume phiên chat trước đó.',
-                    ...structured,
+                setMessages((prev) => {
+                    const last = prev[prev.length - 1];
+                    const isDuplicateResumeMessage =
+                        last?.role === 'assistant' &&
+                        last?.type === type &&
+                        String(last?.text || '').trim() === String(text).trim();
+                    if (isDuplicateResumeMessage) return prev;
+                    return [...prev, { id: `${Date.now()}-${Math.random()}`, role: 'assistant', type, text, ...structured }];
                 });
+
+                const currentUrl = new URL(window.location.href);
+                if (currentUrl.searchParams.has('chatSessionId')) {
+                    currentUrl.searchParams.delete('chatSessionId');
+                    window.history.replaceState({}, '', currentUrl.toString());
+                }
             } catch (error) {
                 appendMessage({
                     role: 'assistant',
@@ -650,35 +664,18 @@ const AIChatbotComponent = () => {
             setIsAddressSuggestLoading(false);
             return;
         }
-        if (!currentCity) {
-            setAddressSuggestions([]);
-            setAddressSuggestError('Chưa xác định được thành phố hiện tại để gợi ý địa chỉ.');
-            setIsAddressSuggestLoading(false);
-            return;
-        }
 
         setIsAddressSuggestLoading(true);
         setAddressSuggestError('');
         try {
-            const queryWithCity = !normalizeText(q).includes(normalizeText(currentCity))
-                ? `${q}, ${currentCity}`
-                : q;
-            const res = await AIChatNLPService.autocompleteAddress(queryWithCity);
+            const res = await AIChatNLPService.autocompleteAddress(q);
             const payload = extractPayload(res);
             if (latestAddressQueryRef.current !== q) return;
 
-            let suggestions = Array.isArray(payload) ? payload : [];
-            if (currentCity) {
-                const cityNorm = normalizeText(currentCity);
-                suggestions = suggestions.filter((s) => normalizeText(s?.description || '').includes(cityNorm));
-            }
+            const suggestions = Array.isArray(payload) ? payload : [];
             setAddressSuggestions(suggestions);
             if (suggestions.length === 0) {
-                setAddressSuggestError(
-                    currentCity
-                        ? `Không tìm thấy gợi ý trong ${currentCity}. Bạn nhập chi tiết hơn giúp mình nhé.`
-                        : 'Không tìm thấy gợi ý phù hợp. Bạn nhập chi tiết hơn giúp mình nhé.'
-                );
+                setAddressSuggestError('Không tìm thấy gợi ý địa chỉ phù hợp. Bạn nhập chi tiết hơn giúp mình nhé.');
             }
         } catch (error) {
             if (latestAddressQueryRef.current !== q) return;
@@ -698,7 +695,7 @@ const AIChatbotComponent = () => {
         }
         addressDebounceRef.current = setTimeout(() => {
             fetchAddressSuggestions(latestAddressQueryRef.current);
-        }, 3000);
+        }, 1000);
 
         return () => {
             if (addressDebounceRef.current) {

@@ -42,7 +42,9 @@ Support diverse Vietnamese user styles:
 - Relative time phrases are common: "hôm nay", "mai", "ngày kia", "tối nay", "cuối tuần", "đầu tuần sau", "giữa tuần sau", "cuối tháng".
 - Also support colloquial forms: "ngày mốt", "mai mốt", "ngày kia nữa", "đầu giờ tối", "cuối giờ chiều", "xế chiều".
 - More chat-style shorthand can appear: "2h15", "2h45", "1g30", "7r", "7h kém 15", "nửa tiếng", "nửa buổi".
+- Time written by words can appear: "6 giờ rưỡi", "6h hơn 10", "7 giờ kém 5", "nửa đêm", "đầu giờ".
 - Ambiguous but common time phrases can appear: "tầm 2-5h", "khoảng 3h chiều", "chiều tối", "gần trưa", "cuối buổi sáng".
+- Users may revise request in one message: "dời sang 7h30", "đổi qua chiều", "thôi mai, để mốt", "đặt 8h, à thôi 9h". Prefer the latest explicit correction.
 - Natural date phrases can appear: "thứ 2 tuần tới nữa", "cuối tuần tới nữa", "đầu tháng sau", "giữa tháng", "cuối tháng sau", "mùng 5", "mùng 10".
 - Additional weekday aliases can appear: "thu2", "thu-2", "t.2", "chu nhat", "c.n", "cnhat".
 - For weekday phrases, keep week modifiers strict:
@@ -53,7 +55,10 @@ Support diverse Vietnamese user styles:
 - If users mention a time range like "từ 14h đến 18h", use startTime=14:00 and durationHours=4 when possible.
 - Parse flexible durations/times when possible: "2.5 tiếng", "2 tiếng rưỡi", "90p", "2h30", "14g", "14 giờ 30", "14-18h", "2h-5h", "từ 2 đến 5 chiều", "sau 6h tối", "trước 9h sáng".
 - Extra booking hint styles: "đặt lịch hộ", "chốt lịch", "giữ slot", "check lịch", "xin lịch", "sắp lịch".
-- Service synonyms can appear: "dọn phòng", "tổng vệ sinh", "lau kính", "giặt rèm", "nấu cỗ", "nấu tiệc nhỏ", "soạn bữa", "trông con", "giữ con", "trông bé sơ sinh".
+- Service synonyms can appear: "dọn phòng", "tổng vệ sinh", "lau kính", "giặt rèm", "lau nhà tắm với bếp", "dọn căn 2 phòng ngủ", "nấu cỗ", "nấu tiệc nhỏ", "soạn bữa", "nấu cơm gia đình 4 người", "trông con", "giữ con", "trông bé sơ sinh", "trông bé 2 tuổi".
+- Mixed negation + request can appear: "không cần trông trẻ, chỉ dọn nhà", "đừng nấu, chỉ đi chợ". Prioritize the positive requested service.
+- Code-switching can appear: "book cleaning", "need babysitter", "slot chiều mai".
+- Teencode/noisy text can appear: "dọn nhà 3h mai nha ^^", "book giup em vs", "toi can nguoi don nhaaa".
 - If users request multiple services in one sentence, prioritize the first service mention and ask a follow-up to confirm if needed.
 - If user input is nonsensical/technical token and not a booking request (e.g. "ai-chatbot-helper-meta"), return followUpQuestion exactly: "Yêu cầu không đúng, vui lòng nhập lại yêu cầu."
 
@@ -72,6 +77,9 @@ Few-shot style examples (intent: parse booking request):
 - "dau tien don nha roi nau an 2 tieng thu2"
 - "nau an truoc, don sau 2 tieng toi nay"
 - "chi can don nha, khong can nau"
+- "dat don nha mai 8h, a thoi 9h"
+- "khong can trong tre, chi don nha giup minh"
+- "book cleaning 3h chieu mai"
 
 Return strict JSON only.
 """.strip()

@@ -26,6 +26,12 @@ SERVICE_KEYWORDS = {
         "tong ve sinh",
         "lau kinh",
         "giat rem",
+        "lau nha tam",
+        "don can",
+        "don can ho",
+        "don phong ngu",
+        "cleaning",
+        "clean",
     ],
     2: [
         "nau an",
@@ -40,6 +46,10 @@ SERVICE_KEYWORDS = {
         "nau co",
         "nau tiec nho",
         "soan bua",
+        "nau com gia dinh",
+        "bua gia dinh",
+        "cook",
+        "cooking",
     ],
     3: ["di cho", "mua ho", "mua do"],
     4: ["van phong", "don van phong", "ve sinh van phong", "ve sinh vp"],
@@ -55,6 +65,9 @@ SERVICE_KEYWORDS = {
         "trong con",
         "giu con",
         "trong be so sinh",
+        "be 2 tuoi",
+        "babysitter",
+        "baby sitter",
     ],
     6: ["lam vuon", "cat tia", "tuoi cay"],
     7: ["son sua", "sua nha", "son tuong"],
@@ -66,6 +79,9 @@ INVALID_REQUEST_MESSAGE = "Yêu cầu không đúng, vui lòng nhập lại yêu
 BOOKING_HINT_KEYWORDS = (
     "dat",
     "book",
+    "booking",
+    "slot",
+    "need",
     "giup",
     "can",
     "dk lich",
@@ -77,6 +93,30 @@ BOOKING_HINT_KEYWORDS = (
     "check lich",
     "xin lich",
     "sap lich",
+    "doi lich",
+    "doi qua",
+    "doi sang",
+    "doi qua chieu",
+    "doi qua toi",
+    "doi qua sang",
+    "doi gio",
+    "doi ngay",
+    "doi lich giup",
+    "doi lich dum",
+    "doi lich dum em",
+    "doi lich dum minh",
+    "doi lich dum toi",
+    "doi lich giup minh",
+    "doi lich giup toi",
+    "doi sang",
+    "doi qua",
+    "dich sang",
+    "doi lai",
+    "dieu chinh",
+    "thoi",
+    "de",
+    "a thoi",
+    "a de",
     "xep lich",
     "len lich",
     "can nguoi",
@@ -137,6 +177,13 @@ TYPO_REPLACEMENTS = (
     ("trogn", "trong"),
     ("chieefu", "chieu"),
     ("sangs", "sang"),
+    ("vs", "voi"),
+    ("ko", "khong"),
+    ("k", "khong"),
+    ("kg", "khong"),
+    ("hok", "khong"),
+    ("hông", "khong"),
+    ("đg", "dang"),
 )
 
 
@@ -157,8 +204,11 @@ class ChatParserService:
     def parse(self, message: str) -> ParseChatResponse:
         normalized_message = self._normalize_text(message)
         invalid_minute_token = self._extract_invalid_minute_token(normalized_message)
+        invalid_duration_token = self._extract_invalid_duration_token(normalized_message)
 
         rule_result = self._parse_rule_based(message)
+        rule_result = self._apply_explicit_update_field_guard(rule_result, normalized_message)
+        rule_result = self._apply_duration_granularity_guard(rule_result, invalid_duration_token)
         rule_result = self._apply_minute_granularity_guard(rule_result, invalid_minute_token)
         if not self.client:
             return self._apply_invalid_request_fallback(message, rule_result)
@@ -166,6 +216,8 @@ class ChatParserService:
         try:
             ai_result = self._parse_with_openai(message)
             merged = self._merge_results(rule_result, ai_result)
+            merged = self._apply_explicit_update_field_guard(merged, normalized_message)
+            merged = self._apply_duration_granularity_guard(merged, invalid_duration_token)
             merged = self._apply_minute_granularity_guard(merged, invalid_minute_token)
             return self._apply_invalid_request_fallback(message, merged)
         except Exception:
@@ -271,15 +323,16 @@ class ChatParserService:
         return result
 
     def _extract_category(self, text: str) -> int | None:
-        # Câu có nhiều dịch vụ: ưu tiên dịch vụ xuất hiện đầu tiên trong câu.
+        # Ưu tiên keyword không bị phủ định gần kề; nếu câu đổi ý nhiều lần thì lấy lần xuất hiện sau cùng.
         best_match: tuple[int, int] | None = None
         for category_id, keywords in SERVICE_KEYWORDS.items():
             for keyword in keywords:
-                idx = text.find(keyword)
-                if idx < 0:
-                    continue
-                if best_match is None or idx < best_match[1]:
-                    best_match = (category_id, idx)
+                for match in re.finditer(re.escape(keyword), text):
+                    idx = match.start()
+                    if self._is_negated_keyword(text, idx, len(keyword)):
+                        continue
+                    if best_match is None or idx > best_match[1]:
+                        best_match = (category_id, idx)
         return best_match[0] if best_match else None
 
     def _extract_duration_hours(self, text: str) -> int | None:
@@ -306,6 +359,8 @@ class ChatParserService:
         if mixed_hours:
             whole = int(mixed_hours.group(1))
             minutes = int(mixed_hours.group(2))
+            if minutes not in (0, 30):
+                return None
             duration = whole + (minutes / 60.0)
             return max(1, min(12, int(round(duration))))
 
@@ -349,16 +404,39 @@ class ChatParserService:
                 duration = (end_total - start_total) / 60
                 return max(1, min(12, int(round(duration))))
 
-        match = re.search(r"(\d+)\s*(tiếng|tieng|gio|giờ)\b", text)
+        # Tránh bắt nhầm giờ bắt đầu dạng "6 gio kem 20", "6 gio hon 10" thành duration.
+        match = re.search(r"\b(\d+)\s*(tiếng|tieng|gio|giờ)\b(?!\s*(kem|hon)\b)", text)
         if not match:
             match = re.search(r"\btrong\s+(\d+)\s*h\b", text)
         if not match:
             match = re.search(r"\blàm\s+(\d+)\s*h\b", text)
         if not match:
             return None
+        unit = match.group(2) if len(match.groups()) >= 2 else ""
+        if unit in ("gio", "giờ") and "gio bat dau" in text:
+            return None
         return max(1, min(12, int(match.group(1))))
 
     def _extract_date(self, text: str, now: datetime) -> str | None:
+        edit_date_phrase = any(
+            token in text
+            for token in (
+                "ngay lam",
+                "doi ngay",
+                "sua ngay",
+                "chuyen ngay",
+                "day sang ngay",
+                "dời ngày",
+                "doi lich",
+            )
+        )
+
+        relative_day_match = re.search(r"\b(\d{1,2})\s*ngay\s*nua\b", text)
+        if relative_day_match:
+            days = int(relative_day_match.group(1))
+            if 1 <= days <= 31:
+                return (now + timedelta(days=days)).strftime("%Y-%m-%d")
+
         has_next_week = any(
             phrase in text
             for phrase in (
@@ -386,6 +464,9 @@ class ChatParserService:
         # Ví dụ: "vào 14h ngày 17" => lấy tháng/năm hiện tại (hoặc tháng tiếp theo nếu đã qua)
         # Chấp nhận: "ngày 17", "ngay 17", "ngày 17/04", "ngày 17 tháng 4"
         day_month_slash = re.search(r"\b(?:ngày|ngay)\s*(\d{1,2})\s*[/\-]\s*(\d{1,2})\b", text)
+        if not day_month_slash:
+            # Hỗ trợ "26/4" khi user sửa ngày làm mà không gõ từ "ngày".
+            day_month_slash = re.search(r"\b(\d{1,2})\s*[/\-]\s*(\d{1,2})\b", text)
         if day_month_slash:
             day = int(day_month_slash.group(1))
             month = int(day_month_slash.group(2))
@@ -409,6 +490,11 @@ class ChatParserService:
                 return None
 
         day_only = re.search(r"\b(?:ngày|ngay)\s*(\d{1,2})\b", text)
+        if not day_only and edit_date_phrase:
+            # "sửa ngày làm thành 26" -> hiểu là ngày 26 tháng hiện tại (hoặc tháng sau nếu đã qua).
+            bare_day_match = re.search(r"\b(?:thanh|la|qua|sang)\s*(\d{1,2})\b", text)
+            if bare_day_match:
+                day_only = bare_day_match
         if day_only:
             day = int(day_only.group(1))
             if 1 <= day <= 31:
@@ -605,13 +691,28 @@ class ChatParserService:
         return None
 
     def _extract_start_time(self, text: str) -> str | None:
+        start_time_phrase = self._find_last_match(r"\bgio\s*bat\s*dau(?:\s*la)?\s*(\d{1,2})\s*(?:h|gio)?\b", text)
+        if start_time_phrase:
+            hour = int(start_time_phrase.group(1))
+            if 0 <= hour <= 23:
+                tail = text[start_time_phrase.end():start_time_phrase.end() + 16]
+                if "chieu" in tail or "toi" in tail:
+                    hour = hour + 12 if hour < 12 else hour
+                return f"{hour:02d}:00"
+
+        hour_half_word = self._find_last_match(r"\b(\d{1,2})\s*(?:gio|h)\s*ruoi\b", text)
+        if hour_half_word:
+            hour = int(hour_half_word.group(1))
+            if 0 <= hour <= 23:
+                return f"{hour:02d}:30"
+
         half_hour_short = re.search(r"\b(\d{1,2})\s*r\b", text)
         if half_hour_short:
             hour = int(half_hour_short.group(1))
             if 0 <= hour <= 23:
                 return f"{hour:02d}:30"
 
-        less_than_hour = re.search(r"\b(\d{1,2})\s*h\s*kem\s*(\d{1,2})\b", text)
+        less_than_hour = self._find_last_match(r"\b(\d{1,2})\s*(?:h|gio)\s*kem\s*(\d{1,2})\b", text)
         if less_than_hour:
             hour = int(less_than_hour.group(1))
             minute = int(less_than_hour.group(2))
@@ -620,39 +721,46 @@ class ChatParserService:
                 if total_min >= 0:
                     return f"{total_min // 60:02d}:{total_min % 60:02d}"
 
-        before_hour = re.search(r"\b(?:truoc)\s*(\d{1,2})\s*h\b", text)
+        more_than_hour = self._find_last_match(r"\b(\d{1,2})\s*(?:h|gio)\s*hon\s*(\d{1,2})\b", text)
+        if more_than_hour:
+            hour = int(more_than_hour.group(1))
+            minute = int(more_than_hour.group(2))
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                return f"{hour:02d}:{minute:02d}"
+
+        before_hour = self._find_last_match(r"\b(?:truoc)\s*(\d{1,2})\s*h\b", text)
         if before_hour:
             hour = int(before_hour.group(1))
             if 1 <= hour <= 23:
                 return f"{hour - 1:02d}:00"
 
-        after_hour = re.search(r"\b(?:sau)\s*(\d{1,2})\s*h\b", text)
+        after_hour = self._find_last_match(r"\b(?:sau)\s*(\d{1,2})\s*h\b", text)
         if after_hour:
             hour = int(after_hour.group(1))
             if 0 <= hour <= 22:
                 return f"{hour + 1:02d}:00"
 
-        exact_hg = re.search(r"\b(\d{1,2})\s*g\b", text)
+        exact_hg = self._find_last_match(r"\b(\d{1,2})\s*g\b", text)
         if exact_hg:
             hour = int(exact_hg.group(1))
             if 0 <= hour <= 23:
                 return f"{hour:02d}:00"
 
-        hour_word_minute = re.search(r"\b(\d{1,2})\s*gio\s*(\d{2})\b", text)
+        hour_word_minute = self._find_last_match(r"\b(\d{1,2})\s*gio\s*(\d{2})\b", text)
         if hour_word_minute:
             hour = int(hour_word_minute.group(1))
             minute = int(hour_word_minute.group(2))
             if 0 <= hour <= 23 and 0 <= minute <= 59:
                 return f"{hour:02d}:{minute:02d}"
 
-        exact_gmm = re.search(r"\b(\d{1,2})\s*g\s*(\d{2})\b", text)
+        exact_gmm = self._find_last_match(r"\b(\d{1,2})\s*g\s*(\d{2})\b", text)
         if exact_gmm:
             hour = int(exact_gmm.group(1))
             minute = int(exact_gmm.group(2))
             if 0 <= hour <= 23 and 0 <= minute <= 59:
                 return f"{hour:02d}:{minute:02d}"
 
-        exact_hhmm = re.search(r"\b(\d{1,2})[:h\.](\d{2})\b", text)
+        exact_hhmm = self._find_last_match(r"\b(\d{1,2})[:h\.](\d{2})\b", text)
         if exact_hhmm:
             hour = int(exact_hhmm.group(1))
             minute = int(exact_hhmm.group(2))
@@ -660,13 +768,13 @@ class ChatParserService:
                 return f"{hour:02d}:{minute:02d}"
 
         # Ví dụ: "vào 14h", "14h ngày 17"
-        in_hour = re.search(r"\b(?:vào|vao)\s*(\d{1,2})\s*h\b", text)
+        in_hour = self._find_last_match(r"\b(?:vao|luc|khoang)\s*(\d{1,2})\s*h\b", text)
         if in_hour:
             hour = int(in_hour.group(1))
             if 0 <= hour <= 23:
                 return f"{hour:02d}:00"
 
-        bare_hour = re.search(r"\b(\d{1,2})\s*h\b", text)
+        bare_hour = self._find_last_match(r"\b(\d{1,2})\s*h\b", text)
         if bare_hour:
             hour = int(bare_hour.group(1))
             if 0 <= hour <= 23:
@@ -690,6 +798,10 @@ class ChatParserService:
             return "08:00"
         if "đầu giờ tối" in text or "dau gio toi" in text:
             return "18:00"
+        if "nua dem" in text or "nửa đêm" in text:
+            return "00:00"
+        if "dau gio" in text or "đầu giờ" in text:
+            return "08:00"
         if "tối nay" in text or "toi nay" in text:
             return "18:00"
         if "trua nay" in text:
@@ -717,12 +829,72 @@ class ChatParserService:
 
     @staticmethod
     def _extract_invalid_minute_token(text: str) -> str | None:
+        incomplete_more_less = re.search(r"\b(\d{1,2})\s*(?:h|gio)\s*(hon|kem)\b(?!\s*\d)", text)
+        if incomplete_more_less:
+            return f"{incomplete_more_less.group(1)} giờ {incomplete_more_less.group(2)}"
+
         for match in re.finditer(r"\b(\d{1,2})\s*(?::|h|g|gio)\s*(\d{2})\b", text):
             hour = int(match.group(1))
             minute = int(match.group(2))
             if 0 <= hour <= 23 and 0 <= minute <= 59 and minute not in (0, 30):
                 return f"{hour}:{minute:02d}"
+
+        for match in re.finditer(r"\b(\d{1,2})\s*(?:h|gio)\s*hon\s*(\d{1,2})\b", text):
+            hour = int(match.group(1))
+            minute = int(match.group(2))
+            if 0 <= hour <= 23 and 0 <= minute <= 59 and minute not in (0, 30):
+                return f"{hour}:{minute:02d}"
+
+        for match in re.finditer(r"\b(\d{1,2})\s*(?:h|gio)\s*kem\s*(\d{1,2})\b", text):
+            hour = int(match.group(1))
+            minute = int(match.group(2))
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                total_min = hour * 60 - minute
+                if total_min >= 0:
+                    resolved_hour = total_min // 60
+                    resolved_minute = total_min % 60
+                    if resolved_minute not in (0, 30):
+                        return f"{resolved_hour}:{resolved_minute:02d}"
         return None
+
+    @staticmethod
+    def _extract_invalid_duration_token(text: str) -> str | None:
+        decimal_hours = re.search(r"\b(\d{1,2})[\.,](\d)\s*(?:tieng|gio|h)\b", text)
+        if decimal_hours:
+            decimal = int(decimal_hours.group(2))
+            if decimal not in (0, 5):
+                return f"{decimal_hours.group(1)}.{decimal}"
+
+        mixed_hours = re.search(r"\b(\d{1,2})\s*(?:tieng|gio)\s+(\d{1,2})\b", text)
+        if mixed_hours:
+            minutes = int(mixed_hours.group(2))
+            if minutes not in (0, 30):
+                return f"{mixed_hours.group(1)} giờ {minutes}"
+
+        minute_only = re.search(r"\b(\d{2,3})\s*p\b", text)
+        if minute_only:
+            minutes = int(minute_only.group(1))
+            if minutes % 30 != 0:
+                return f"{minutes} phút"
+        return None
+
+    @staticmethod
+    def _find_last_match(pattern: str, text: str) -> re.Match[str] | None:
+        matches = list(re.finditer(pattern, text))
+        return matches[-1] if matches else None
+
+    @staticmethod
+    def _is_negated_keyword(text: str, start_idx: int, keyword_len: int) -> bool:
+        left_window = text[max(0, start_idx - 28):start_idx]
+        right_window = text[start_idx + keyword_len:start_idx + keyword_len + 18]
+        left_negations = ("khong ", "khong can", "dung ", "khong phai", "ko ", "k ")
+        if any(token in left_window for token in left_negations):
+            return True
+        if "khong can" in left_window or "chi " in left_window:
+            return False
+        if "khong" in right_window:
+            return True
+        return False
 
     def _apply_minute_granularity_guard(
         self,
@@ -742,6 +914,60 @@ class ChatParserService:
         if result.raw is None:
             result.raw = {}
         result.raw["invalidMinuteTime"] = invalid_minute_token
+        return result
+
+    def _apply_duration_granularity_guard(
+        self,
+        result: ParseChatResponse,
+        invalid_duration_token: str | None,
+    ) -> ParseChatResponse:
+        if not invalid_duration_token:
+            return result
+
+        result.durationHours = None
+        result.missingFields = [field for field in result.missingFields if field != "durationHours"]
+        result.missingFields.append("durationHours")
+        result.followUpQuestion = (
+            f"Bạn nhập số giờ {invalid_duration_token}. Hệ thống chỉ hỗ trợ mốc 00 hoặc 30 phút "
+            "(ví dụ 2 giờ hoặc 2 giờ 30), bạn nhập lại giúp mình nhé?"
+        )
+        if result.raw is None:
+            result.raw = {}
+        result.raw["invalidDurationTime"] = invalid_duration_token
+        return result
+
+    def _apply_explicit_update_field_guard(self, result: ParseChatResponse, normalized_message: str) -> ParseChatResponse:
+        has_start_time_update = any(
+            token in normalized_message
+            for token in (
+                "gio bat dau",
+                "bat dau luc",
+                "gio vao lam",
+                "start time",
+            )
+        )
+        has_duration_update = any(
+            token in normalized_message
+            for token in (
+                "so gio",
+                "thoi luong",
+                "tong gio",
+                "duration",
+            )
+        )
+
+        # Chỉ sửa giờ bắt đầu -> không được tự động ghi đè số giờ.
+        if has_start_time_update and not has_duration_update:
+            result.durationHours = None
+            if isinstance(result.raw, dict):
+                result.raw.pop("durationHours", None)
+
+        # Chỉ sửa số giờ -> không được tự động ghi đè giờ bắt đầu.
+        if has_duration_update and not has_start_time_update:
+            result.startTime = None
+            if isinstance(result.raw, dict):
+                result.raw.pop("startTime", None)
+
         return result
 
     def _extract_address_text(self, message: str) -> str | None:
@@ -773,6 +999,9 @@ class ChatParserService:
         normalized = re.sub(r"\bthu[\-\.]?([2-7])\b", r"thu\1", normalized)
         normalized = re.sub(r"\bt[\-\.]?([2-7])\b", r"t\1", normalized)
         normalized = normalized.replace("c.n", "cn")
+        normalized = re.sub(r"([a-z])\1{2,}", r"\1", normalized)
+        normalized = normalized.replace("a thoi", "thoi")
+        normalized = normalized.replace("a de", "de")
         normalized = " ".join(normalized.strip().split())
         for wrong, corrected in TYPO_REPLACEMENTS:
             normalized = normalized.replace(wrong, corrected)
