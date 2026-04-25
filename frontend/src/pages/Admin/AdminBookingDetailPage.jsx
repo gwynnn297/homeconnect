@@ -69,6 +69,7 @@ const AdminBookingDetailPage = () => {
 
     const canCancel = b && b.status !== 'COMPLETED' && b.status !== 'CANCELLED';
     const canUnflag = b && b.isFlagged;
+    const canMarkNoShow = b && b.status !== 'COMPLETED' && b.status !== 'CANCELLED';
 
     const handleCancel = async () => {
         if (cancelReason.trim().length < 5) {
@@ -98,6 +99,40 @@ const AdminBookingDetailPage = () => {
             await load();
         } catch (err) {
             setToast({ type: 'error', message: err?.message || 'Thao tác thất bại' });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleHelperNoShow = async () => {
+        if (!window.confirm('Xác nhận helper no-show? Đơn sẽ bị hủy, hoàn tiền full và phạt helper.')) return;
+        setActionLoading(true);
+        try {
+            const res = await AdminService.markHelperNoShow(bookingId, 'Admin xác nhận helper no-show');
+            setToast({ type: 'success', message: res?.message || 'Đã xử lý helper no-show' });
+            await load();
+        } catch (err) {
+            setToast({ type: 'error', message: err?.message || 'Không thể xử lý helper no-show' });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleCustomerNoShow = async () => {
+        const input = window.prompt('Nhập tỷ lệ trả helper (0.3 - 0.5):', '0.3');
+        if (input == null) return;
+        const ratio = Number(input);
+        if (Number.isNaN(ratio) || ratio < 0.3 || ratio > 0.5) {
+            setToast({ type: 'error', message: 'Tỷ lệ phải nằm trong khoảng 0.3 - 0.5' });
+            return;
+        }
+        setActionLoading(true);
+        try {
+            const res = await AdminService.markCustomerNoShow(bookingId, ratio, 'Admin xác nhận customer no-show');
+            setToast({ type: 'success', message: res?.message || 'Đã xử lý customer no-show' });
+            await load();
+        } catch (err) {
+            setToast({ type: 'error', message: err?.message || 'Không thể xử lý customer no-show' });
         } finally {
             setActionLoading(false);
         }
@@ -294,6 +329,26 @@ const AdminBookingDetailPage = () => {
                                 onClick={() => setShowCancel(true)}
                             >
                                 Hủy booking (Admin)
+                            </button>
+                        )}
+                        {canMarkNoShow && (
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                disabled={actionLoading}
+                                onClick={handleHelperNoShow}
+                            >
+                                Xử lý Helper no-show
+                            </button>
+                        )}
+                        {canMarkNoShow && (
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                disabled={actionLoading}
+                                onClick={handleCustomerNoShow}
+                            >
+                                Xử lý Customer vắng mặt
                             </button>
                         )}
                     </div>

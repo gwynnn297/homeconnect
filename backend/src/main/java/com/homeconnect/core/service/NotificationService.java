@@ -33,6 +33,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @RequiredArgsConstructor
 public class NotificationService {
 
+    private static final int MAX_NOTIFICATION_TYPE_LENGTH = 20;
     private final NotificationRepository notificationRepository;
 
     // Danh sách kết nối SSE theo từng userId (1 user có thể mở nhiều tab)
@@ -121,11 +122,12 @@ public class NotificationService {
      */
     @Transactional
     public NotificationResponse createNotification(Long userId, String title, String content, String type) {
+        String safeType = normalizeType(type);
         Notification notification = Notification.builder()
                 .userId(userId)
                 .title(title)
                 .content(content)
-                .type(type)
+                .type(safeType)
                 .isRead(false)
                 .build();
 
@@ -145,6 +147,20 @@ public class NotificationService {
         }
 
         return response;
+    }
+
+    private String normalizeType(String rawType) {
+        if (rawType == null || rawType.isBlank()) {
+            return "SYSTEM";
+        }
+        String compactType = rawType.trim().replace(' ', '_');
+        if (compactType.length() <= MAX_NOTIFICATION_TYPE_LENGTH) {
+            return compactType;
+        }
+        String shortened = compactType.substring(0, MAX_NOTIFICATION_TYPE_LENGTH);
+        log.warn("Notification type '{}' vượt quá {} ký tự, tự rút gọn còn '{}'",
+                compactType, MAX_NOTIFICATION_TYPE_LENGTH, shortened);
+        return shortened;
     }
 
     /**

@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Collection;
@@ -16,8 +17,10 @@ import java.util.Collection;
 public interface JobPostRepository extends JpaRepository<JobPost, Long>, JpaSpecificationExecutor<JobPost> {
 
     long countByCustomerId(Long customerId);
+    long countByCustomerIdAndCreatedAtBetween(Long customerId, LocalDateTime from, LocalDateTime to);
 
     List<JobPost> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
+    List<JobPost> findByCustomerIdAndStatusInOrderByCreatedAtDesc(Long customerId, Collection<String> statuses);
 
     @Query("SELECT jp FROM JobPost jp WHERE jp.status = 'PUBLISHED' AND jp.workDate >= :today " +
            "AND (jp.expiresAt IS NULL OR jp.expiresAt > :now) ORDER BY jp.createdAt DESC")

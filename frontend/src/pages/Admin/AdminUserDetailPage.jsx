@@ -18,6 +18,9 @@ const STATUS_LABEL = {
     PROFILE_COMPLETED: 'Đã hoàn tất hồ sơ',
     PENDING_REVIEW: 'Chờ phê duyệt hồ sơ',
     ACTIVE: 'Đang hoạt động',
+    BANNED: 'Bị khóa',
+    SUSPENDED: 'Tạm đình chỉ',
+    WITHDRAW_ONLY: 'Chỉ rút tiền',
     BLOCKED: 'Bị khóa',
     REJECTED: 'Bị từ chối hồ sơ',
 };
@@ -98,7 +101,7 @@ const AdminUserDetailPage = () => {
         setActionLoading(true);
         try {
             const res = await AdminService.updateUserStatus(userId, {
-                status: 'BLOCKED',
+                status: 'BANNED',
                 reason: blockReason.trim() || undefined,
             });
             setToast({ type: 'success', message: res?.message || 'Đã khóa tài khoản' });
@@ -135,7 +138,7 @@ const AdminUserDetailPage = () => {
         );
     }
 
-    const isBlocked = user.status === 'BLOCKED';
+    const isBlocked = ['BANNED', 'SUSPENDED', 'WITHDRAW_ONLY', 'BLOCKED'].includes(user.status);
     const isHelper = user.role === 'HELPER';
     const addr = user.defaultAddress;
     const act = user.activity;

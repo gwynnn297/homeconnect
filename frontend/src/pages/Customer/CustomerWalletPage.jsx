@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import WalletService from '../../services/WalletService';
+import NotificationModal from '../../components/NotificationModal';
 import './CustomerWalletPage.css';
 import '../Helper/HelperWalletPage.css'; // Dùng chung hw-modal styles
 
@@ -48,6 +49,7 @@ const CustomerWalletPage = () => {
     const [newAccount, setNewAccount] = useState({ accountNumber: '', accountHolderName: '' });
     const [addBankLoading, setAddBankLoading] = useState(false);
     const [addBankError, setAddBankError] = useState('');
+    const [toast, setToast] = useState(null);
 
     // ===== INITIAL LOAD =====
     useEffect(() => {
@@ -248,7 +250,7 @@ const CustomerWalletPage = () => {
             await WalletService.setDefaultBankAccount(bankAccountId);
             await fetchBankAccounts();
         } catch (e) {
-            alert(e.response?.data?.message || 'Không thể đặt mặc định.');
+            setToast({ type: 'error', message: e.response?.data?.message || 'Không thể đặt mặc định.' });
         }
     };
 
@@ -259,7 +261,7 @@ const CustomerWalletPage = () => {
             await WalletService.deleteBankAccount(bankAccountId);
             await fetchBankAccounts();
         } catch (e) {
-            alert(e.response?.data?.message || 'Không thể xóa.');
+            setToast({ type: 'error', message: e.response?.data?.message || 'Không thể xóa.' });
         }
     };
 
@@ -848,6 +850,14 @@ const CustomerWalletPage = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {toast && (
+                <NotificationModal
+                    type={toast.type}
+                    message={toast.message}
+                    onClose={() => setToast(null)}
+                />
             )}
         </CustomerLayout>
     );

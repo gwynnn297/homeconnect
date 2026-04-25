@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import HelperLayout from '../../layouts/HelperLayout';
 import WalletService from '../../services/WalletService';
+import NotificationModal from '../../components/NotificationModal';
 import './HelperWalletPage.css';
 
 const HelperWalletPage = () => {
@@ -29,6 +30,7 @@ const HelperWalletPage = () => {
     const [newBankAccount, setNewBankAccount] = useState({ accountNumber: '', accountHolderName: '' });
     const [addBankLoading, setAddBankLoading] = useState(false);
     const [addBankError, setAddBankError] = useState('');
+    const [toast, setToast] = useState(null);
 
     // ── Helpers ──
     const fmt = (n) => n == null ? '0 ₫' : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
@@ -107,7 +109,7 @@ const HelperWalletPage = () => {
             await WalletService.setDefaultBankAccount(bankAccountId);
             await fetchBankAccounts();
         } catch (e) {
-            alert(e.response?.data?.message || 'Không thể đặt mặc định.');
+            setToast({ type: 'error', message: e.response?.data?.message || 'Không thể đặt mặc định.' });
         }
     };
 
@@ -119,7 +121,7 @@ const HelperWalletPage = () => {
             await WalletService.deleteBankAccount(bankAccountId);
             await fetchBankAccounts();
         } catch (e) {
-            alert(e.response?.data?.message || 'Không thể xóa: ' + (e.message || ''));
+            setToast({ type: 'error', message: e.response?.data?.message || ('Không thể xóa: ' + (e.message || '')) });
         }
     };
 
@@ -608,6 +610,14 @@ const HelperWalletPage = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {toast && (
+                <NotificationModal
+                    type={toast.type}
+                    message={toast.message}
+                    onClose={() => setToast(null)}
+                />
             )}
         </HelperLayout>
     );

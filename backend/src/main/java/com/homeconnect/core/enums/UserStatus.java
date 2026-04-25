@@ -10,17 +10,23 @@ public enum UserStatus {
     PROFILE_COMPLETED("Đã hoàn tất hồ sơ & dịch vụ"),
     PENDING_REVIEW("Chờ phê duyệt hồ sơ"),
     ACTIVE("Đang hoạt động"),
-    BLOCKED("B bị khóa"),
+    BANNED("Bị khóa bởi admin"),
+    SUSPENDED("Tạm đình chỉ"),
+    WITHDRAW_ONLY("Chỉ được rút tiền"),
+    BLOCKED("Bị khóa (legacy)"),
     REJECTED("Bị từ chối hồ sơ");
 
-    
     private final String displayName;
-    
+
     UserStatus(String displayName) {
         this.displayName = displayName;
     }
-    
+
     public String getDisplayName() {
         return displayName;
+    }
+
+    public boolean isAccessBlocked() {
+        return this == BANNED || this == SUSPENDED || this == BLOCKED;
     }
 }

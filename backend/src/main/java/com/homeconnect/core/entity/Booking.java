@@ -80,6 +80,33 @@ public class Booking {
     @Builder.Default
     private PaymentStatus paymentStatus = PaymentStatus.HOLDING;
 
+    @Column(name = "cancel_source", length = 30)
+    private String cancelSource;
+
+    @Column(name = "cancel_reason", columnDefinition = "TEXT")
+    private String cancelReason;
+
+    @Column(name = "cancelled_by_admin_id")
+    private Long cancelledByAdminId;
+
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
+    @Column(name = "price_snapshot", precision = 12, scale = 2)
+    private BigDecimal priceSnapshot;
+
+    @Column(name = "no_show_actor", length = 20)
+    private String noShowActor;
+
+    @Column(name = "timeout_at")
+    private LocalDateTime timeoutAt;
+
+    @Column(name = "penalty_amount", precision = 12, scale = 2)
+    private BigDecimal penaltyAmount;
+
+    @Column(name = "refund_amount", precision = 12, scale = 2)
+    private BigDecimal refundAmount;
+
     @Column(name = "expired_at")
     private LocalDateTime expiredAt;
 

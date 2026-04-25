@@ -1,0 +1,94 @@
+.complaints-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 1rem 0 1rem;
+}
+
+.complaints-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid #d8dee8;
+    border-radius: 999px;
+    background: #fff;
+    color: #334155;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.complaints-tab:hover {
+    border-color: #94a3b8;
+}
+
+.complaints-tab--active {
+    background: #346252;
+    color: #fff;
+    border-color: #346252;
+}
+
+.complaints-tab-count {
+    min-width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.1);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.complaints-tab--active .complaints-tab-count {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.complaints-filter-row {
+    display: grid;
+    gap: 0.45rem;
+    max-width: 360px;
+    margin-bottom: 0.9rem;
+}
+
+.complaints-filter-row label {
+    font-size: 0.85rem;
+    color: #475569;
+    font-weight: 600;
+}
+
+.complaints-input {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.58rem 0.72rem;
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.complaints-input:focus {
+    outline: none;
+    border-color: #346252;
+    box-shadow: 0 0 0 2px rgba(52, 98, 82, 0.14);
+}
+
+.complaints-status {
+    padding: 1rem 0.25rem 0.4rem;
+    color: #64748b;
+    font-size: 0.92rem;
+}
+
+.complaints-status--empty {
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 0.9rem;
+    background: #f8fafc;
+}
+
+@media (max-width: 720px) {
+    .complaints-tab {
+        width: 100%;
+        justify-content: space-between;
+    }
+}

@@ -72,7 +72,7 @@ const AdminService = {
     /**
      * Khóa / mở khóa tài khoản
      * PATCH /api/v1/admin/users/{userId}/status
-     * @param {Object} data { status: 'ACTIVE' | 'BLOCKED', reason?: string }
+     * @param {Object} data { status: 'ACTIVE' | 'BANNED', reason?: string }
      */
     updateUserStatus: async (userId, data) => {
         return apiClient.patch(`/api/v1/admin/users/${userId}/status`, data);
@@ -125,6 +125,16 @@ const AdminService = {
         return apiClient.patch(`/api/v1/admin/bookings/${bookingId}/unflag`);
     },
 
+    markHelperNoShow: async (bookingId, reason) => {
+        return apiClient.post(`/api/v1/admin/bookings/${bookingId}/helper-no-show`, null, { params: { reason } });
+    },
+
+    markCustomerNoShow: async (bookingId, payoutRatio = 0.3, reason) => {
+        return apiClient.post(`/api/v1/admin/bookings/${bookingId}/customer-no-show`, null, {
+            params: { payoutRatio, reason },
+        });
+    },
+
     // ===== QUẢN LÝ TIN ĐĂNG (JOB POSTS) =====
     getJobPosts: async (params = {}) => {
         return apiClient.get('/api/v1/admin/job-posts', { params });
@@ -136,6 +146,18 @@ const AdminService = {
 
     cancelJobPost: async (postId, reason) => {
         return apiClient.post(`/api/v1/admin/job-posts/${postId}/cancel`, { reason });
+    },
+
+    getAuditLogs: async (params = {}) => {
+        return apiClient.get('/api/v1/admin/audit-logs', { params });
+    },
+
+    getViolations: async (params = {}) => {
+        return apiClient.get('/api/v1/admin/violations', { params });
+    },
+
+    getJobPostEditLogs: async (params = {}) => {
+        return apiClient.get('/api/v1/admin/job-post-edit-logs', { params });
     },
 };
 

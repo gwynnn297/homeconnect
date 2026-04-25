@@ -25,6 +25,19 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class BookingService {
+    private static final List<BookingStatus> ACTIVE_BOOKING_STATUSES = List.of(
+            BookingStatus.PENDING_ACCEPTANCE,
+            BookingStatus.CONFIRMED,
+            BookingStatus.ARRIVED,
+            BookingStatus.IN_PROGRESS,
+            BookingStatus.PENDING_COMPLETION);
+    private static final List<BookingStatus> ADMIN_CANCEL_ALLOWED_STATUSES = List.of(
+            BookingStatus.PENDING,
+            BookingStatus.PENDING_ACCEPTANCE,
+            BookingStatus.CONFIRMED);
+    private static final List<BookingStatus> ADMIN_NO_SHOW_ALLOWED_STATUSES = List.of(
+            BookingStatus.CONFIRMED,
+            BookingStatus.ARRIVED);
 
     private final BookingRepository bookingRepository;
     private final AddressRepository addressRepository;
@@ -38,7 +51,9 @@ public class BookingService {
     private final ServiceCategoryRepository serviceCategoryRepository;
     private final HelperServiceRepository helperServiceRepository;
     private final ReviewRepository reviewRepository;
+    private final UserViolationRepository userViolationRepository;
     private final ConflictEngine conflictEngine;
+    private final AdminAuditLogService adminAuditLogService;
 
     /**
      * Xác nhận đơn hàng và cập nhật lịch của Helper sang BUSY
@@ -161,6 +176,12 @@ public class BookingService {
         // 3. Kiểm tra lịch của Helper tại thời điểm chốt
         LocalDateTime start = LocalDateTime.of(jobPost.getWorkDate(), jobPost.getStartTime());
         LocalDateTime end = start.plusHours(jobPost.getDurationHours());
+        bookingRepository.findOverlappingBookingsForUpdate(application.getHelperId(), ACTIVE_BOOKING_STATUSES, start, end);
+        long overlapCount = bookingRepository.countOverlappingBookings(application.getHelperId(),
+                ACTIVE_BOOKING_STATUSES, start, end);
+        if (overlapCount > 0) {
+            throw new ApiException("Khung giờ đã được đặt", HttpStatus.CONFLICT);
+        }
 
         List<HelperSchedule> schedules = helperScheduleRepository.findByHelperIdAndWorkDateAndStatusIn(
                 application.getHelperId(), jobPost.getWorkDate(), List.of(ScheduleStatus.AVAILABLE));
@@ -188,6 +209,7 @@ public class BookingService {
                 .scheduledStartTime(start)
                 .scheduledEndTime(end)
                 .totalPrice(jobPost.getOfferPrice())
+                .priceSnapshot(jobPost.getOfferPrice())
                 .status(BookingStatus.CONFIRMED)
                 .paymentStatus(PaymentStatus.HOLDING)
                 .build();
@@ -254,6 +276,12 @@ public class BookingService {
         // 3. Kiểm tra lịch (AVAILABLE & No Conflict)
         LocalDateTime start = LocalDateTime.of(request.getWorkDate(), request.getStartTime());
         LocalDateTime end = start.plusHours(request.getDurationHours());
+        bookingRepository.findOverlappingBookingsForUpdate(request.getHelperId(), ACTIVE_BOOKING_STATUSES, start, end);
+        long overlapCount = bookingRepository.countOverlappingBookings(request.getHelperId(), ACTIVE_BOOKING_STATUSES,
+                start, end);
+        if (overlapCount > 0) {
+            throw new ApiException("Khung giờ đã được đặt", HttpStatus.CONFLICT);
+        }
 
         List<HelperSchedule> schedules = helperScheduleRepository.findByHelperIdAndWorkDateAndStatusIn(
                 request.getHelperId(), request.getWorkDate(), List.of(ScheduleStatus.AVAILABLE));
@@ -287,8 +315,10 @@ public class BookingService {
                 .scheduledStartTime(start)
                 .scheduledEndTime(end)
                 .totalPrice(category.getBasePrice().multiply(java.math.BigDecimal.valueOf(request.getDurationHours())))
+                .priceSnapshot(category.getBasePrice().multiply(java.math.BigDecimal.valueOf(request.getDurationHours())))
                 .status(BookingStatus.PENDING_ACCEPTANCE)
                 .paymentStatus(PaymentStatus.HOLDING)
+                .timeoutAt(LocalDateTime.now().plusMinutes(15))
                 .build();
 
         booking = bookingRepository.save(booking);
@@ -327,10 +357,14 @@ public class BookingService {
 
         if (accept) {
             booking.setStatus(BookingStatus.CONFIRMED);
+            booking.setTimeoutAt(null);
             schedule.setStatus(ScheduleStatus.BUSY);
             log.info("Helper {} accepted booking {}.", helperId, bookingId);
         } else {
             booking.setStatus(BookingStatus.CANCELLED);
+            booking.setCancelSource("HELPER");
+            booking.setCancelReason("Helper từ chối đơn direct booking");
+            booking.setCancelledAt(LocalDateTime.now());
             schedule.setStatus(ScheduleStatus.AVAILABLE);
             schedule.setBooking(null);
             log.info("Helper {} rejected booking {}.", helperId, bookingId);
@@ -587,7 +621,23 @@ public class BookingService {
         applyWalletRefundOnCancel(booking);
 
         booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancelSource("CUSTOMER");
+        booking.setCancelReason("Khách hàng chủ động hủy đơn");
+        booking.setCancelledAt(LocalDateTime.now());
         bookingRepository.save(booking);
+
+        long diffInMinutes = java.time.Duration.between(LocalDateTime.now(), booking.getScheduledStartTime()).toMinutes();
+        if (diffInMinutes < 120) {
+            UserViolation violation = UserViolation.builder()
+                    .user(booking.getCustomer())
+                    .bookingId(bookingId)
+                    .violationType("CUSTOMER_LATE_CANCEL")
+                    .severity("MEDIUM")
+                    .penaltyAmount(booking.getPenaltyAmount())
+                    .note("Khách hàng hủy sát giờ")
+                    .build();
+            userViolationRepository.save(violation);
+        }
     }
 
     /**
@@ -605,31 +655,56 @@ public class BookingService {
             if (diffInMinutes < 120) {
                 BigDecimal penalty = booking.getTotalPrice().multiply(BigDecimal.valueOf(0.3));
                 BigDecimal refund = booking.getTotalPrice().subtract(penalty);
+                booking.setPenaltyAmount(penalty);
+                booking.setRefundAmount(refund);
 
                 walletService.deductPenalty(customerId, penalty, bookingId, "Hủy đơn sát giờ (< 2h)");
                 walletService.compensateCustomer(booking.getHelper().getId(), penalty, bookingId);
                 walletService.refundHold(customerId, refund, bookingId, "Hoàn lại 70% sau phí hủy đơn");
             } else {
+                booking.setPenaltyAmount(BigDecimal.ZERO);
+                booking.setRefundAmount(booking.getTotalPrice());
                 walletService.refundHold(customerId, booking.getTotalPrice(), bookingId, "Hủy đơn sớm (> 2h)");
             }
         }
     }
 
     /**
-     * Admin hủy đơn — áp dụng cùng luật hoàn/hold như khách hủy; bắt buộc ghi lý do.
+     * Admin hủy đơn — áp dụng cùng luật hoàn/hold như khách hủy; bắt buộc ghi lý
+     * do.
      */
     @Transactional
     public void cancelBookingByAdmin(Long bookingId, String reason, String adminEmail) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+        Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
 
         if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
             throw new ApiException("Đơn hàng đã hoàn thành hoặc đã hủy trước đó", HttpStatus.BAD_REQUEST);
+        }
+        if (!ADMIN_CANCEL_ALLOWED_STATUSES.contains(booking.getStatus())) {
+            adminAuditLogService.log(
+                    adminUserId,
+                    adminEmail,
+                    "ADMIN_BOOKING_CANCEL",
+                    "BOOKING",
+                    bookingId,
+                    "BLOCKED",
+                    "Từ chối hủy booking do trạng thái không hợp lệ",
+                    "{\"bookingStatus\":\"" + booking.getStatus().name() + "\"}");
+            throw new ApiException(
+                    "Booking đang ở trạng thái " + booking.getStatus()
+                            + ", admin không được hủy trực tiếp. Hãy dùng luồng xử lý vận hành chuyên biệt.",
+                    HttpStatus.BAD_REQUEST);
         }
 
         applyWalletRefundOnCancel(booking);
 
         booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancelSource("ADMIN");
+        booking.setCancelReason(reason);
+        booking.setCancelledAt(LocalDateTime.now());
+        booking.setCancelledByAdminId(adminUserId);
         bookingRepository.save(booking);
 
         String msg = "Đơn #" + bookingId + " đã bị hủy bởi quản trị viên. Lý do: " + reason;
@@ -639,6 +714,15 @@ public class BookingService {
                 "BOOKING_ADMIN_CANCEL");
 
         log.info("Admin {} đã hủy booking {}. Lý do: {}", adminEmail, bookingId, reason);
+        adminAuditLogService.log(
+                adminUserId,
+                adminEmail,
+                "ADMIN_BOOKING_CANCEL",
+                "BOOKING",
+                bookingId,
+                "SUCCESS",
+                reason,
+                "{\"status\":\"CANCELLED\"}");
     }
 
     /**
@@ -648,6 +732,7 @@ public class BookingService {
     public void clearBookingFlagByAdmin(Long bookingId, String adminEmail) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+        Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
 
         if (!Boolean.TRUE.equals(booking.getIsFlagged())) {
             throw new ApiException("Đơn hàng không có cờ cảnh báo", HttpStatus.BAD_REQUEST);
@@ -656,5 +741,162 @@ public class BookingService {
         booking.setIsFlagged(false);
         bookingRepository.save(booking);
         log.info("Admin {} đã gỡ cờ bất thường cho booking {}", adminEmail, bookingId);
+        adminAuditLogService.log(
+                adminUserId,
+                adminEmail,
+                "ADMIN_BOOKING_UNFLAG",
+                "BOOKING",
+                bookingId,
+                "SUCCESS",
+                "Admin đã gỡ cờ cảnh báo",
+                null);
+    }
+
+    @Transactional
+    public void handleHelperNoShow(Long bookingId, String reason) {
+        handleHelperNoShow(bookingId, reason, "system@homeconnect.local");
+    }
+
+    @Transactional
+    public void handleHelperNoShow(Long bookingId, String reason, String adminEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+        Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
+
+        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED) {
+            throw new ApiException("Không thể xử lý no-show với đơn đã hoàn tất/hủy", HttpStatus.BAD_REQUEST);
+        }
+        if (!ADMIN_NO_SHOW_ALLOWED_STATUSES.contains(booking.getStatus())) {
+            adminAuditLogService.log(
+                    adminUserId,
+                    adminEmail,
+                    "ADMIN_BOOKING_HELPER_NO_SHOW",
+                    "BOOKING",
+                    bookingId,
+                    "BLOCKED",
+                    "Từ chối xử lý helper no-show do trạng thái không hợp lệ",
+                    "{\"bookingStatus\":\"" + booking.getStatus().name() + "\"}");
+            throw new ApiException(
+                    "Chỉ xử lý helper no-show khi booking ở trạng thái CONFIRMED hoặc ARRIVED.",
+                    HttpStatus.BAD_REQUEST);
+        }
+
+        BigDecimal penalty = booking.getTotalPrice().multiply(BigDecimal.valueOf(0.3));
+        if (booking.getPaymentStatus() == PaymentStatus.HOLDING) {
+            walletService.refundHold(booking.getCustomer().getId(), booking.getTotalPrice(), bookingId,
+                    "Helper no-show, hoàn tiền 100%");
+            walletService.deductPenalty(booking.getHelper().getId(), penalty, bookingId, "Helper no-show");
+        }
+
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancelSource("ADMIN");
+        booking.setNoShowActor("HELPER");
+        booking.setCancelReason(reason != null ? reason : "Helper không đến đúng hẹn");
+        booking.setCancelledAt(LocalDateTime.now());
+        booking.setCancelledByAdminId(adminUserId);
+        booking.setPenaltyAmount(penalty);
+        booking.setRefundAmount(booking.getTotalPrice());
+        bookingRepository.save(booking);
+
+        if (!reviewRepository.existsByBookingId(bookingId)) {
+            reviewRepository.save(Review.builder()
+                    .booking(booking)
+                    .customer(booking.getCustomer())
+                    .helper(booking.getHelper())
+                    .rating(1)
+                    .comment("System-generated: Helper không đến đúng hẹn (no-show)")
+                    .tags("SYSTEM_GENERATED,HELPER_NO_SHOW")
+                    .isVisible(true)
+                    .build());
+        }
+
+        userViolationRepository.save(UserViolation.builder()
+                .user(booking.getHelper())
+                .bookingId(bookingId)
+                .violationType("HELPER_NO_SHOW")
+                .severity("HIGH")
+                .penaltyAmount(penalty)
+                .note(booking.getCancelReason())
+                .build());
+        adminAuditLogService.log(
+                adminUserId,
+                adminEmail,
+                "ADMIN_BOOKING_HELPER_NO_SHOW",
+                "BOOKING",
+                bookingId,
+                "SUCCESS",
+                booking.getCancelReason(),
+                "{\"status\":\"CANCELLED\"}");
+    }
+
+    @Transactional
+    public void handleCustomerNoShow(Long bookingId, double payoutRatio, String reason) {
+        handleCustomerNoShow(bookingId, payoutRatio, reason, "system@homeconnect.local");
+    }
+
+    @Transactional
+    public void handleCustomerNoShow(Long bookingId, double payoutRatio, String reason, String adminEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+        Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
+
+        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED) {
+            throw new ApiException("Không thể xử lý no-show với đơn đã hoàn tất/hủy", HttpStatus.BAD_REQUEST);
+        }
+        if (!ADMIN_NO_SHOW_ALLOWED_STATUSES.contains(booking.getStatus())) {
+            adminAuditLogService.log(
+                    adminUserId,
+                    adminEmail,
+                    "ADMIN_BOOKING_CUSTOMER_NO_SHOW",
+                    "BOOKING",
+                    bookingId,
+                    "BLOCKED",
+                    "Từ chối xử lý customer no-show do trạng thái không hợp lệ",
+                    "{\"bookingStatus\":\"" + booking.getStatus().name() + "\"}");
+            throw new ApiException(
+                    "Chỉ xử lý customer no-show khi booking ở trạng thái CONFIRMED hoặc ARRIVED.",
+                    HttpStatus.BAD_REQUEST);
+        }
+        BigDecimal ratio = BigDecimal.valueOf(payoutRatio);
+        if (ratio.compareTo(BigDecimal.valueOf(0.3)) < 0 || ratio.compareTo(BigDecimal.valueOf(0.5)) > 0) {
+            throw new ApiException("Tỷ lệ thanh toán một phần phải nằm trong khoảng 0.3 - 0.5", HttpStatus.BAD_REQUEST);
+        }
+
+        BigDecimal partialPay = booking.getTotalPrice().multiply(ratio);
+        BigDecimal refund = booking.getTotalPrice().subtract(partialPay);
+
+        if (booking.getPaymentStatus() == PaymentStatus.HOLDING) {
+            walletService.compensateCustomer(booking.getHelper().getId(), partialPay, bookingId);
+            walletService.refundHold(booking.getCustomer().getId(), refund, bookingId,
+                    "Customer no-show, hoàn phần còn lại");
+        }
+
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setCancelSource("ADMIN");
+        booking.setNoShowActor("CUSTOMER");
+        booking.setCancelReason(reason != null ? reason : "Khách hàng không có mặt");
+        booking.setCancelledAt(LocalDateTime.now());
+        booking.setCancelledByAdminId(adminUserId);
+        booking.setPenaltyAmount(partialPay);
+        booking.setRefundAmount(refund);
+        bookingRepository.save(booking);
+
+        userViolationRepository.save(UserViolation.builder()
+                .user(booking.getCustomer())
+                .bookingId(bookingId)
+                .violationType("CUSTOMER_NO_SHOW")
+                .severity("MEDIUM")
+                .penaltyAmount(partialPay)
+                .note(booking.getCancelReason())
+                .build());
+        adminAuditLogService.log(
+                adminUserId,
+                adminEmail,
+                "ADMIN_BOOKING_CUSTOMER_NO_SHOW",
+                "BOOKING",
+                bookingId,
+                "SUCCESS",
+                booking.getCancelReason(),
+                "{\"status\":\"CANCELLED\",\"payoutRatio\":" + payoutRatio + "}");
     }
 }

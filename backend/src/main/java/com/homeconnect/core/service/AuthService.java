@@ -180,8 +180,8 @@ public class AuthService {
         // Find user
         User user = userRepository.findByEmailOrPhone(request.getEmail(), request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
-        // Check blocked status
-        if (user.getStatus() == UserStatus.BLOCKED) {
+        // Check blocked/suspended status
+        if (user.getStatus() != null && user.getStatus().isAccessBlocked()) {
             throw new RuntimeException("Account is blocked");
         }
         // Fetch kycStatus if helper

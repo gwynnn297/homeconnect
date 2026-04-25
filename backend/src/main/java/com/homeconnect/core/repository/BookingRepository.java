@@ -5,10 +5,12 @@ import com.homeconnect.core.enums.BookingStatus;
 import com.homeconnect.core.enums.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -22,6 +24,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
        long countByHelper_Id(Long helperId);
 
        List<Booking> findByHelperIdAndStatus(Long helperId, BookingStatus status);
+
+       List<Booking> findByHelper_IdAndStatusIn(Long helperId, Collection<BookingStatus> statuses);
+
+       List<Booking> findByCustomer_IdAndStatusIn(Long customerId, Collection<BookingStatus> statuses);
 
        Optional<Booking> findByIdAndHelper_Id(Long bookingId, Long helperId);
 
@@ -46,6 +52,16 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
                      @Param("statuses") java.util.Collection<com.homeconnect.core.enums.BookingStatus> statuses,
                      @Param("startTime") java.time.LocalDateTime startTime,
                      @Param("endTime") java.time.LocalDateTime endTime);
+
+       @Lock(LockModeType.PESSIMISTIC_WRITE)
+       @Query("SELECT b FROM Booking b " +
+                     "WHERE b.helper.id = :helperId " +
+                     "AND b.status IN :statuses " +
+                     "AND (b.scheduledStartTime < :endTime AND b.scheduledEndTime > :startTime)")
+       List<Booking> findOverlappingBookingsForUpdate(@Param("helperId") Long helperId,
+                     @Param("statuses") java.util.Collection<BookingStatus> statuses,
+                     @Param("startTime") LocalDateTime startTime,
+                     @Param("endTime") LocalDateTime endTime);
 
        List<com.homeconnect.core.entity.Booking> findByStatusAndCreatedAtBefore(
                      com.homeconnect.core.enums.BookingStatus status, java.time.LocalDateTime dateTime);

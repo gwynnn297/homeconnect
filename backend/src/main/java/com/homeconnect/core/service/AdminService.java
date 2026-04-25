@@ -11,12 +11,18 @@ import com.homeconnect.core.dto.response.*;
 import com.homeconnect.core.dto.response.admin.AdminBookingDetailResponse;
 import com.homeconnect.core.dto.response.admin.AdminBookingListItemResponse;
 import com.homeconnect.core.dto.response.admin.AdminBookingListResponse;
+import com.homeconnect.core.dto.response.admin.AdminAuditLogItemResponse;
+import com.homeconnect.core.dto.response.admin.AdminAuditLogListResponse;
+import com.homeconnect.core.dto.response.admin.AdminJobPostEditLogItemResponse;
+import com.homeconnect.core.dto.response.admin.AdminJobPostEditLogListResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostDetailResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostListItemResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostListResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserDetailResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserListItemResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserListResponse;
+import com.homeconnect.core.dto.response.admin.AdminViolationItemResponse;
+import com.homeconnect.core.dto.response.admin.AdminViolationListResponse;
 import com.homeconnect.core.dto.response.admin.ServiceResponse;
 import com.homeconnect.core.dto.response.service.CategoryResponse;
 import com.homeconnect.core.entity.*;
@@ -37,6 +43,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +61,26 @@ import java.math.BigDecimal;
 public class AdminService {
         // Giá tối thiểu cho phép để tránh lỗi nhập liệu (VD: 20,000 VNĐ)
         private static final BigDecimal MIN_SERVICE_PRICE = new BigDecimal("20000");
+        private static final List<BookingStatus> CUSTOMER_LOCK_AUTO_CANCEL_BOOKING_STATUSES = Arrays.asList(
+                        BookingStatus.PENDING,
+                        BookingStatus.PENDING_ACCEPTANCE,
+                        BookingStatus.CONFIRMED);
+        private static final List<BookingStatus> CUSTOMER_LOCK_OPERATIONAL_BOOKING_STATUSES = Arrays.asList(
+                        BookingStatus.ARRIVED,
+                        BookingStatus.IN_PROGRESS,
+                        BookingStatus.PENDING_COMPLETION);
+        private static final List<String> CUSTOMER_LOCK_AUTO_CANCEL_POST_STATUSES = Arrays.asList(
+                        "PUBLISHED",
+                        "ASSIGNED");
+        private static final List<BookingStatus> HELPER_LOCK_AUTO_CANCEL_BOOKING_STATUSES = Arrays.asList(
+                        BookingStatus.PENDING,
+                        BookingStatus.PENDING_ACCEPTANCE,
+                        BookingStatus.CONFIRMED);
+        private static final List<BookingStatus> HELPER_LOCK_OPERATIONAL_BOOKING_STATUSES = Arrays.asList(
+                        BookingStatus.ARRIVED,
+                        BookingStatus.IN_PROGRESS,
+                        BookingStatus.PENDING_COMPLETION);
+        private static final long HELPER_LOCK_NEAR_START_MINUTES = 120;
 
         private final UserRepository userRepository;
         private final HelperProfileRepository helperProfileRepository;
@@ -62,13 +90,19 @@ public class AdminService {
         private final ServiceCategoryRepository serviceCategoryRepository;
         private final AddressRepository addressRepository;
         private final EmailService emailService;
+        private final NotificationService notificationService;
         private final WalletRepository walletRepository;
         private final WalletTransactionRepository walletTransactionRepository;
         private final BookingRepository bookingRepository;
         private final JobPostRepository jobPostRepository;
         private final JobApplicationRepository jobApplicationRepository;
         private final JobService jobService;
+        private final BookingService bookingService;
         private final WithdrawRequestRepository withdrawRequestRepository;
+        private final AdminAuditLogService adminAuditLogService;
+        private final AdminAuditLogRepository adminAuditLogRepository;
+        private final UserViolationRepository userViolationRepository;
+        private final JobPostEditLogRepository jobPostEditLogRepository;
 
         @Transactional
         public HelperReviewResponse reviewHelperKyc(Long helperId, HelperReviewRequest request, String adminEmail) {
@@ -328,7 +362,6 @@ public class AdminService {
                                                 .build())
                                 .collect(Collectors.toList());
 
-
                 // 5. Lấy danh sách khu vực làm việc
                 List<HelperDetailResponse.DistrictInfo> workingDistricts = helperWorkingDistrictRepository
                                 .findByHelper_Id(helperId)
@@ -403,7 +436,8 @@ public class AdminService {
                 long totalHelpers = userRepository.countByRole(UserRole.HELPER);
                 long totalAdmins = userRepository.countByRole(UserRole.ADMIN);
                 long activeUsers = userRepository.countByStatus(UserStatus.ACTIVE);
-                long blockedUsers = userRepository.countByStatus(UserStatus.BLOCKED);
+                long blockedUsers = userRepository.countByStatusIn(
+                                Arrays.asList(UserStatus.BANNED, UserStatus.BLOCKED, UserStatus.SUSPENDED));
                 AdminStatisticsResponse.UserStats userStats = AdminStatisticsResponse.UserStats.builder()
                                 .totalUsers(totalUsers)
                                 .totalCustomers(totalCustomers)
@@ -485,6 +519,122 @@ public class AdminService {
                                 .marketplace(marketplaceSnap)
                                 .finance(financeSnap)
                                 .message("Thống kê hệ thống HomeConnect")
+                                .build();
+        }
+
+        @Transactional(readOnly = true)
+        public AdminAuditLogListResponse getAdminAuditLogs(
+                        Long actorId,
+                        String eventType,
+                        String targetType,
+                        LocalDateTime from,
+                        LocalDateTime to,
+                        Pageable pageable) {
+                Specification<AdminAuditLog> spec = AdminAuditLogSpecification.withFilters(actorId, eventType, targetType,
+                                from, to);
+                Page<AdminAuditLog> page = adminAuditLogRepository.findAll(spec, pageable);
+                List<AdminAuditLogItemResponse> items = page.getContent().stream()
+                                .map(log -> AdminAuditLogItemResponse.builder()
+                                                .auditId(log.getAuditId())
+                                                .eventType(log.getEventType())
+                                                .eventLabel(toAuditEventLabel(log.getEventType()))
+                                                .actorId(log.getActorId())
+                                                .actorEmail(log.getActorEmail())
+                                                .actorRole(log.getActorRole())
+                                                .targetType(log.getTargetType())
+                                                .targetId(log.getTargetId())
+                                                .result(log.getResult())
+                                                .reason(log.getReason())
+                                                .metadataJson(log.getMetadataJson())
+                                                .createdAt(log.getCreatedAt())
+                                                .build())
+                                .collect(Collectors.toList());
+
+                return AdminAuditLogListResponse.builder()
+                                .logs(items)
+                                .totalElements(page.getTotalElements())
+                                .totalPages(page.getTotalPages())
+                                .currentPage(page.getNumber())
+                                .pageSize(page.getSize())
+                                .message("Danh sách admin audit logs")
+                                .build();
+        }
+
+        private String toAuditEventLabel(String eventType) {
+                if (eventType == null || eventType.isBlank()) {
+                        return "Thao tác quản trị";
+                }
+                return switch (eventType) {
+                        case "ADMIN_USER_STATUS_UPDATE" -> "Cập nhật trạng thái tài khoản người dùng";
+                        case "ADMIN_BOOKING_CANCEL" -> "Hủy booking bởi quản trị viên";
+                        case "ADMIN_BOOKING_UNFLAG" -> "Gỡ cờ cảnh báo booking";
+                        case "ADMIN_BOOKING_HELPER_NO_SHOW" -> "Xử lý helper không đến (no-show)";
+                        case "ADMIN_BOOKING_CUSTOMER_NO_SHOW" -> "Xử lý khách hàng không có mặt (no-show)";
+                        case "ADMIN_HELPER_LOCK_BOOKING_REVIEW" -> "Chuyển booking sang xử lý vận hành khi khóa helper";
+                        case "ADMIN_HELPER_LOCK_REOPEN_POST" -> "Mở lại tin đăng do helper bị khóa";
+                        case "ADMIN_CUSTOMER_LOCK_BOOKING_REVIEW" -> "Chuyển booking sang xử lý vận hành khi khóa khách hàng";
+                        case "ADMIN_CUSTOMER_LOCK_JOB_REVIEW" -> "Chuyển tin đăng sang xử lý vận hành khi khóa khách hàng";
+                        case "ADMIN_JOB_POST_CANCEL" -> "Hủy tin đăng bởi quản trị viên";
+                        default -> "Thao tác quản trị: " + eventType;
+                };
+        }
+
+        @Transactional(readOnly = true)
+        public AdminViolationListResponse getViolations(String violationType, Pageable pageable) {
+                Page<UserViolation> page = (violationType == null || violationType.isBlank())
+                                ? userViolationRepository.findAll(pageable)
+                                : userViolationRepository.findByViolationType(violationType, pageable);
+                List<AdminViolationItemResponse> items = page.getContent().stream()
+                                .map(v -> AdminViolationItemResponse.builder()
+                                                .violationId(v.getId())
+                                                .userId(v.getUser() != null ? v.getUser().getId() : null)
+                                                .userName(v.getUser() != null ? v.getUser().getFullName() : null)
+                                                .userRole(v.getUser() != null && v.getUser().getRole() != null
+                                                                ? v.getUser().getRole().name()
+                                                                : null)
+                                                .bookingId(v.getBookingId())
+                                                .violationType(v.getViolationType())
+                                                .severity(v.getSeverity())
+                                                .penaltyAmount(v.getPenaltyAmount())
+                                                .note(v.getNote())
+                                                .createdAt(v.getCreatedAt())
+                                                .build())
+                                .collect(Collectors.toList());
+                return AdminViolationListResponse.builder()
+                                .violations(items)
+                                .totalElements(page.getTotalElements())
+                                .totalPages(page.getTotalPages())
+                                .currentPage(page.getNumber())
+                                .pageSize(page.getSize())
+                                .message("Danh sách vi phạm vận hành")
+                                .build();
+        }
+
+        @Transactional(readOnly = true)
+        public AdminJobPostEditLogListResponse getJobPostEditLogs(Long postId, Pageable pageable) {
+                Page<JobPostEditLog> page = postId == null
+                                ? jobPostEditLogRepository.findAll(pageable)
+                                : jobPostEditLogRepository.findByPostId(postId, pageable);
+                List<AdminJobPostEditLogItemResponse> items = page.getContent().stream()
+                                .map(log -> AdminJobPostEditLogItemResponse.builder()
+                                                .editLogId(log.getId())
+                                                .postId(log.getPostId())
+                                                .editedBy(log.getEditedBy())
+                                                .revisionNo(log.getRevisionNo())
+                                                .oldTitle(log.getOldTitle())
+                                                .newTitle(log.getNewTitle())
+                                                .oldDescription(log.getOldDescription())
+                                                .newDescription(log.getNewDescription())
+                                                .createdAt(log.getCreatedAt())
+                                                .build())
+                                .collect(Collectors.toList());
+                return AdminJobPostEditLogListResponse.builder()
+                                .logs(items)
+                                .totalElements(page.getTotalElements())
+                                .totalPages(page.getTotalPages())
+                                .currentPage(page.getNumber())
+                                .pageSize(page.getSize())
+                                .message("Lịch sử chỉnh sửa tin đăng")
                                 .build();
         }
 
@@ -604,7 +754,6 @@ public class AdminService {
                                 .build();
         }
 
-
         /**
          * BE-Admin-01: Xóa dịch vụ nhỏ
          */
@@ -655,7 +804,6 @@ public class AdminService {
                         service.setBasePrice(request.getBasePrice());
                 }
 
-
                 if (request.getDescription() != null) {
                         service.setDescription(request.getDescription());
                 }
@@ -695,7 +843,6 @@ public class AdminService {
                                 .isActive(request.getIsActive() == null || request.getIsActive())
                                 .category(category)
                                 .build();
-
 
                 // 3. Lưu entity
                 service = serviceRepository.save(service);
@@ -812,7 +959,8 @@ public class AdminService {
         @Transactional(readOnly = true)
         public AdminUserDetailResponse getAdminUserDetail(Long userId) {
                 User user = userRepository.findById(userId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user với ID: " + userId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy user với ID: " + userId));
 
                 AdminUserDetailResponse.HelperSummary helperSummary = null;
                 if (user.getRole() == UserRole.HELPER) {
@@ -889,45 +1037,416 @@ public class AdminService {
         public AdminUserListItemResponse updateUserStatus(Long userId, AdminUpdateUserStatusRequest request,
                         Long adminUserId, String adminEmail) {
                 User target = userRepository.findById(userId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user với ID: " + userId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy user với ID: " + userId));
 
                 if (adminUserId.equals(target.getId())) {
+                        adminAuditLogService.log(adminUserId, adminEmail, "ADMIN_USER_STATUS_UPDATE", "USER", userId,
+                                        "BLOCKED", "Admin cố thao tác trạng thái trên chính mình",
+                                        "{\"requestedStatus\":\"" + request.getStatus() + "\"}");
                         throw new BadRequestException("Không thể khóa hoặc thao tác trên chính tài khoản của bạn.");
                 }
 
-                boolean wantBlocked = "BLOCKED".equalsIgnoreCase(request.getStatus());
+                if (target.getRole() == UserRole.ADMIN) {
+                        adminAuditLogService.log(adminUserId, adminEmail, "ADMIN_USER_STATUS_UPDATE", "USER", userId,
+                                        "BLOCKED", "Chặn tuyệt đối thao tác khóa/mở khóa trên tài khoản admin",
+                                        "{\"requestedStatus\":\"" + request.getStatus() + "\"}");
+                        throw new BadRequestException("Không được phép thao tác khóa/mở khóa tài khoản ADMIN.");
+                }
+
+                boolean wantBlocked = "BANNED".equalsIgnoreCase(request.getStatus());
                 boolean wantActive = "ACTIVE".equalsIgnoreCase(request.getStatus());
 
                 if (wantBlocked) {
-                        if (target.getStatus() == UserStatus.BLOCKED) {
-                                log.info("Admin {}: idempotent — user {} đã ở trạng thái BLOCKED", adminEmail, userId);
+                        if (target.getStatus() == UserStatus.BANNED || target.getStatus() == UserStatus.SUSPENDED
+                                        || target.getStatus() == UserStatus.BLOCKED
+                                        || target.getStatus() == UserStatus.WITHDRAW_ONLY) {
+                                log.info("Admin {}: idempotent — user {} đã ở trạng thái bị khóa", adminEmail, userId);
                                 return mapToAdminUserListItem(target);
                         }
-                        if (target.getRole() == UserRole.ADMIN && target.getStatus() == UserStatus.ACTIVE) {
-                                long activeAdmins = userRepository.countByRoleAndStatus(UserRole.ADMIN,
-                                                UserStatus.ACTIVE);
-                                if (activeAdmins <= 1) {
+
+                        // Nếu user còn tiền khả dụng, chỉ cho phép rút tiền theo yêu cầu nghiệp vụ.
+                        boolean hasAvailableBalance = walletRepository.findByUserId(target.getId())
+                                        .map(wallet -> wallet.getAvailableBalance() != null
+                                                        && wallet.getAvailableBalance().compareTo(BigDecimal.ZERO) > 0)
+                                        .orElse(false);
+
+                        if (target.getRole() == UserRole.HELPER) {
+                                HelperLockOutcome helperOutcome = enforceHelperLockBusinessRules(target, request.getReason(),
+                                                adminEmail);
+                                if (helperOutcome.blockingCriticalCases > 0) {
+                                        adminAuditLogService.log(
+                                                        adminUserId,
+                                                        adminEmail,
+                                                        "ADMIN_USER_STATUS_UPDATE",
+                                                        "USER",
+                                                        userId,
+                                                        "BLOCKED",
+                                                        "Không thể khóa helper vì có booking sát giờ/đang thực thi cần xử lý vận hành",
+                                                        "{\"blockingCases\":" + helperOutcome.blockingCriticalCases + "}");
                                         throw new BadRequestException(
-                                                        "Không thể khóa tài khoản admin cuối cùng đang hoạt động.");
+                                                        "Không thể khóa helper ngay vì có " + helperOutcome.blockingCriticalCases
+                                                                        + " booking sát giờ/đang thực thi. "
+                                                                        + "Vui lòng xử lý vận hành các booking đó trước.");
                                 }
                         }
-                        target.setStatus(UserStatus.BLOCKED);
+
+                        if (hasAvailableBalance) {
+                                target.setStatus(UserStatus.WITHDRAW_ONLY);
+                        } else if (target.getRole() == UserRole.HELPER) {
+                                target.setStatus(UserStatus.SUSPENDED);
+                        } else {
+                                target.setStatus(UserStatus.BANNED);
+                        }
+                        target.setBannedAt(LocalDateTime.now());
+                        target.setBannedBy(adminUserId);
+                        target.setBanReason(request.getReason());
+                        notificationService.createNotification(
+                                        target.getId(),
+                                        "Tài khoản đã bị khóa",
+                                        target.getStatus() == UserStatus.WITHDRAW_ONLY
+                                                        ? "Tài khoản của bạn đã bị khóa và chuyển sang chế độ chỉ rút tiền. "
+                                                                        + "Các chức năng khác sẽ bị tạm ngưng."
+                                                        : "Tài khoản của bạn đã bị khóa theo quyết định của quản trị viên. "
+                                                                        + "Vui lòng liên hệ hỗ trợ để được hướng dẫn.",
+                                        "ACCOUNT_LOCKED");
+                        if (target.getRole() == UserRole.HELPER) {
+                                notificationService.createNotification(
+                                                target.getId(),
+                                                "Trạng thái khóa đã áp dụng",
+                                                "Tài khoản helper của bạn đã bị khóa sau khi hệ thống xử lý xong các booking đủ điều kiện.",
+                                                "ACCOUNT_LOCKED");
+                        } else if (target.getRole() == UserRole.CUSTOMER) {
+                                enforceCustomerLockBusinessRules(target, request.getReason(), adminEmail);
+                        }
                 } else if (wantActive) {
                         if (target.getStatus() == UserStatus.ACTIVE) {
                                 return mapToAdminUserListItem(target);
                         }
-                        if (target.getStatus() != UserStatus.BLOCKED) {
+                        if (target.getStatus() != UserStatus.BANNED
+                                        && target.getStatus() != UserStatus.SUSPENDED
+                                        && target.getStatus() != UserStatus.BLOCKED
+                                        && target.getStatus() != UserStatus.WITHDRAW_ONLY) {
                                 throw new BadRequestException(
-                                                "Chỉ có thể mở khóa (ACTIVE) khi tài khoản đang bị khóa (BLOCKED).");
+                                                "Chỉ có thể mở khóa (ACTIVE) khi tài khoản đang bị khóa/tạm đình chỉ.");
                         }
                         target.setStatus(UserStatus.ACTIVE);
+                        target.setUnbannedAt(LocalDateTime.now());
+                        target.setUnbannedBy(adminUserId);
+                        target.setUnbanReason(request.getReason());
                 }
 
                 userRepository.save(target);
                 log.info("Admin {} đã cập nhật status={} cho user id={} (email={}). Ghi chú: {}", adminEmail,
                                 target.getStatus(), userId, target.getEmail(), request.getReason());
+                adminAuditLogService.log(
+                                adminUserId,
+                                adminEmail,
+                                "ADMIN_USER_STATUS_UPDATE",
+                                "USER",
+                                userId,
+                                "SUCCESS",
+                                request.getReason(),
+                                "{\"newStatus\":\"" + target.getStatus().name() + "\"}");
 
                 return mapToAdminUserListItem(target);
+        }
+
+        private HelperLockOutcome enforceHelperLockBusinessRules(User helper, String reason, String adminEmail) {
+                String lockReason = (reason == null || reason.isBlank())
+                                ? "Helper bị khóa tài khoản theo quyết định admin"
+                                : reason.trim();
+                Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
+
+                // 1) Hủy toàn bộ booking helper đang trong các trạng thái có thể xử lý,
+                // hoàn/giải phóng tiền theo luồng cancel admin hiện có.
+                List<BookingStatus> activeStatuses = Arrays.asList(
+                                BookingStatus.PENDING,
+                                BookingStatus.PENDING_ACCEPTANCE,
+                                BookingStatus.CONFIRMED,
+                                BookingStatus.ARRIVED,
+                                BookingStatus.IN_PROGRESS,
+                                BookingStatus.PENDING_COMPLETION);
+                List<Booking> activeBookings = bookingRepository.findByHelper_IdAndStatusIn(helper.getId(), activeStatuses);
+                int cancelledBookings = 0;
+                int pendingOperationalBookings = 0;
+                int blockingCriticalCases = 0;
+                for (Booking booking : activeBookings) {
+                        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED
+                                        || booking.getStatus() == BookingStatus.EXPIRED) {
+                                continue;
+                        }
+                        if (HELPER_LOCK_AUTO_CANCEL_BOOKING_STATUSES.contains(booking.getStatus())) {
+                                if (booking.getStatus() == BookingStatus.CONFIRMED) {
+                                        long minutesToStart = Duration.between(LocalDateTime.now(),
+                                                        booking.getScheduledStartTime()).toMinutes();
+                                        if (minutesToStart <= HELPER_LOCK_NEAR_START_MINUTES) {
+                                                blockingCriticalCases++;
+                                                booking.setIsFlagged(true);
+                                                bookingRepository.save(booking);
+                                                adminAuditLogService.log(
+                                                                adminUserId,
+                                                                adminEmail,
+                                                                "ADMIN_HELPER_LOCK_BOOKING_REVIEW",
+                                                                "BOOKING",
+                                                                booking.getId(),
+                                                                "BLOCKED",
+                                                                "Booking đã sát giờ nên không được tự hủy khi khóa helper",
+                                                                "{\"bookingStatus\":\"" + booking.getStatus().name()
+                                                                                + "\",\"minutesToStart\":" + minutesToStart
+                                                                                + "}");
+                                                notificationService.createNotification(
+                                                                booking.getCustomer().getId(),
+                                                                "Đơn hàng cần admin xử lý gấp",
+                                                                "Đơn #" + booking.getId()
+                                                                                + " đã sát giờ nên chưa thể tự động đổi helper. "
+                                                                                + "Đội vận hành sẽ liên hệ ngay.",
+                                                                "BOOKING_REVIEW");
+                                                notificationService.createNotification(
+                                                                helper.getId(),
+                                                                "Booking sát giờ cần xử lý vận hành",
+                                                                "Đơn #" + booking.getId()
+                                                                                + " đã sát giờ nên chưa thể tự động hủy khi khóa tài khoản.",
+                                                                "BOOKING_REVIEW");
+                                                continue;
+                                        }
+                                }
+                                bookingService.cancelBookingByAdmin(
+                                                booking.getId(),
+                                                "[AUTO] Helper bị khóa tài khoản: " + lockReason,
+                                                adminEmail);
+                                reopenRelatedJobPostIfEligible(booking, adminUserId, adminEmail, lockReason);
+                                cancelledBookings++;
+                                continue;
+                        }
+
+                        if (HELPER_LOCK_OPERATIONAL_BOOKING_STATUSES.contains(booking.getStatus())) {
+                                pendingOperationalBookings++;
+                                booking.setIsFlagged(true);
+                                bookingRepository.save(booking);
+                                adminAuditLogService.log(
+                                                adminUserId,
+                                                adminEmail,
+                                                "ADMIN_HELPER_LOCK_BOOKING_REVIEW",
+                                                "BOOKING",
+                                                booking.getId(),
+                                                "BLOCKED",
+                                                "Booking đã vào giai đoạn thực thi, chuyển xử lý vận hành thay vì hủy tự động",
+                                                "{\"bookingStatus\":\"" + booking.getStatus().name() + "\"}");
+                                notificationService.createNotification(
+                                                booking.getCustomer().getId(),
+                                                "Đơn hàng cần xử lý vận hành",
+                                                "Đơn #" + booking.getId()
+                                                                + " tạm thời không tự hủy vì helper đã vào giai đoạn thực thi. "
+                                                                + "Đội vận hành sẽ liên hệ để xử lý theo quy trình.",
+                                                "BOOKING_REVIEW");
+                                notificationService.createNotification(
+                                                helper.getId(),
+                                                "Đơn hàng chuyển xử lý vận hành",
+                                                "Đơn #" + booking.getId()
+                                                                + " không thể tự hủy do đã ở giai đoạn thực thi. "
+                                                                + "Vui lòng chờ quyết định từ quản trị viên.",
+                                                "BOOKING_REVIEW");
+                        }
+                }
+
+                // 2) Vô hiệu các đơn ứng tuyển/chờ nhận việc để helper không thể tiếp tục thao tác
+                // job feed cũ.
+                List<JobApplication> activeApplications = jobApplicationRepository.findByHelperId(helper.getId()).stream()
+                                .filter(a -> Arrays.asList("PENDING", "ACCEPTED", "ASSIGNED").contains(a.getStatus()))
+                                .collect(Collectors.toList());
+                int rejectedApplications = jobApplicationRepository.updateStatusByHelperIdAndStatusIn(
+                                helper.getId(),
+                                "REJECTED",
+                                Arrays.asList("PENDING", "ACCEPTED", "ASSIGNED"));
+                if (rejectedApplications > 0) {
+                        notificationService.createNotification(
+                                        helper.getId(),
+                                        "Đã đóng các đơn ứng tuyển",
+                                        "Tài khoản helper của bạn đã bị khóa, " + rejectedApplications
+                                                        + " đơn ứng tuyển/chờ nhận việc đã được đóng.",
+                                        "ACCOUNT_LOCKED");
+                }
+                activeApplications.stream()
+                                .map(JobApplication::getPostId)
+                                .distinct()
+                                .forEach(postId -> jobPostRepository.findById(postId).ifPresent(post -> notificationService
+                                                .createNotification(
+                                                                post.getCustomerId(),
+                                                                "Helper không còn khả dụng",
+                                                                "Một helper trong tin #" + postId
+                                                                                + " đã bị khóa tài khoản, hệ thống đã đóng trạng thái ứng tuyển liên quan.",
+                                                                "HELPER_LOCKED")));
+
+                log.info(
+                                "Đã áp dụng lock nghiệp vụ cho helper {}: hủy {} booking, {} booking chuyển xử lý vận hành, {} booking chặn khóa, reject {} job applications",
+                                helper.getId(),
+                                cancelledBookings,
+                                pendingOperationalBookings,
+                                blockingCriticalCases,
+                                rejectedApplications);
+                return new HelperLockOutcome(cancelledBookings, pendingOperationalBookings, blockingCriticalCases,
+                                rejectedApplications);
+        }
+
+        private void reopenRelatedJobPostIfEligible(Booking booking, Long adminUserId, String adminEmail, String lockReason) {
+                if (booking.getJobPostId() == null) {
+                        return;
+                }
+                jobPostRepository.findById(booking.getJobPostId()).ifPresent(post -> {
+                        String status = post.getStatus();
+                        if (!"ASSIGNED".equalsIgnoreCase(status) && !"CONFIRMED".equalsIgnoreCase(status)) {
+                                return;
+                        }
+                        post.setStatus("PUBLISHED");
+                        post.setModerationReason("[AUTO_REOPEN] Helper bị khóa: " + lockReason);
+                        post.setModeratedBy(adminUserId);
+                        post.setModeratedAt(LocalDateTime.now());
+                        jobPostRepository.save(post);
+
+                        jobApplicationRepository.findByPostIdAndHelperId(post.getPostId(), booking.getHelper().getId())
+                                        .ifPresent(app -> {
+                                                app.setStatus("CANCELLED");
+                                                jobApplicationRepository.save(app);
+                                        });
+
+                        notificationService.createNotification(
+                                        post.getCustomerId(),
+                                        "Tin đăng được mở lại",
+                                        "Tin #" + post.getPostId()
+                                                        + " được mở lại để tìm helper mới vì helper cũ đã bị khóa tài khoản.",
+                                        "JOB_REOPENED");
+                        adminAuditLogService.log(
+                                        adminUserId,
+                                        adminEmail,
+                                        "ADMIN_HELPER_LOCK_REOPEN_POST",
+                                        "JOB_POST",
+                                        post.getPostId(),
+                                        "SUCCESS",
+                                        "Mở lại tin do helper bị khóa và booking chưa sát giờ",
+                                        "{\"previousStatus\":\"" + status + "\"}");
+                });
+        }
+
+        private static class HelperLockOutcome {
+                final int cancelledBookings;
+                final int pendingOperationalBookings;
+                final int blockingCriticalCases;
+                final int rejectedApplications;
+
+                HelperLockOutcome(int cancelledBookings, int pendingOperationalBookings, int blockingCriticalCases,
+                                int rejectedApplications) {
+                        this.cancelledBookings = cancelledBookings;
+                        this.pendingOperationalBookings = pendingOperationalBookings;
+                        this.blockingCriticalCases = blockingCriticalCases;
+                        this.rejectedApplications = rejectedApplications;
+                }
+        }
+
+        private void enforceCustomerLockBusinessRules(User customer, String reason, String adminEmail) {
+                String lockReason = (reason == null || reason.isBlank())
+                                ? "Customer bị khóa tài khoản theo quyết định admin"
+                                : reason.trim();
+                Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
+
+                List<BookingStatus> candidateStatuses = Arrays.asList(
+                                BookingStatus.PENDING,
+                                BookingStatus.PENDING_ACCEPTANCE,
+                                BookingStatus.CONFIRMED,
+                                BookingStatus.ARRIVED,
+                                BookingStatus.IN_PROGRESS,
+                                BookingStatus.PENDING_COMPLETION);
+                List<Booking> customerBookings = bookingRepository.findByCustomer_IdAndStatusIn(customer.getId(),
+                                candidateStatuses);
+                int cancelledBookings = 0;
+                int operationalBookings = 0;
+
+                for (Booking booking : customerBookings) {
+                        if (CUSTOMER_LOCK_AUTO_CANCEL_BOOKING_STATUSES.contains(booking.getStatus())) {
+                                bookingService.cancelBookingByAdmin(
+                                                booking.getId(),
+                                                "[AUTO] Customer bị khóa tài khoản: " + lockReason,
+                                                adminEmail);
+                                cancelledBookings++;
+                                continue;
+                        }
+
+                        if (CUSTOMER_LOCK_OPERATIONAL_BOOKING_STATUSES.contains(booking.getStatus())) {
+                                operationalBookings++;
+                                adminAuditLogService.log(
+                                                adminUserId,
+                                                adminEmail,
+                                                "ADMIN_CUSTOMER_LOCK_BOOKING_REVIEW",
+                                                "BOOKING",
+                                                booking.getId(),
+                                                "BLOCKED",
+                                                "Booking của customer đã vào giai đoạn thực thi, chuyển xử lý vận hành",
+                                                "{\"bookingStatus\":\"" + booking.getStatus().name() + "\"}");
+                                notificationService.createNotification(
+                                                customer.getId(),
+                                                "Đơn hàng cần xử lý vận hành",
+                                                "Đơn #" + booking.getId()
+                                                                + " của bạn đang ở giai đoạn thực thi nên chưa thể tự động hủy. "
+                                                                + "Đội vận hành sẽ liên hệ để xử lý.",
+                                                "BOOKING_REVIEW");
+                                notificationService.createNotification(
+                                                booking.getHelper().getId(),
+                                                "Đơn hàng cần xử lý vận hành",
+                                                "Đơn #" + booking.getId()
+                                                                + " thuộc khách hàng vừa bị khóa tài khoản. "
+                                                                + "Đơn sẽ được đội vận hành xử lý theo quy trình.",
+                                                "BOOKING_REVIEW");
+                        }
+                }
+
+                List<JobPost> activePosts = jobPostRepository.findByCustomerIdAndStatusInOrderByCreatedAtDesc(
+                                customer.getId(),
+                                CUSTOMER_LOCK_AUTO_CANCEL_POST_STATUSES);
+                int cancelledPosts = 0;
+                int reviewPosts = 0;
+                for (JobPost post : activePosts) {
+                        try {
+                                jobService.cancelJobPostByAdmin(
+                                                post.getPostId(),
+                                                "[AUTO] Customer bị khóa tài khoản: " + lockReason,
+                                                adminEmail);
+                                cancelledPosts++;
+                        } catch (Exception ex) {
+                                reviewPosts++;
+                                adminAuditLogService.log(
+                                                adminUserId,
+                                                adminEmail,
+                                                "ADMIN_CUSTOMER_LOCK_JOB_REVIEW",
+                                                "JOB_POST",
+                                                post.getPostId(),
+                                                "BLOCKED",
+                                                "Không thể tự động hủy tin khi khóa customer, chuyển xử lý vận hành",
+                                                "{\"status\":\"" + post.getStatus() + "\",\"reason\":\""
+                                                                + ex.getMessage().replace("\"", "'") + "\"}");
+                                notificationService.createNotification(
+                                                customer.getId(),
+                                                "Tin đăng cần xử lý vận hành",
+                                                "Tin #" + post.getPostId()
+                                                                + " chưa thể tự động đóng khi khóa tài khoản. "
+                                                                + "Đội vận hành sẽ xử lý tiếp.",
+                                                "BOOKING_REVIEW");
+                                bookingRepository.findTopByJobPostIdOrderByCreatedAtDesc(post.getPostId())
+                                                .ifPresent(linkedBooking -> notificationService.createNotification(
+                                                                linkedBooking.getHelper().getId(),
+                                                                "Tin đăng liên quan cần xử lý vận hành",
+                                                                "Tin #" + post.getPostId()
+                                                                                + " của khách hàng đã bị khóa tài khoản đang chờ xử lý vận hành.",
+                                                                "BOOKING_REVIEW"));
+                        }
+                }
+
+                log.info(
+                                "Đã áp dụng lock nghiệp vụ cho customer {}: hủy {} booking, {} booking chuyển vận hành, đóng {} tin, {} tin chuyển vận hành",
+                                customer.getId(),
+                                cancelledBookings,
+                                operationalBookings,
+                                cancelledPosts,
+                                reviewPosts);
         }
 
         // --- Admin: Quản lý tin đăng (Job posts / chợ việc) ---
@@ -1035,7 +1554,8 @@ public class AdminService {
         @Transactional(readOnly = true)
         public AdminBookingDetailResponse getAdminBookingDetail(Long bookingId) {
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy booking: " + bookingId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy booking: " + bookingId));
                 return mapToAdminBookingDetail(booking);
         }
 

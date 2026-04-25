@@ -9,7 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Admin chỉ được đặt ACTIVE (mở khóa) hoặc BLOCKED (khóa).
+ * Admin chỉ được đặt ACTIVE (mở khóa) hoặc BANNED (khóa).
  */
 @Data
 @NoArgsConstructor
@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 public class AdminUpdateUserStatusRequest {
 
     @NotBlank(message = "Trạng thái không được để trống")
-    @Pattern(regexp = "^(ACTIVE|BLOCKED)$", message = "Chỉ hỗ trợ ACTIVE hoặc BLOCKED")
+    @Pattern(regexp = "^(ACTIVE|BANNED)$", message = "Chỉ hỗ trợ ACTIVE hoặc BANNED")
     private String status;
 
     /** Ghi chú khi khóa (khuyến nghị, không bắt buộc). */

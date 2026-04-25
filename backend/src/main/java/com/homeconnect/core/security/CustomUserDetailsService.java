@@ -1,7 +1,6 @@
 package com.homeconnect.core.security;
 
 import com.homeconnect.core.entity.User;
-import com.homeconnect.core.enums.UserStatus;
 import com.homeconnect.core.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -24,7 +23,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
-        boolean blocked = user.getStatus() == UserStatus.BLOCKED;
+        boolean blocked = user.getStatus() != null && user.getStatus().isAccessBlocked();
 
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())

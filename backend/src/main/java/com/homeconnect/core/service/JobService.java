@@ -10,6 +10,7 @@ import com.homeconnect.core.dto.response.JobPostResponse;
 import com.homeconnect.core.entity.Address;
 import com.homeconnect.core.entity.Booking;
 import com.homeconnect.core.entity.JobPost;
+import com.homeconnect.core.entity.JobPostEditLog;
 import com.homeconnect.core.event.JobPostCreatedEvent;
 import com.homeconnect.core.repository.JobPostRepository;
 import com.homeconnect.core.repository.BookingRepository;
@@ -18,6 +19,7 @@ import com.homeconnect.core.repository.JobApplicationRepository;
 import com.homeconnect.core.repository.HelperScheduleRepository;
 import com.homeconnect.core.repository.HelperServiceRepository;
 import com.homeconnect.core.repository.HelperWorkingDistrictRepository;
+import com.homeconnect.core.repository.JobPostEditLogRepository;
 import com.homeconnect.core.repository.ServiceCategoryRepository;
 import com.homeconnect.core.entity.ServiceCategory;
 import com.homeconnect.core.repository.AddressRepository;
@@ -47,6 +49,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 /**
  * Service layer cho Job Posts - BE-Post-01 & BE-Post-02
@@ -65,6 +68,15 @@ public class JobService {
      * gian)
      */
     private static final int HOURS_PER_SUB_SERVICE = 1;
+    private static final int MAX_POSTS_PER_DAY = 10;
+    private static final Pattern PHONE_PATTERN = Pattern.compile("(\\+?84|0)\\d{9,10}");
+    private static final Pattern CONTACT_BYPASS_PATTERN = Pattern.compile("\\b(zalo|facebook|fb|telegram)\\b",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern GIBBERISH_PATTERN = Pattern.compile("^(.)\\1{5,}$");
+    private static final List<BookingStatus> ADMIN_JOB_POST_CANCEL_ALLOWED_BOOKING_STATUSES = List.of(
+            BookingStatus.PENDING,
+            BookingStatus.PENDING_ACCEPTANCE,
+            BookingStatus.CONFIRMED);
 
     private final ServiceRepository serviceRepository;
     private final JobPostRepository jobPostRepository;
@@ -80,6 +92,8 @@ public class JobService {
     private final BookingRepository bookingRepository;
     private final BookingService bookingService;
     private final ObjectMapper objectMapper;
+    private final JobPostEditLogRepository jobPostEditLogRepository;
+    private final AdminAuditLogService adminAuditLogService;
 
     public EstimatePriceResponse estimatePrice(EstimatePriceRequest request) {
         log.info("Estimating price for category {}, duration {} hours",
@@ -150,6 +164,8 @@ public class JobService {
     public JobPostResponse createJobPost(CreateJobPostRequest request, Long customerId) {
         log.info("Creating job post for customer {}, services {}, {} hours",
                 customerId, request.getServiceIds(), request.getDurationHours());
+        enforceJobPostingRateLimit(customerId);
+        validatePostContentForModeration(request.getTitle(), request.getDescription());
 
         LocalDateTime requestedWorkDateTime = request.getWorkDate().atTime(request.getStartTime());
         LocalDateTime minAllowedDateTime = LocalDateTime.now().plusHours(MIN_LEAD_TIME_HOURS);
@@ -223,7 +239,9 @@ public class JobService {
                 .durationHours(totalDuration)
                 .offerPrice(finalPrice)
                 .status("PUBLISHED")
+                .moderationStatus("APPROVED")
                 .expiresAt(LocalDateTime.now().plusDays(3))
+                .lastValidatedAt(LocalDateTime.now())
                 .workSize(request.getWorkSize())
                 .isPremium(Boolean.TRUE.equals(request.getIsPremium()))
                 .hasPets(Boolean.TRUE.equals(request.getHasPets()))
@@ -232,6 +250,9 @@ public class JobService {
 
         // Xử lý additionalData: Lưu dưới dạng JSON chuỗi
         jobPost.setAdditionalData(serializeAdditionalData(request.getAdditionalData()));
+        jobPost.setModerationStatus("APPROVED");
+        jobPost.setModerationFlags("");
+        jobPost.setLastValidatedAt(LocalDateTime.now());
 
         jobPost = jobPostRepository.save(jobPost);
 
@@ -696,12 +717,17 @@ public class JobService {
 
         // Lưu giá cũ để so sánh
         BigDecimal oldPrice = jobPost.getOfferPrice();
+        String oldTitle = jobPost.getTitle();
+        String oldDescription = jobPost.getDescription();
+        String oldAdditionalData = jobPost.getAdditionalData();
 
         // Cập nhật các trường
         if (request.getTitle() != null)
             jobPost.setTitle(request.getTitle());
         if (request.getDescription() != null)
             jobPost.setDescription(request.getDescription());
+        jobPost.setLastValidatedAt(LocalDateTime.now());
+        jobPost.setEditRevision((jobPost.getEditRevision() == null ? 0 : jobPost.getEditRevision()) + 1);
         if (request.getWorkDate() != null)
             jobPost.setWorkDate(request.getWorkDate());
         if (request.getStartTime() != null)
@@ -730,6 +756,7 @@ public class JobService {
             currentData.put("workSize", request.getWorkSize());
         }
         jobPost.setAdditionalData(serializeAdditionalData(currentData));
+        validatePostContentForModeration(jobPost.getTitle(), jobPost.getDescription());
 
         validateWorkSizeAndDuration(jobPost.getCategory().getCategoryId(), jobPost.getDurationHours(),
                 request.getWorkSize() != null ? request.getWorkSize() : (Double) currentData.get("workSize"));
@@ -809,6 +836,21 @@ public class JobService {
         }
 
         JobPost saved = jobPostRepository.save(jobPost);
+        saved.setEditRevision((saved.getEditRevision() == null ? 0 : saved.getEditRevision()) + 1);
+        saved.setLastValidatedAt(LocalDateTime.now());
+        saved = jobPostRepository.save(saved);
+
+        jobPostEditLogRepository.save(JobPostEditLog.builder()
+                .postId(saved.getPostId())
+                .editedBy(customerId)
+                .revisionNo(saved.getEditRevision())
+                .oldTitle(oldTitle)
+                .newTitle(saved.getTitle())
+                .oldDescription(oldDescription)
+                .newDescription(saved.getDescription())
+                .oldAdditionalData(oldAdditionalData)
+                .newAdditionalData(saved.getAdditionalData())
+                .build());
 
         // --- QUAN TRỌNG: Chỉ kích hoạt lại Matching nếu các tiêu chí tìm thợ thay đổi
         // ---
@@ -869,13 +911,15 @@ public class JobService {
     }
 
     /**
-     * Admin hủy tin đăng: PUBLISHED → cùng luồng hủy như khách (hoàn hold, hủy ứng tuyển PENDING).
+     * Admin hủy tin đăng: PUBLISHED → cùng luồng hủy như khách (hoàn hold, hủy ứng
+     * tuyển PENDING).
      * ASSIGNED → hủy booking đang hoạt động theo luật admin, sau đó đóng tin.
      */
     @Transactional
     public void cancelJobPostByAdmin(Long postId, String reason, String adminEmail) {
         JobPost jobPost = jobPostRepository.findById(postId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy bài đăng", HttpStatus.NOT_FOUND));
+        Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
 
         String st = jobPost.getStatus();
         if ("CANCELLED".equals(st)) {
@@ -894,8 +938,17 @@ public class JobService {
                     jobPost.getCustomerId(),
                     "Tin đăng bị hủy (Admin)",
                     String.format("Tin #%d đã bị hủy bởi quản trị viên. Lý do: %s", postId, reason),
-                    "JOB_POST_ADMIN_CANCEL");
+                    "JOB_ADMIN_CANCEL");
             log.info("Admin {} đã hủy tin PUBLISHED #{}", adminEmail, postId);
+            adminAuditLogService.log(
+                    adminUserId,
+                    adminEmail,
+                    "ADMIN_JOB_POST_CANCEL",
+                    "JOB_POST",
+                    postId,
+                    "SUCCESS",
+                    reason,
+                    "{\"previousStatus\":\"PUBLISHED\"}");
             return;
         }
 
@@ -907,18 +960,73 @@ public class JobService {
                     throw new ApiException("Đơn hàng gắn với tin này đã hoàn thành, không thể hủy bài đăng",
                             HttpStatus.BAD_REQUEST);
                 }
+                if (!ADMIN_JOB_POST_CANCEL_ALLOWED_BOOKING_STATUSES.contains(booking.getStatus())
+                        && booking.getStatus() != BookingStatus.CANCELLED) {
+                    adminAuditLogService.log(
+                            adminUserId,
+                            adminEmail,
+                            "ADMIN_JOB_POST_CANCEL",
+                            "JOB_POST",
+                            postId,
+                            "BLOCKED",
+                            "Từ chối hủy tin ASSIGNED do booking đang ở trạng thái không cho phép",
+                            "{\"bookingId\":" + booking.getId() + ",\"bookingStatus\":\"" + booking.getStatus().name()
+                                    + "\"}");
+                    throw new ApiException(
+                            "Không thể hủy tin vì booking #" + booking.getId() + " đang ở trạng thái "
+                                    + booking.getStatus()
+                                    + ". Vui lòng xử lý vận hành booking trước (no-show/hoàn thành).",
+                            HttpStatus.BAD_REQUEST);
+                }
                 if (booking.getStatus() != BookingStatus.CANCELLED) {
                     bookingService.cancelBookingByAdmin(booking.getId(),
                             "(Hủy từ quản lý bài đăng) " + reason, adminEmail);
                 }
             }
             jobPost.setStatus("CANCELLED");
+            jobPost.setModerationReason(reason);
+            jobPost.setModeratedBy(adminUserId);
+            jobPost.setModeratedAt(LocalDateTime.now());
             jobPostRepository.save(jobPost);
             log.info("Admin {} đã đóng tin ASSIGNED #{} sau khi xử lý booking liên quan", adminEmail, postId);
+            adminAuditLogService.log(
+                    adminUserId,
+                    adminEmail,
+                    "ADMIN_JOB_POST_CANCEL",
+                    "JOB_POST",
+                    postId,
+                    "SUCCESS",
+                    reason,
+                    "{\"previousStatus\":\"ASSIGNED\"}");
             return;
         }
 
         throw new ApiException("Không thể hủy bài đăng ở trạng thái: " + st, HttpStatus.BAD_REQUEST);
+    }
+
+    private void enforceJobPostingRateLimit(Long customerId) {
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
+        long todayCount = jobPostRepository.countByCustomerIdAndCreatedAtBetween(customerId, startOfDay, endOfDay);
+        if (todayCount >= MAX_POSTS_PER_DAY) {
+            throw new ApiException("Bạn đã vượt quá giới hạn đăng tin trong ngày", HttpStatus.TOO_MANY_REQUESTS);
+        }
+    }
+
+    private void validatePostContentForModeration(String title, String description) {
+        String text = ((title != null ? title : "") + " " + (description != null ? description : "")).trim();
+        if (text.isBlank()) {
+            throw new ApiException("Nội dung tin đăng không hợp lệ", HttpStatus.BAD_REQUEST);
+        }
+        String normalized = text.replaceAll("\\s+", " ").trim();
+
+        if (PHONE_PATTERN.matcher(normalized).find() || CONTACT_BYPASS_PATTERN.matcher(normalized).find()) {
+            throw new ApiException("Tin đăng không được chứa thông tin liên hệ ngoài hệ thống", HttpStatus.BAD_REQUEST);
+        }
+        String lower = normalized.toLowerCase();
+        if (GIBBERISH_PATTERN.matcher(lower.replace(" ", "")).matches() || lower.contains("test test")) {
+            throw new ApiException("Nội dung tin đăng có dấu hiệu spam/rác", HttpStatus.BAD_REQUEST);
+        }
     }
 
     private BigDecimal calculatePrice(JobPost jobPost) {

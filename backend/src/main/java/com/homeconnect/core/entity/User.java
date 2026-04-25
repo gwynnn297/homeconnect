@@ -61,6 +61,24 @@ public class User {
     @Column(name = "avatar_url", columnDefinition = "TEXT")
     private String avatarUrl; // Đường dẫn ảnh đại diện
 
+    @Column(name = "banned_at")
+    private LocalDateTime bannedAt;
+
+    @Column(name = "banned_by")
+    private Long bannedBy;
+
+    @Column(name = "ban_reason", columnDefinition = "TEXT")
+    private String banReason;
+
+    @Column(name = "unbanned_at")
+    private LocalDateTime unbannedAt;
+
+    @Column(name = "unbanned_by")
+    private Long unbannedBy;
+
+    @Column(name = "unban_reason", columnDefinition = "TEXT")
+    private String unbanReason;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt; // Thời gian tạo

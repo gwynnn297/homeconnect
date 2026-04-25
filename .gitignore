@@ -1,12 +1,8 @@
 ############################
-# OS
+# OS / Editor
 ############################
 .DS_Store
 Thumbs.db
-
-############################
-# IDE
-############################
 .idea/
 .vscode/
 *.iml
@@ -14,86 +10,66 @@ Thumbs.db
 *.iws
 
 ############################
-# Environment
+# Environment / Secrets
 ############################
 .env
 .env.*
 backend/.env
 frontend/.env
+AI/.env
 
 ############################
-# Backend - Spring Boot
+# Java / Gradle / Build
 ############################
 **/build/
 **/target/
 **/bin/
 **/.gradle/
 .gradle/
-backend/.gradle/
 out/
-
-# Log files
-*.log
-logs/
-backend/logs/
+*.class
 
 ############################
-# Frontend - React / Node
+# Node / Frontend
 ############################
 **/node_modules/
-node_modules/
 **/dist/
-dist/
-**/build/
 frontend/build/
-
-# Cache
 .npm/
 .cache/
 .parcel-cache/
 
 ############################
-# Lock files (tuỳ team quyết định)
+# Python / AI
 ############################
-# Nếu team dùng npm → nên giữ package-lock.json
-# Nếu không muốn commit lock file thì mở dòng dưới
+AI/.venv/
+AI/venv/
+AI/env/
+AI/ENV/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.ipynb_checkpoints/
+pip-wheel-metadata/
+*.egg-info/
+.eggs/
 
-# package-lock.json
-# yarn.lock
-# pnpm-lock.yaml
-
 ############################
-# Gradle wrapper (QUAN TRỌNG)
+# Logs / Archives
 ############################
-# KHÔNG ignore dòng này:
-# gradle/wrapper/gradle-wrapper.jar
-# gradle/wrapper/gradle-wrapper.properties
-
-############################
-# Misc
-############################
-*.class
-*.jar
-*.war
-*.ear
+*.log
+logs/
+backend/logs/
+*.tmp
+*.temp
 *.zip
 *.tar
 *.rar
-
-.DS_Store
-
-
-.idea
-*.iml
-
-.env
-
-**/build/
-**/target/
-**/bin/
-**/.gradle/
-**/node_modules/
-**/dist/
-
-*.log
-logs/

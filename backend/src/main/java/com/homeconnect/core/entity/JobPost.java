@@ -93,6 +93,28 @@ public class JobPost {
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
+    @Column(name = "moderation_status", length = 30)
+    private String moderationStatus;
+
+    @Column(name = "moderation_reason", columnDefinition = "TEXT")
+    private String moderationReason;
+
+    @Column(name = "moderation_flags", length = 500)
+    private String moderationFlags;
+
+    @Column(name = "moderated_by")
+    private Long moderatedBy;
+
+    @Column(name = "moderated_at")
+    private LocalDateTime moderatedAt;
+
+    @Column(name = "last_validated_at")
+    private LocalDateTime lastValidatedAt;
+
+    @Builder.Default
+    @Column(name = "edit_revision")
+    private Integer editRevision = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", referencedColumnName = "id", insertable = false, updatable = false)
     private User customer;

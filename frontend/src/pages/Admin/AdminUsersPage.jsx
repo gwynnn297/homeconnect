@@ -20,6 +20,9 @@ const STATUS_OPTIONS = [
     { value: 'PROFILE_COMPLETED', label: 'Đã hoàn tất hồ sơ' },
     { value: 'PENDING_REVIEW', label: 'Chờ phê duyệt hồ sơ' },
     { value: 'ACTIVE', label: 'Đang hoạt động' },
+    { value: 'BANNED', label: 'Bị khóa' },
+    { value: 'SUSPENDED', label: 'Tạm đình chỉ' },
+    { value: 'WITHDRAW_ONLY', label: 'Chỉ rút tiền' },
     { value: 'BLOCKED', label: 'Bị khóa' },
     { value: 'REJECTED', label: 'Bị từ chối hồ sơ' },
 ];
@@ -97,7 +100,8 @@ const AdminUsersPage = () => {
 
     const badgeClass = (s) => {
         if (s === 'ACTIVE') return 'status-verified';
-        if (s === 'BLOCKED') return 'status-rejected';
+        if (s === 'BANNED' || s === 'SUSPENDED' || s === 'BLOCKED') return 'status-rejected';
+        if (s === 'WITHDRAW_ONLY') return 'status-waiting';
         if (s === 'REJECTED') return 'status-rejected';
         return 'status-waiting';
     };

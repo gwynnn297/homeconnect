@@ -103,7 +103,10 @@ const AdminWithdrawalsPage = () => {
     const openReject = (request) => { setRejectTarget(request); setRejectReason(''); setShowReject(true); };
 
     const handleReject = async () => {
-        if (!rejectReason.trim()) { alert('Vui lòng nhập lý do từ chối.'); return; }
+        if (!rejectReason.trim()) {
+            setActionMsg({ type: 'error', text: 'Vui lòng nhập lý do từ chối.' });
+            return;
+        }
         setActionLoading(true);
         try {
             await AdminService.rejectWithdrawal(rejectTarget.requestId, rejectReason.trim());

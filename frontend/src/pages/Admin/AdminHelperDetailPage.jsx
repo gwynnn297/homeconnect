@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../layouts/AdminLayout';
 import AdminService from '../../services/AdminService';
+import NotificationModal from '../../components/NotificationModal';
 import './AdminHelperDetailPage.css';
 
 const AdminHelperDetailPage = () => {
@@ -15,6 +16,7 @@ const AdminHelperDetailPage = () => {
     const [reviewAction, setReviewAction] = useState('VERIFIED');
     const [rejectionReason, setRejectionReason] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [toast, setToast] = useState(null);
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -33,7 +35,7 @@ const AdminHelperDetailPage = () => {
 
     const handleReview = async () => {
         if (reviewAction === 'REJECTED' && !rejectionReason.trim()) {
-            alert('Vui lòng nhập lý do từ chối');
+            setToast({ type: 'warning', message: 'Vui lòng nhập lý do từ chối' });
             return;
         }
 
@@ -48,11 +50,11 @@ const AdminHelperDetailPage = () => {
                 };
                 await AdminService.reviewHelper(helperId, data);
             }
-            alert(`Đã ${reviewAction === 'VERIFIED' ? 'xác minh' : 'từ chối'} Helper thành công`);
+            setToast({ type: 'success', message: `Đã ${reviewAction === 'VERIFIED' ? 'xác minh' : 'từ chối'} Helper thành công` });
             setShowReviewModal(false);
-            navigate('/admin/helpers');
+            setTimeout(() => navigate('/admin/helpers'), 600);
         } catch (err) {
-            alert('Lỗi: ' + (err.message || 'Không thể xử lý yêu cầu'));
+            setToast({ type: 'error', message: 'Lỗi: ' + (err.message || 'Không thể xử lý yêu cầu') });
         } finally {
             setSubmitting(false);
         }
@@ -333,6 +335,14 @@ const AdminHelperDetailPage = () => {
                             </div>
                         </div>
                     </div>
+                )}
+
+                {toast && (
+                    <NotificationModal
+                        type={toast.type}
+                        message={toast.message}
+                        onClose={() => setToast(null)}
+                    />
                 )}
             </div>
         </AdminLayout>

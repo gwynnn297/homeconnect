@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,6 +25,8 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
 
     // Admin: đếm số lượng user theo status
     long countByStatus(UserStatus status);
+
+    long countByStatusIn(Collection<UserStatus> statuses);
 
     // Admin: Lấy danh sách user theo role với pagination
     List<User> findByRole(UserRole role);

@@ -12,11 +12,14 @@ import com.homeconnect.core.dto.request.admin.UpdateServiceRequest;
 import com.homeconnect.core.dto.response.*;
 import com.homeconnect.core.dto.response.admin.AdminBookingDetailResponse;
 import com.homeconnect.core.dto.response.admin.AdminBookingListResponse;
+import com.homeconnect.core.dto.response.admin.AdminAuditLogListResponse;
+import com.homeconnect.core.dto.response.admin.AdminJobPostEditLogListResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostDetailResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostListResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserDetailResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserListItemResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserListResponse;
+import com.homeconnect.core.dto.response.admin.AdminViolationListResponse;
 import com.homeconnect.core.dto.response.admin.ServiceResponse;
 import com.homeconnect.core.dto.response.service.CategoryResponse;
 import com.homeconnect.core.enums.BookingStatus;
@@ -139,6 +142,40 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Audit logs của admin", description = "Lọc log theo admin thao tác, event type, target type và khoảng thời gian")
+    @GetMapping("/audit-logs")
+    public ResponseEntity<AdminAuditLogListResponse> getAdminAuditLogs(
+            @RequestParam(required = false) Long actorId,
+            @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) String targetType,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return ResponseEntity.ok(adminService.getAdminAuditLogs(actorId, eventType, targetType, from, to, pageable));
+    }
+
+    @Operation(summary = "Danh sách vi phạm vận hành", description = "Theo dõi helper/customer hủy sát giờ, no-show và mức phạt")
+    @GetMapping("/violations")
+    public ResponseEntity<AdminViolationListResponse> getViolations(
+            @RequestParam(required = false) String violationType,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return ResponseEntity.ok(adminService.getViolations(violationType, pageable));
+    }
+
+    @Operation(summary = "Lịch sử chỉnh sửa tin đăng", description = "Theo dõi việc user chỉnh sửa tin để lách kiểm duyệt")
+    @GetMapping("/job-post-edit-logs")
+    public ResponseEntity<AdminJobPostEditLogListResponse> getJobPostEditLogs(
+            @RequestParam(required = false) Long postId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return ResponseEntity.ok(adminService.getJobPostEditLogs(postId, pageable));
+    }
+
     /**
      * POST /api/v1/admin/notifications/broadcast
      * Gửi thông báo broadcast tới nhiều user
@@ -185,7 +222,7 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getAdminBookingDetail(bookingId));
     }
 
-    @Operation(summary = "Hủy booking (Admin)", description = "Áp dụng cùng quy tắc hoàn tiền/hold như khách hủy (sát giờ / sớm). Bắt buộc lý do.")
+    @Operation(summary = "Hủy booking (Admin)", description = "Chỉ cho phép hủy khi booking còn trước giai đoạn thực thi (PENDING/PENDING_ACCEPTANCE/CONFIRMED). Trạng thái đang làm sẽ bị chặn và yêu cầu xử lý vận hành chuyên biệt.")
     @PostMapping("/bookings/{bookingId}/cancel")
     public ResponseEntity<ApiResponse<Void>> adminCancelBooking(
             @PathVariable Long bookingId,
@@ -207,6 +244,31 @@ public class AdminController {
         bookingService.clearBookingFlagByAdmin(bookingId, adminEmail);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .message("Đã gỡ cờ cảnh báo")
+                .build());
+    }
+
+    @Operation(summary = "Xử lý helper no-show", description = "Auto cancel, hoàn tiền full cho khách, phạt helper và tạo vi phạm")
+    @PostMapping("/bookings/{bookingId}/helper-no-show")
+    public ResponseEntity<ApiResponse<Void>> handleHelperNoShow(
+            @PathVariable Long bookingId,
+            @RequestParam(required = false) String reason,
+            Authentication authentication) {
+        bookingService.handleHelperNoShow(bookingId, reason, authentication.getName());
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Đã xử lý helper no-show")
+                .build());
+    }
+
+    @Operation(summary = "Xử lý customer không có mặt", description = "Cancel đơn và thanh toán một phần cho helper (30-50%)")
+    @PostMapping("/bookings/{bookingId}/customer-no-show")
+    public ResponseEntity<ApiResponse<Void>> handleCustomerNoShow(
+            @PathVariable Long bookingId,
+            @RequestParam(defaultValue = "0.3") double payoutRatio,
+            @RequestParam(required = false) String reason,
+            Authentication authentication) {
+        bookingService.handleCustomerNoShow(bookingId, payoutRatio, reason, authentication.getName());
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Đã xử lý customer no-show")
                 .build());
     }
 
@@ -244,7 +306,7 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getAdminJobPostDetail(postId));
     }
 
-    @Operation(summary = "Hủy tin đăng (Admin)", description = "PUBLISHED: hoàn hold & hủy ứng tuyển như khách. ASSIGNED: hủy đơn booking theo luật admin rồi đóng tin.")
+    @Operation(summary = "Hủy tin đăng (Admin)", description = "PUBLISHED: hoàn hold & hủy ứng tuyển như khách. ASSIGNED: chỉ hủy được khi booking liên quan chưa vào giai đoạn thực thi; nếu đang ARRIVED/IN_PROGRESS/PENDING_COMPLETION sẽ bị chặn.")
     @PostMapping("/job-posts/{postId}/cancel")
     public ResponseEntity<ApiResponse<Void>> adminCancelJobPost(
             @PathVariable Long postId,
@@ -287,7 +349,7 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getAdminUserDetail(userId));
     }
 
-    @Operation(summary = "Khóa / mở khóa tài khoản", description = "Chỉ chấp nhận BLOCKED (khóa) hoặc ACTIVE (mở khóa từ trạng thái BLOCKED).")
+    @Operation(summary = "Khóa / mở khóa tài khoản", description = "Chỉ chấp nhận BANNED (khóa) hoặc ACTIVE (mở khóa). Chặn tuyệt đối thao tác trên tài khoản ADMIN.")
     @PatchMapping("/users/{userId}/status")
     public ResponseEntity<ApiResponse<AdminUserListItemResponse>> updateUserStatus(
             @PathVariable Long userId,
