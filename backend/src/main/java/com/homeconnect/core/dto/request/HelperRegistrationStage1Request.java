@@ -27,14 +27,20 @@ public class HelperRegistrationStage1Request {
     @NotNull(message = "Tỉnh/Thành phố hiện tại không được để trống")
     @Schema(description = "Tên của Tỉnh/Thành phố hiện tại", example = "Thành phố Hồ Chí Minh")
     private String provinceName;
+
+    private String provinceCode;
     
     @NotNull(message = "Quận/Huyện hiện tại không được để trống")
     @Schema(description = "Tên của Quận/Huyện hiện tại", example = "Quận 1")
     private String districtName;
 
+    private String districtCode;
+
     @NotNull(message = "Phường/Xã hiện tại không được để trống")
     @Schema(description = "Tên của Phường/Xã hiện tại", example = "Phường Bến Nghé")
     private String wardName;
+
+    private String wardCode;
 
     @NotBlank(message = "Địa chỉ hiện tại không được để trống")
     @Schema(description = "Địa chỉ tạm trú hiện tại: Số nhà, tên đường...", example = "Số 123, đường Nguyễn Huệ")

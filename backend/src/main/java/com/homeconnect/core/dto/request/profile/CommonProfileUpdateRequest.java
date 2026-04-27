@@ -33,6 +33,9 @@ public class CommonProfileUpdateRequest {
     private String wardName;
     private String districtName;
     private String provinceName;
+    private String provinceCode;
+    private String districtCode;
+    private String wardCode;
     
     @Schema(description = "Loại địa chỉ hoặc nhãn hiển thị", example = "HOME")
     private String addressLabel; // HOME, OFFICE, hoặc tên tự đặt

@@ -9,6 +9,9 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class HelperProfileResponse {
+    private Long id;
+    private String fullName;
+    private String avatarUrl;
     private String bio;
     private java.time.LocalDate dateOfBirth;
     private Integer experienceYears;

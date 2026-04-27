@@ -4,6 +4,7 @@ import './CustomerSidebarComponent.css';
 
 const csPrimaryLinks = [
     { to: '/customer-dashboard', label: 'Tổng quan', icon: 'grid' },
+    { to: '/customer/search-helper', label: 'Tìm kiếm thợ', icon: 'search' },
     { to: '/customer/manage-posts', label: 'Quản lý bài đăng', icon: 'file' },
 ];
 
@@ -56,6 +57,14 @@ const CustomerSidebarIcon = ({ icon }) => {
                 <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" />
                 <path d="M3 5v14a2 2 0 0 0 2 2h16v-5" />
                 <path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+            </svg>
+        );
+    }
+    if (icon === 'search') {
+        return (
+            <svg className="cs-sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
         );
     }

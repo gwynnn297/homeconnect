@@ -83,7 +83,7 @@ public class HelperProfile {
     
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;  // Lý do từ chối KYC (nếu bị từ chối)
-    
+
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;  // Thời gian cập nhật cuối

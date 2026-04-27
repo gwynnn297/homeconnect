@@ -20,6 +20,7 @@ const HeaderComponent = () => {
     const notificationRef = useRef(null);
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [helperStatus, setHelperStatus] = useState({ isOnline: false, kycStatus: null });
 
     // Reactive user info state
     const [userInfo, setUserInfo] = useState(() => {
@@ -51,7 +52,21 @@ const HeaderComponent = () => {
     }, []);
 
     // Fetch khi mount
-    useEffect(() => { fetchUserProfile(); }, [fetchUserProfile]);
+    useEffect(() => {
+        fetchUserProfile();
+        if (userInfo?.role === 'HELPER') {
+            ProfileService.getHelperProfessionalProfile()
+                .then(res => {
+                    if (res?.data) {
+                        setHelperStatus({
+                            isOnline: !!res.data.isOnline,
+                            kycStatus: res.data.kycStatus
+                        });
+                    }
+                })
+                .catch(err => console.error("Error fetching helper status:", err));
+        }
+    }, [fetchUserProfile, userInfo?.role]);
 
     // Lắng nghe CustomEvent 'profile:updated' từ cùng tab (Profile page dispatch sau khi lưu)
     useEffect(() => {
@@ -184,6 +199,20 @@ const HeaderComponent = () => {
         setShowDropdown(false);
     };
 
+    const handleToggleOnline = async (checked) => {
+        try {
+            const res = await ProfileService.updateHelperOnlineStatus(checked);
+            if (res?.data) {
+                setHelperStatus(prev => ({ ...prev, isOnline: !!res.data.isOnline }));
+            }
+        } catch (error) {
+            console.error("Failed to update online status:", error);
+            // Fallback UI if needed, but the toggle won't change if API fails
+            const msg = error?.response?.data?.message || "Không thể cập nhật trạng thái online";
+            alert(msg);
+        }
+    };
+
     const displayName = userInfo?.fullName || userInfo?.name || userInfo?.username || userInfo?.email || 'Người dùng';
     const avatarUrl = userInfo?.avatarUrl || null;
     const avatarInitials = getInitials(displayName);
@@ -234,6 +263,25 @@ const HeaderComponent = () => {
                 </div>
 
                 <div className="header-user-actions">
+                    {/* Helper Online Toggle */}
+                    {userInfo?.role === 'HELPER' && (
+                        <div className="helper-status-toggle">
+                            <span className={`helper-status-label ${helperStatus?.isOnline ? 'online' : ''}`}>
+                                {helperStatus?.isOnline ? 'Đang bật' : 'Đang tắt'}
+                            </span>
+                            <label className={`toggle-switch ${helperStatus?.kycStatus !== 'VERIFIED' ? 'disabled' : ''}`}
+                                title={helperStatus?.kycStatus !== 'VERIFIED' ? "Cần xác minh KYC để bật Online" : "Bật/Tắt chế độ nhận việc"}>
+                                <input
+                                    type="checkbox"
+                                    checked={!!helperStatus?.isOnline}
+                                    onChange={(e) => handleToggleOnline(e.target.checked)}
+                                    disabled={helperStatus?.kycStatus !== 'VERIFIED'}
+                                />
+                                <span className="toggle-slider"></span>
+                            </label>
+                        </div>
+                    )}
+
                     {/* Notification Bell */}
                     <div className="notification-wrapper" ref={notificationRef}>
                         <div className="notification-icon" title="Thông báo" onClick={handleToggleNotifications}>

@@ -385,11 +385,12 @@ public class JobService {
         }
 
         final Map<Long, Booking> bookingByPostId = bookingByPostIdMutable;
+        final boolean showAddress = "CONFIRMED".equals(normalizedTab);
 
         return orderedPostIds.stream()
                 .map(postById::get)
                 .filter(Objects::nonNull)
-                .map(jp -> mapToJobPostResponse(jp, false, bookingByPostId.get(jp.getPostId())))
+                .map(jp -> mapToJobPostResponse(jp, showAddress, bookingByPostId.get(jp.getPostId())))
                 .collect(Collectors.toList());
     }
 

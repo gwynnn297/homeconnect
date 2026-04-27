@@ -10,5 +10,6 @@ import lombok.*;
 public class LocationResponse {
     private String name;
     private String code;
+    private String provinceCode;
     private String type; // PROVINCE, DISTRICT, WARD
 }

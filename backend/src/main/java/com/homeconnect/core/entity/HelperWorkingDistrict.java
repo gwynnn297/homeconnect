@@ -37,4 +37,7 @@ public class HelperWorkingDistrict {
 
     @Column(name = "district_code", nullable = false)
     private String districtCode; // Mã Quận/Huyện từ API
+
+    @Column(name = "province_code", length = 10)
+    private String provinceCode; // Mã Tỉnh/Thành từ API
 }

@@ -7,6 +7,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDateTime;
 
 /**
@@ -86,4 +87,13 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt; // Thời gian cập nhật cuối
+
+    // Relationships for Helper Search Joining (Ignored for direct JSON serialization)
+    @JsonIgnore
+    @OneToMany(mappedBy = "helper", fetch = FetchType.LAZY)
+    private java.util.List<HelperService> services;
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "helper", fetch = FetchType.LAZY)
+    private java.util.List<HelperWorkingDistrict> workingDistricts;
 }

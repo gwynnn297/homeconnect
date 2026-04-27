@@ -43,6 +43,15 @@ public class Address {
     @Column(name = "province_name")
     private String provinceName;
 
+    @Column(name = "province_code", length = 10)
+    private String provinceCode;
+
+    @Column(name = "district_code", length = 10)
+    private String districtCode;
+
+    @Column(name = "ward_code", length = 10)
+    private String wardCode;
+
     @Column(name = "latitude", precision = 10, scale = 7, nullable = false)
     private BigDecimal latitude;
 

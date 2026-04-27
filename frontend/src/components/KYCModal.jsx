@@ -526,15 +526,19 @@ const KYCModal = ({ isOpen, onClose, onSuccess }) => {
 
             const workingDistricts = formData.workingDistrictCodes.map(code => {
                 const dist = cityDistricts.find(d => d.code == code);
-                return dist ? { code: String(code), name: dist.name } : null;
+                // Gửi kèm provinceCode hiện tại cho từng quận làm việc
+                return dist ? { code: String(code), name: dist.name, provinceCode: formData.provinceCode } : null;
             }).filter(Boolean);
 
             const stage1Data = {
                 dateOfBirth: formData.dateOfBirth,
                 hometownName: hometownName,
                 provinceName: provinceName,
+                provinceCode: String(formData.provinceCode),
                 districtName: districtName,
+                districtCode: String(formData.districtCode),
                 wardName: wardName,
+                wardCode: String(formData.wardCode),
                 currentAddress: formData.currentAddress.trim(),
                 workingDistricts: workingDistricts,
                 bio: formData.bio.trim(),
