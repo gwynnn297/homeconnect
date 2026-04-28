@@ -60,8 +60,18 @@ const formatWorkDate = (value) => {
     return String(value);
 };
 
-const buildLocationText = (job) =>
-    [job?.wardName, job?.districtName, job?.provinceName].filter(Boolean).join(', ') || 'N/A';
+const buildLocationText = (job) => {
+    const fullAddress = typeof job?.fullAddress === 'string' ? job.fullAddress.trim() : '';
+    if (fullAddress) return fullAddress;
+
+    const detailedAddress = [
+        job?.addressDetail,
+        job?.wardName,
+        job?.districtName,
+        job?.provinceName
+    ].filter(Boolean).join(', ');
+    return detailedAddress || 'N/A';
+};
 
 const isCompletedJob = (job) => String(job?.status || '').toUpperCase() === 'COMPLETED' || String(job?.bookingStatus || '').toUpperCase() === 'COMPLETED';
 
