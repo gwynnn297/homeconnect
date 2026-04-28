@@ -36,6 +36,7 @@ import CustomerManagePostsPage from '../pages/Customer/CustomerManagePostsPage'
 import CustomerPostDetailPage from '../pages/Customer/CustomerPostDetailPage'
 import CustomerBookingDetailPage from '../pages/Customer/CustomerBookingDetailPage'
 import HistoryBookingPage from '../pages/Customer/HistoryBookingPage'
+import SearchHelperPage from '../pages/Customer/SearchHelperPage'
 
 const AuthRouter = () => {
   return (
@@ -79,6 +80,7 @@ const AuthRouter = () => {
         <Route path="/customer/post-job" element={<CustomerPostJobPage />} />
         <Route path="/customer/manage-posts" element={<CustomerManagePostsPage />} />
         <Route path="/customer/manage-posts/:postId" element={<CustomerPostDetailPage />} />
+        <Route path="/customer/search-helper" element={<SearchHelperPage />} />
         <Route path="/customer/bookings/:bookingId" element={<CustomerBookingDetailPage />} />
         <Route path="/customer/history" element={<HistoryBookingPage />} />
       </Routes>

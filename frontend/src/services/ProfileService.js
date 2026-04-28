@@ -110,7 +110,19 @@ const ProfileService = {
     updateProfile,
     getHelperProfessionalProfile,
     updateHelperProfessionalProfile,
-    updateHelperOnlineStatus,
+    updateHelperOnlineStatus: (isOnline) => {
+        return apiClient.patch('/api/v1/helper/profile/online-status', { isOnline });
+    },
+    searchHelpers: (params) => {
+        const queryParams = new URLSearchParams();
+        if (params.serviceId) queryParams.append('service_id', params.serviceId);
+        if (params.district) queryParams.append('district', params.district);
+        if (params.province) queryParams.append('province', params.province);
+        if (params.minRating) queryParams.append('min_rating', params.minRating);
+        if (params.hometownCode) queryParams.append('hometown_code', params.hometownCode);
+
+        return apiClient.get(`/api/v1/helpers/search?${queryParams.toString()}`);
+    },
     getPublicHelperProfile,
     getAddressLabels,
     getProvinces,

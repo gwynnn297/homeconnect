@@ -206,6 +206,12 @@ private void pushRealtime(Long userId, NotificationResponse payload) {
             try {
                 emitter.send(SseEmitter.event().name("notification").data(payload));
             } catch (IOException e) {
+                // Lỗi này thường xảy ra khi người dùng tắt tab hoặc mạng ngắt
+                // Ta chỉ cần log nhẹ nhàng và gỡ emitter đó đi
+                log.debug("SSE connection for user {} aborted: {}", userId, e.getMessage());
+                removeEmitter(userId, emitter);
+            } catch (Exception e) {
+                log.error("Error sending SSE for user {}: {}", userId, e.getMessage());
                 removeEmitter(userId, emitter);
             }
         });

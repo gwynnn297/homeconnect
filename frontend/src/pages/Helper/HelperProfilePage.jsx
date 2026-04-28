@@ -438,6 +438,9 @@ const BasicInfoTab = ({ profile, onSaved }) => {
                 gender: form.gender || null,
                 addressDetail: form.addressDetail || null,
                 wardName: wardName || null,
+                provinceCode: form.provinceCode || null,
+                districtCode: form.districtCode || null,
+                wardCode: form.wardCode || null,
                 districtName: form.districtName || null,
                 provinceName: form.provinceName || null,
                 addressLabel: form.addressLabel || 'HOME',
@@ -808,8 +811,12 @@ const ProfessionalProfileTab = () => {
                     experienceYears: data.experienceYears ?? 0,
                     dateOfBirth: data.dateOfBirth || '',
                     hometownName: data.hometownName || '',
-                    // workingDistricts from backend: [{ code, name, type }]
-                    workingDistricts: data.workingDistricts?.map((d) => ({ code: String(d.code), name: d.name })) || [],
+                    // workingDistricts from backend: [{ code, name, provinceCode, type }]
+                    workingDistricts: data.workingDistricts?.map((d) => ({
+                        code: String(d.code),
+                        name: d.name,
+                        provinceCode: d.provinceCode ? String(d.provinceCode) : ''
+                    })) || [],
                     categoryIds: data.categories?.map((c) => String(c.id ?? c.categoryId)).filter(Boolean) || [],
                 }));
             })
@@ -1174,7 +1181,8 @@ const ProfessionalProfileTab = () => {
                         const updated = codes
                             .map((code) => {
                                 const found = allWorkDistricts.find((d) => d.value === code);
-                                return found ? { code, name: found.label } : null;
+                                // Gửi kèm workProvinceCode đang chọn
+                                return found ? { code, name: found.label, provinceCode: form.workProvinceCode } : null;
                             })
                             .filter(Boolean);
                         setForm((f) => ({ ...f, workingDistricts: updated }));

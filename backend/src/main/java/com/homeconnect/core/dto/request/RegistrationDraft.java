@@ -18,8 +18,11 @@ public class RegistrationDraft {
     private LocalDate dateOfBirth;
     private String hometownName;
     private String provinceName;
+    private String provinceCode;
     private String districtName;
+    private String districtCode;
     private String wardName;
+    private String wardCode;
     private String currentAddress;
     private String placeId;
     private List<com.homeconnect.core.dto.request.profile.HelperProfessionalProfileRequest.WorkingDistrictRequest> workingDistricts;

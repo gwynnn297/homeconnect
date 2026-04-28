@@ -103,9 +103,26 @@ public class ProfileController {
      * Lấy hồ sơ công khai của một Người giúp việc bất kỳ.
      * Dùng cho Khách hàng khi cần xem thông tin Helper trước khi đặt lịch.
      * 
-     * @param id User ID của Helper cần xem
+     * @param serviceId ID dịch vụ
+     * @param district Quận/Huyện
+     * @param minRating Đánh giá tối thiểu
+     * @param hometownCode Mã quê quán
      * @return ApiResponse chứa HelperProfileResponse công khai
      */
+    @GetMapping("/helpers/search")
+    @Operation(summary = "Tìm kiếm thợ nâng cao", description = "Lọc thợ theo dịch vụ, khu vực, đánh giá và quê quán. Luôn lọc thợ đang Online và Verified.")
+    public ResponseEntity<ApiResponse<java.util.List<HelperProfileResponse>>> searchHelpers(
+            @RequestParam(name = "service_id", required = false) Integer serviceId,
+            @RequestParam(name = "district", required = false) String district,
+            @RequestParam(name = "province", required = false) String province,
+            @RequestParam(name = "min_rating", required = false) java.math.BigDecimal minRating,
+            @RequestParam(name = "hometown_code", required = false) String hometownCode) {
+        return ResponseEntity.ok(ApiResponse.<java.util.List<HelperProfileResponse>>builder()
+                .message("Tìm kiếm thợ thành công")
+                .data(profileService.searchHelpers(serviceId, district, province, minRating, hometownCode))
+                .build());
+    }
+
     @GetMapping("/helpers/{id}")
     @Operation(summary = "Xem hồ sơ công khai của Helper", description = "Dùng để hiển thị thông tin Helper cho Khách hàng xem trước khi đặt việc")
     public ResponseEntity<ApiResponse<HelperProfileResponse>> getPublicHelperProfile(@PathVariable Long id) {

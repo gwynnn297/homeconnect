@@ -113,8 +113,11 @@ public class HelperRegistrationService {
         draft.setDateOfBirth(request.getDateOfBirth());
         draft.setHometownName(request.getHometownName());
         draft.setProvinceName(request.getProvinceName());
+        draft.setProvinceCode(request.getProvinceCode());
         draft.setDistrictName(request.getDistrictName());
+        draft.setDistrictCode(request.getDistrictCode());
         draft.setWardName(request.getWardName());
+        draft.setWardCode(request.getWardCode());
         draft.setCurrentAddress(request.getCurrentAddress());
         draft.setWorkingDistricts(request.getWorkingDistricts());
         draft.setBio(request.getBio());
@@ -285,6 +288,7 @@ public class HelperRegistrationService {
                     .helper(user)
                     .districtName(wdReq.getName())
                     .districtCode(wdReq.getCode())
+                    .provinceCode(wdReq.getProvinceCode())
                     .build());
         }
 
@@ -317,8 +321,11 @@ public class HelperRegistrationService {
 
         address.setAddressDetail(draft.getCurrentAddress());
         address.setProvinceName(draft.getProvinceName());
+        address.setProvinceCode(draft.getProvinceCode());
         address.setDistrictName(draft.getDistrictName());
+        address.setDistrictCode(draft.getDistrictCode());
         address.setWardName(draft.getWardName());
+        address.setWardCode(draft.getWardCode());
 
         // Logic ưu tiên tọa độ (Chuẩn Production-Ready)
         BigDecimal lat = draft.getLatitude();
@@ -547,6 +554,7 @@ public class HelperRegistrationService {
                     .helper(user)
                     .districtName(wdReq.getName())
                     .districtCode(wdReq.getCode())
+                    .provinceCode(wdReq.getProvinceCode())
                     .build());
         }
 
@@ -573,8 +581,11 @@ public class HelperRegistrationService {
                         .build());
         address.setAddressDetail(draft.getCurrentAddress());
         address.setProvinceName(draft.getProvinceName());
+        address.setProvinceCode(draft.getProvinceCode());
         address.setDistrictName(draft.getDistrictName());
+        address.setDistrictCode(draft.getDistrictCode());
         address.setWardName(draft.getWardName());
+        address.setWardCode(draft.getWardCode());
 
         if (draft.getLatitude() != null && draft.getLongitude() != null) {
             address.setLatitude(draft.getLatitude());

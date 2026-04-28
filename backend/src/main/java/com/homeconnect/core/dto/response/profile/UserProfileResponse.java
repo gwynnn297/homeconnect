@@ -24,6 +24,9 @@ public class UserProfileResponse {
     private String wardName;
     private String districtName;
     private String provinceName;
+    private String provinceCode;
+    private String districtCode;
+    private String wardCode;
     private String addressLabel;
 
     private BigDecimal latitude;

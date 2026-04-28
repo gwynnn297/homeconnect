@@ -32,6 +32,7 @@ public class HelperProfessionalProfileRequest {
     public static class WorkingDistrictRequest {
         private String name;
         private String code;
+        private String provinceCode;
     }
 
     @NotBlank(message = "Bio không được để trống")

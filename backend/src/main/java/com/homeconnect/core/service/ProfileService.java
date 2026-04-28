@@ -17,6 +17,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.jpa.domain.Specification;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -69,9 +70,12 @@ public class ProfileService {
                         .build());
 
         address.setAddressDetail(request.getAddressDetail());
-        address.setWardName(request.getWardName());
-        address.setDistrictName(request.getDistrictName());
         address.setProvinceName(request.getProvinceName());
+        address.setProvinceCode(request.getProvinceCode());
+        address.setDistrictName(request.getDistrictName());
+        address.setDistrictCode(request.getDistrictCode());
+        address.setWardName(request.getWardName());
+        address.setWardCode(request.getWardCode());
 
         BigDecimal lat = request.getLatitude();
         BigDecimal lng = request.getLongitude();
@@ -111,11 +115,25 @@ public class ProfileService {
         return mapToHelperResponse(profile);
     }
 
+    @Transactional(readOnly = true)
+    public List<HelperProfileResponse> searchHelpers(Integer serviceId, String district, String province, java.math.BigDecimal minRating, String hometownCode) {
+        log.info("Searching helpers: serviceId={}, district={}, province={}, minRating={}, hometownCode={}",
+                serviceId, district, province, minRating, hometownCode);
+        Specification<HelperProfile> spec = HelperProfileSpecification.filterHelpers(serviceId, district, province, minRating, hometownCode);
+        return helperProfileRepository.findAll(spec).stream()
+                .map(this::mapToHelperResponse)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public HelperProfileResponse updateHelperOnlineStatus(Boolean isOnline) {
         User user = getCurrentUser();
         HelperProfile profile = helperProfileRepository.findByUser_Id(user.getId())
                 .orElseThrow(() -> new ApiException("Hồ sơ Helper không tồn tại", HttpStatus.NOT_FOUND));
+
+        if (Boolean.TRUE.equals(isOnline) && !com.homeconnect.core.enums.KycStatus.VERIFIED.equals(profile.getKycStatus())) {
+            throw new ApiException("Bạn cần hoàn tất xác minh KYC để có thể bật trạng thái Online", HttpStatus.FORBIDDEN);
+        }
 
         profile.setIsOnline(isOnline);
         HelperProfile savedProfile = helperProfileRepository.save(profile);
@@ -177,6 +195,7 @@ public class ProfileService {
                         .helper(user)
                         .districtName(wdReq.getName())
                         .districtCode(wdReq.getCode())
+                        .provinceCode(wdReq.getProvinceCode())
                         .build());
             }
         }
@@ -223,8 +242,11 @@ public class ProfileService {
                 .status(user.getStatus() != null ? user.getStatus().name() : null)
                 .addressDetail(address != null ? address.getAddressDetail() : null)
                 .provinceName(address != null ? address.getProvinceName() : null)
+                .provinceCode(address != null ? address.getProvinceCode() : null)
                 .districtName(address != null ? address.getDistrictName() : null)
+                .districtCode(address != null ? address.getDistrictCode() : null)
                 .wardName(address != null ? address.getWardName() : null)
+                .wardCode(address != null ? address.getWardCode() : null)
                 .addressLabel(address != null ? address.getType() : null)
                 .latitude(address != null ? address.getLatitude() : null)
                 .longitude(address != null ? address.getLongitude() : null)
@@ -233,6 +255,9 @@ public class ProfileService {
 
     private HelperProfileResponse mapToHelperResponse(HelperProfile profile) {
         return HelperProfileResponse.builder()
+                .id(profile.getUser().getId())
+                .fullName(profile.getUser().getFullName())
+                .avatarUrl(profile.getUser().getAvatarUrl())
                 .bio(profile.getBio())
                 .dateOfBirth(profile.getUser().getDateOfBirth())
                 .experienceYears(profile.getExperienceYears())
@@ -251,6 +276,7 @@ public class ProfileService {
                 .map(wd -> LocationResponse.builder()
                         .name(wd.getDistrictName())
                         .code(wd.getDistrictCode())
+                        .provinceCode(wd.getProvinceCode())
                         .type("DISTRICT")
                         .build())
                 .collect(Collectors.toList());
