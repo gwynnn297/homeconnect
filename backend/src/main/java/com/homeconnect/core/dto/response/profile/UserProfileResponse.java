@@ -31,4 +31,12 @@ public class UserProfileResponse {
 
     private BigDecimal latitude;
     private BigDecimal longitude;
+
+    private Integer completedBookingCount;
+    private String currentTier;
+    private BigDecimal currentDiscountRate;
+    private String nextTier;
+    private Integer ordersToNextTier;
+    private Integer progressPercent;
+    private String progressMessage;
 }

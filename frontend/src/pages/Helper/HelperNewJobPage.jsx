@@ -527,6 +527,12 @@ const HelperNewJobPage = () => {
                                     <StatusIcon type={getCheckinBadgeMeta(activeTab, job).icon} />
                                     {getCheckinBadgeMeta(activeTab, job).badgeLabel}
                                 </span>
+                                {job?.isVipCustomer && (
+                                    <span className="hnj-state-pill hnj-state-pill--verified">
+                                        <StatusIcon type="check" />
+                                        VIP
+                                    </span>
+                                )}
                             </div>
 
                             <div className="hnj-card-body">

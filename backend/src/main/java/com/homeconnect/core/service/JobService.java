@@ -11,6 +11,7 @@ import com.homeconnect.core.entity.Address;
 import com.homeconnect.core.entity.Booking;
 import com.homeconnect.core.entity.JobPost;
 import com.homeconnect.core.entity.JobPostEditLog;
+import com.homeconnect.core.entity.User;
 import com.homeconnect.core.event.JobPostCreatedEvent;
 import com.homeconnect.core.repository.JobPostRepository;
 import com.homeconnect.core.repository.BookingRepository;
@@ -21,6 +22,7 @@ import com.homeconnect.core.repository.HelperServiceRepository;
 import com.homeconnect.core.repository.HelperWorkingDistrictRepository;
 import com.homeconnect.core.repository.JobPostEditLogRepository;
 import com.homeconnect.core.repository.ServiceCategoryRepository;
+import com.homeconnect.core.repository.UserRepository;
 import com.homeconnect.core.entity.ServiceCategory;
 import com.homeconnect.core.repository.AddressRepository;
 import com.homeconnect.core.entity.JobApplication;
@@ -32,6 +34,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 
 import com.homeconnect.core.exception.ApiException;
 import com.homeconnect.core.enums.BookingStatus;
+import com.homeconnect.core.enums.CustomerTier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -84,7 +87,9 @@ public class JobService {
     private final HelperWorkingDistrictRepository helperWorkingDistrictRepository;
     private final JobApplicationRepository jobApplicationRepository;
     private final ServiceCategoryRepository serviceCategoryRepository;
+    private final UserRepository userRepository;
     private final WalletService walletService;
+    private final LoyaltyService loyaltyService;
     private final AddressRepository addressRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final NotificationService notificationService;
@@ -199,13 +204,20 @@ public class JobService {
         int totalDuration = request.getDurationHours() + (subServiceCount * HOURS_PER_SUB_SERVICE);
 
         // --- NEW: Sử dụng logic tính tiền chung (Dựa trên số giờ GỐC khách chọn) ---
-        BigDecimal finalPrice = calculatePriceInternal(
+        BigDecimal originalPrice = calculatePriceInternal(
                 category,
                 request.getDurationHours(),
                 request.getIsPremium(),
                 request.getServiceIds(),
                 request.getWorkSize(),
                 request.getAdditionalData());
+        User customer = userRepository.findById(customerId)
+                .orElseThrow(() -> new ApiException("Khach hang khong ton tai", HttpStatus.NOT_FOUND));
+        int monthlyCompletedCount = (int) loyaltyService.getMonthlyCompletedCount(customerId);
+        CustomerTier customerTier = loyaltyService.resolveTierByCompletedCount(monthlyCompletedCount);
+        BigDecimal discountRate = loyaltyService.resolveDiscountRate(customerTier);
+        BigDecimal discountAmount = originalPrice.multiply(discountRate).setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal finalPrice = originalPrice.subtract(discountAmount).setScale(2, java.math.RoundingMode.HALF_UP);
 
         StringBuilder serviceNames = new StringBuilder();
         String serviceIdStr = null;
@@ -248,8 +260,17 @@ public class JobService {
                 .bringTools(Boolean.TRUE.equals(request.getBringTools()) || Boolean.TRUE.equals(request.getIsPremium()))
                 .build();
 
-        // Xử lý additionalData: Lưu dưới dạng JSON chuỗi
-        jobPost.setAdditionalData(serializeAdditionalData(request.getAdditionalData()));
+        // Xử lý additionalData: Lưu kèm snapshot loyalty để booking có thể kế thừa
+        Map<String, Object> additionalData = request.getAdditionalData() != null
+                ? new HashMap<>(request.getAdditionalData())
+                : new HashMap<>();
+        additionalData.put("loyaltyOriginalPrice", originalPrice);
+        additionalData.put("loyaltyDiscountRate", discountRate);
+        additionalData.put("loyaltyDiscountAmount", discountAmount);
+        additionalData.put("loyaltyFinalPrice", finalPrice);
+        additionalData.put("loyaltyTierAtBooking", customerTier.name());
+        additionalData.put("isVipCustomer", customerTier == CustomerTier.GOLD);
+        jobPost.setAdditionalData(serializeAdditionalData(additionalData));
         jobPost.setModerationStatus("APPROVED");
         jobPost.setModerationFlags("");
         jobPost.setLastValidatedAt(LocalDateTime.now());
@@ -311,6 +332,8 @@ public class JobService {
                             endTime);
                     return availableCount > 0;
                 })
+                .sorted(java.util.Comparator.comparing((JobPost jp) -> isVipCustomer(jp)).reversed()
+                        .thenComparing(JobPost::getCreatedAt, java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
                 .map(jp -> mapToJobPostResponse(jp, false))
                 .collect(Collectors.toList());
     }
@@ -327,6 +350,8 @@ public class JobService {
                 .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(),
                         helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
                 .filter(jp -> isJobInRegisteredDistrict(jp, helperDistricts))
+                .sorted(java.util.Comparator.comparing((JobPost jp) -> isVipCustomer(jp)).reversed()
+                        .thenComparing(JobPost::getCreatedAt, java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
                 .map(jp -> mapToJobPostResponse(jp, false))
                 .collect(Collectors.toList());
     }
@@ -533,6 +558,17 @@ public class JobService {
                 .hasPets(jobPost.getHasPets())
                 .bringTools(jobPost.getBringTools());
 
+        BigDecimal originalPrice = extractBigDecimal(additionalDataMap, "loyaltyOriginalPrice", jobPost.getOfferPrice());
+        BigDecimal discountAmount = extractBigDecimal(additionalDataMap, "loyaltyDiscountAmount", BigDecimal.ZERO);
+        BigDecimal finalPrice = extractBigDecimal(additionalDataMap, "loyaltyFinalPrice", jobPost.getOfferPrice());
+        String customerTier = extractString(additionalDataMap, "loyaltyTierAtBooking", CustomerTier.BRONZE.name());
+        boolean vipCustomer = "GOLD".equalsIgnoreCase(customerTier) || Boolean.TRUE.equals(extractBoolean(additionalDataMap, "isVipCustomer"));
+        builder.originalPrice(originalPrice)
+                .discountAmount(discountAmount)
+                .finalPrice(finalPrice)
+                .customerTier(customerTier)
+                .isVipCustomer(vipCustomer);
+
         // Nếu được yêu cầu hiển thị địa chỉ chi tiết (Dành cho Customer hoặc View riêng
         // biệt)
         if (showAddressDetail && jobPost.getAddress() != null) {
@@ -551,6 +587,39 @@ public class JobService {
         }
 
         return builder.build();
+    }
+
+    private BigDecimal extractBigDecimal(Map<String, Object> data, String key, BigDecimal defaultValue) {
+        if (data == null) return defaultValue;
+        Object value = data.get(key);
+        if (value == null) return defaultValue;
+        try {
+            return new BigDecimal(value.toString()).setScale(2, java.math.RoundingMode.HALF_UP);
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    private String extractString(Map<String, Object> data, String key, String defaultValue) {
+        if (data == null) return defaultValue;
+        Object value = data.get(key);
+        return value == null ? defaultValue : value.toString();
+    }
+
+    private Boolean extractBoolean(Map<String, Object> data, String key) {
+        if (data == null) return null;
+        Object value = data.get(key);
+        if (value == null) return null;
+        if (value instanceof Boolean b) return b;
+        return "true".equalsIgnoreCase(value.toString());
+    }
+
+    private boolean isVipCustomer(JobPost jobPost) {
+        Map<String, Object> data = deserializeAdditionalData(jobPost.getAdditionalData());
+        if (data == null) return false;
+        if (Boolean.TRUE.equals(extractBoolean(data, "isVipCustomer"))) return true;
+        String tier = extractString(data, "loyaltyTierAtBooking", CustomerTier.BRONZE.name());
+        return CustomerTier.GOLD.name().equalsIgnoreCase(tier);
     }
 
     private String serializeAdditionalData(Map<String, Object> data) {
@@ -832,8 +901,22 @@ public class JobService {
         int totalHours = baseDuration + subServiceCount;
         jobPost.setDurationHours(totalHours);
 
-        BigDecimal newPrice = calculatePrice(jobPost);
+        BigDecimal newOriginalPrice = calculatePrice(jobPost);
+        User customer = userRepository.findById(customerId)
+                .orElseThrow(() -> new ApiException("Khach hang khong ton tai", HttpStatus.NOT_FOUND));
+        int monthlyCompletedCount = (int) loyaltyService.getMonthlyCompletedCount(customerId);
+        CustomerTier customerTier = loyaltyService.resolveTierByCompletedCount(monthlyCompletedCount);
+        BigDecimal discountRate = loyaltyService.resolveDiscountRate(customerTier);
+        BigDecimal discountAmount = newOriginalPrice.multiply(discountRate).setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal newPrice = newOriginalPrice.subtract(discountAmount).setScale(2, java.math.RoundingMode.HALF_UP);
         jobPost.setOfferPrice(newPrice);
+        currentData.put("loyaltyOriginalPrice", newOriginalPrice);
+        currentData.put("loyaltyDiscountRate", discountRate);
+        currentData.put("loyaltyDiscountAmount", discountAmount);
+        currentData.put("loyaltyFinalPrice", newPrice);
+        currentData.put("loyaltyTierAtBooking", customerTier.name());
+        currentData.put("isVipCustomer", customerTier == CustomerTier.GOLD);
+        jobPost.setAdditionalData(serializeAdditionalData(currentData));
 
         // Xử lý chênh lệch tiền trong ví
         if (newPrice.compareTo(oldPrice) != 0) {

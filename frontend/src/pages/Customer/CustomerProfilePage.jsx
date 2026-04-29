@@ -20,6 +20,18 @@ const getInitials = (name) => {
     return name.split(' ').map((w) => w[0]).slice(-2).join('').toUpperCase();
 };
 
+const getTierLabel = (tier) => {
+    switch (String(tier || '').toUpperCase()) {
+        case 'GOLD':
+            return 'GOLD';
+        case 'SILVER':
+            return 'SILVER';
+        case 'BRONZE':
+        default:
+            return 'BRONZE';
+    }
+};
+
 // Toast → replaced by shared NotificationModal component
 
 // ─── Reusable Select ──────────────────────────────────────────────────────────
@@ -512,6 +524,27 @@ const CustomerProfilePage = () => {
                                         <span>{profile.phone}</span>
                                     </div>
                                 )}
+                            </div>
+
+                            <div className="cpp-loyalty-card">
+                                <div className="cpp-loyalty-head">
+                                    <h3>Hạng thành viên</h3>
+                                    <span className={`cpp-loyalty-tier cpp-loyalty-tier--${String(profile?.currentTier || 'BRONZE').toLowerCase()}`}>
+                                        {getTierLabel(profile?.currentTier)}
+                                    </span>
+                                </div>
+                                <p className="cpp-loyalty-meta">
+                                    Đã hoàn thành {profile?.completedBookingCount ?? 0} đơn trong tháng này • Ưu đãi hiện tại {(Number(profile?.currentDiscountRate || 0) * 100).toFixed(0)}%
+                                </p>
+                                <div className="cpp-loyalty-progress">
+                                    <div
+                                        className="cpp-loyalty-progress-fill"
+                                        style={{ width: `${Math.max(0, Math.min(100, Number(profile?.progressPercent ?? 0)))}%` }}
+                                    />
+                                </div>
+                                <p className="cpp-loyalty-message">
+                                    {profile?.progressMessage || 'Hoàn thành thêm đơn để nâng hạng ưu đãi.'}
+                                </p>
                             </div>
 
                             <form className="cpp-form" onSubmit={handleSubmit}>

@@ -75,6 +75,30 @@ public class Booking {
     @Column(name = "total_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalPrice;
 
+    @Column(name = "original_price", nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal originalPrice = BigDecimal.ZERO;
+
+    @Column(name = "discount_rate", nullable = false, precision = 5, scale = 4)
+    @Builder.Default
+    private BigDecimal discountRate = BigDecimal.ZERO;
+
+    @Column(name = "discount_amount", nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    @Column(name = "final_price", nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal finalPrice = BigDecimal.ZERO;
+
+    @Column(name = "tier_at_booking", nullable = false, length = 20)
+    @Builder.Default
+    private String tierAtBooking = "BRONZE";
+
+    @Column(name = "loyalty_processed", nullable = false)
+    @Builder.Default
+    private Boolean loyaltyProcessed = false;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", length = 30)
     @Builder.Default

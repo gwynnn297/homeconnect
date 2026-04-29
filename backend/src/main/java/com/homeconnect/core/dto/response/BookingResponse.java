@@ -26,6 +26,11 @@ public class BookingResponse {
     private LocalDateTime customerArrivalConfirmedAt;
     private BookingStatus status;
     private BigDecimal totalPrice;
+    private BigDecimal originalPrice;
+    private BigDecimal discountRate;
+    private BigDecimal discountAmount;
+    private BigDecimal finalPrice;
+    private String tierAtBooking;
     private String address;
     private PaymentStatus paymentStatus;
     private String disputeReason;

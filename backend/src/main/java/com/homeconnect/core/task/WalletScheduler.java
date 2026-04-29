@@ -7,6 +7,7 @@ import com.homeconnect.core.enums.PaymentStatus;
 import com.homeconnect.core.repository.BookingRepository;
 import com.homeconnect.core.repository.WithdrawRequestRepository;
 import com.homeconnect.core.service.NotificationService;
+import com.homeconnect.core.service.LoyaltyService;
 import com.homeconnect.core.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +42,7 @@ public class WalletScheduler {
 
     private final BookingRepository bookingRepository;
     private final WalletService walletService;
+    private final LoyaltyService loyaltyService;
     private final NotificationService notificationService;
     private final WithdrawRequestRepository withdrawRequestRepository;
 
@@ -131,6 +133,7 @@ public class WalletScheduler {
                 booking.setStatus(BookingStatus.COMPLETED);
                 booking.setConfirmedDoneAt(LocalDateTime.now());
                 bookingRepository.save(booking);
+                loyaltyService.onBookingCompleted(booking.getId());
 
                 notificationService.createNotification(booking.getCustomer().getId(),
                         "Đơn hàng đã tự động hoàn thành",

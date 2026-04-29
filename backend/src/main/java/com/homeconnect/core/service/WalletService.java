@@ -551,46 +551,54 @@ public class WalletService {
      */
     @Transactional
     public BigDecimal releaseSalary(com.homeconnect.core.entity.Booking booking) {
-        BigDecimal totalPrice = booking.getTotalPrice();
+        BigDecimal customerFinalPrice = booking.getFinalPrice() != null && booking.getFinalPrice().compareTo(BigDecimal.ZERO) > 0
+                ? booking.getFinalPrice()
+                : booking.getTotalPrice();
+        BigDecimal originalPrice = booking.getOriginalPrice() != null && booking.getOriginalPrice().compareTo(BigDecimal.ZERO) > 0
+                ? booking.getOriginalPrice()
+                : booking.getTotalPrice();
+        BigDecimal discountAmount = booking.getDiscountAmount() != null ? booking.getDiscountAmount() : BigDecimal.ZERO;
         Long customerId = booking.getCustomer().getId();
         Long helperId = booking.getHelper().getId();
         Long bookingId = booking.getId();
 
-        log.info("Release salary cho Booking #{}: totalPrice={}, customer={}, helper={}",
-                bookingId, totalPrice, customerId, helperId);
+        log.info("Release salary cho Booking #{}: finalPrice={}, originalPrice={}, customer={}, helper={}",
+                bookingId, customerFinalPrice, originalPrice, customerId, helperId);
 
-        // 1. Tính commission
-        BigDecimal commission = totalPrice.multiply(commissionRate)
+        // 1. Tính commission từ original price để bảo toàn lương helper
+        BigDecimal commission = originalPrice.multiply(commissionRate)
                 .setScale(2, java.math.RoundingMode.HALF_UP);
-        BigDecimal helperSalary = totalPrice.subtract(commission);
+        BigDecimal helperSalary = originalPrice.subtract(commission);
+        BigDecimal netPlatformRevenue = commission.subtract(discountAmount);
 
-        log.info("Commission: {} ({}%), Helper nhận: {}", commission, 
-                commissionRate.multiply(BigDecimal.valueOf(100)), helperSalary);
+        log.info("Commission: {} ({}%), Discount subsidy: {}, Net platform revenue: {}, Helper nhận: {}",
+                commission,
+                commissionRate.multiply(BigDecimal.valueOf(100)),
+                discountAmount,
+                netPlatformRevenue,
+                helperSalary);
 
         // 2. Trừ hold_balance ví Khách
         Wallet customerWallet = walletRepository.findByUserIdWithLock(customerId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của khách hàng ID: " + customerId));
 
-        if (customerWallet.getHoldBalance().compareTo(totalPrice) < 0) {
-            log.warn("Hold balance ({}) < totalPrice ({}). Trừ tối đa hold balance.",
-                    customerWallet.getHoldBalance(), totalPrice);
-            totalPrice = customerWallet.getHoldBalance();
-            commission = totalPrice.multiply(commissionRate)
-                    .setScale(2, java.math.RoundingMode.HALF_UP);
-            helperSalary = totalPrice.subtract(commission);
+        if (customerWallet.getHoldBalance().compareTo(customerFinalPrice) < 0) {
+            log.warn("Hold balance ({}) < finalPrice ({}). Trừ tối đa hold balance.",
+                    customerWallet.getHoldBalance(), customerFinalPrice);
+            customerFinalPrice = customerWallet.getHoldBalance();
         }
 
-        customerWallet.setHoldBalance(customerWallet.getHoldBalance().subtract(totalPrice));
+        customerWallet.setHoldBalance(customerWallet.getHoldBalance().subtract(customerFinalPrice));
         walletRepository.save(customerWallet);
 
         // Ghi transaction COMMISSION cho ví Khách
         WalletTransaction commissionTx = WalletTransaction.builder()
                 .wallet(customerWallet)
-                .amount(totalPrice)
+                .amount(customerFinalPrice)
                 .type(TransactionType.COMMISSION)
                 .referenceType(ReferenceType.BOOKING)
                 .referenceId(bookingId.intValue())
-                .description(String.format("Thanh toán Booking #%d (Hoa hồng sàn: %s VNĐ)", bookingId, commission))
+                .description(String.format("Thanh toán Booking #%d (Hoa hồng sàn: %s VNĐ, subsidy loyalty: %s VNĐ)", bookingId, commission, discountAmount))
                 .build();
         transactionRepository.save(commissionTx);
 
@@ -612,6 +620,18 @@ public class WalletService {
                         bookingId, commissionRate.multiply(BigDecimal.valueOf(100))))
                 .build();
         transactionRepository.save(releaseTx);
+
+        if (discountAmount.compareTo(BigDecimal.ZERO) > 0) {
+            WalletTransaction subsidyTx = WalletTransaction.builder()
+                    .wallet(customerWallet)
+                    .amount(discountAmount)
+                    .type(TransactionType.REFUND)
+                    .referenceType(ReferenceType.BOOKING)
+                    .referenceId(bookingId.intValue())
+                    .description(String.format("Loyalty subsidy Booking #%d (tru vao commission he thong)", bookingId))
+                    .build();
+            transactionRepository.save(subsidyTx);
+        }
 
         log.info("Đã release {} VNĐ cho Helper ID: {}. Commission: {} VNĐ",
                 helperSalary, helperId, commission);

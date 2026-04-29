@@ -10,6 +10,7 @@ import com.homeconnect.core.dto.response.admin.AdminDisputeItemResponse;
 import com.homeconnect.core.dto.response.admin.AdminDisputeListResponse;
 import com.homeconnect.core.entity.*;
 import com.homeconnect.core.enums.BookingStatus;
+import com.homeconnect.core.enums.CustomerTier;
 import com.homeconnect.core.enums.DisputeResolutionAction;
 import com.homeconnect.core.enums.PaymentStatus;
 import com.homeconnect.core.enums.ScheduleStatus;
@@ -25,9 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -63,6 +66,8 @@ public class BookingService {
     private final UserViolationRepository userViolationRepository;
     private final ConflictEngine conflictEngine;
     private final AdminAuditLogService adminAuditLogService;
+    private final LoyaltyService loyaltyService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     /**
      * Xác nhận đơn hàng và cập nhật lịch của Helper sang BUSY
@@ -219,6 +224,11 @@ public class BookingService {
                 .scheduledEndTime(end)
                 .totalPrice(jobPost.getOfferPrice())
                 .priceSnapshot(jobPost.getOfferPrice())
+                .originalPrice(resolveOriginalPriceFromJobPost(jobPost))
+                .discountRate(resolveDiscountRateFromJobPost(jobPost))
+                .discountAmount(resolveDiscountAmountFromJobPost(jobPost))
+                .finalPrice(jobPost.getOfferPrice())
+                .tierAtBooking(resolveTierAtBookingFromJobPost(jobPost))
                 .status(BookingStatus.CONFIRMED)
                 .paymentStatus(PaymentStatus.HOLDING)
                 .build();
@@ -316,6 +326,13 @@ public class BookingService {
                 .type("OTHER")
                 .build();
         bookingAddress = addressRepository.save(bookingAddress);
+        BigDecimal originalPrice = category.getBasePrice().multiply(java.math.BigDecimal.valueOf(request.getDurationHours()));
+        int monthlyCompletedCount = (int) loyaltyService.getMonthlyCompletedCount(customerId);
+        CustomerTier tier = loyaltyService.resolveTierByCompletedCount(monthlyCompletedCount);
+        BigDecimal discountRate = loyaltyService.resolveDiscountRate(tier);
+        BigDecimal discountAmount = originalPrice.multiply(discountRate).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal finalPrice = originalPrice.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
+
         Booking booking = Booking.builder()
                 .customer(customer)
                 .helper(helper)
@@ -323,8 +340,13 @@ public class BookingService {
                 .address(bookingAddress)
                 .scheduledStartTime(start)
                 .scheduledEndTime(end)
-                .totalPrice(category.getBasePrice().multiply(java.math.BigDecimal.valueOf(request.getDurationHours())))
-                .priceSnapshot(category.getBasePrice().multiply(java.math.BigDecimal.valueOf(request.getDurationHours())))
+                .totalPrice(finalPrice)
+                .priceSnapshot(finalPrice)
+                .originalPrice(originalPrice)
+                .discountRate(discountRate)
+                .discountAmount(discountAmount)
+                .finalPrice(finalPrice)
+                .tierAtBooking(tier.name())
                 .status(BookingStatus.PENDING_ACCEPTANCE)
                 .paymentStatus(PaymentStatus.HOLDING)
                 .timeoutAt(LocalDateTime.now().plusMinutes(15))
@@ -491,6 +513,7 @@ public class BookingService {
         booking.setStatus(BookingStatus.COMPLETED);
         booking.setConfirmedDoneAt(LocalDateTime.now());
         bookingRepository.save(booking);
+        loyaltyService.onBookingCompleted(bookingId);
 
         log.info("[BE-Exec-03b] Customer {} confirmed completion of booking {}. Status: COMPLETED", customerId,
                 bookingId);
@@ -536,6 +559,11 @@ public class BookingService {
                 .customerArrivalConfirmedAt(b.getCustomerArrivalConfirmedAt())
                 .status(b.getStatus())
                 .totalPrice(b.getTotalPrice())
+                .originalPrice(b.getOriginalPrice())
+                .discountRate(b.getDiscountRate())
+                .discountAmount(b.getDiscountAmount())
+                .finalPrice(b.getFinalPrice())
+                .tierAtBooking(b.getTierAtBooking())
                 .address(fullAddress)
                 .paymentStatus(b.getPaymentStatus())
                 .disputeReason(b.getDisputeReason())
@@ -544,6 +572,62 @@ public class BookingService {
                 .disputeResolvedAt(b.getDisputeResolvedAt())
                 .disputeResolutionAction(b.getDisputeResolutionAction())
                 .build();
+    }
+
+    private Map<String, Object> parseAdditionalData(JobPost jobPost) {
+        if (jobPost == null || jobPost.getAdditionalData() == null || jobPost.getAdditionalData().isBlank()) {
+            return java.util.Collections.emptyMap();
+        }
+        try {
+            return objectMapper.readValue(jobPost.getAdditionalData(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            return java.util.Collections.emptyMap();
+        }
+    }
+
+    private BigDecimal resolveOriginalPriceFromJobPost(JobPost jobPost) {
+        Map<String, Object> data = parseAdditionalData(jobPost);
+        Object value = data.get("loyaltyOriginalPrice");
+        if (value != null) {
+            try {
+                return new BigDecimal(value.toString()).setScale(2, RoundingMode.HALF_UP);
+            } catch (Exception ignored) {
+            }
+        }
+        return jobPost.getOfferPrice() == null ? BigDecimal.ZERO : jobPost.getOfferPrice();
+    }
+
+    private BigDecimal resolveDiscountRateFromJobPost(JobPost jobPost) {
+        Map<String, Object> data = parseAdditionalData(jobPost);
+        Object value = data.get("loyaltyDiscountRate");
+        if (value != null) {
+            try {
+                return new BigDecimal(value.toString()).setScale(4, RoundingMode.HALF_UP);
+            } catch (Exception ignored) {
+            }
+        }
+        return BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal resolveDiscountAmountFromJobPost(JobPost jobPost) {
+        Map<String, Object> data = parseAdditionalData(jobPost);
+        Object value = data.get("loyaltyDiscountAmount");
+        if (value != null) {
+            try {
+                return new BigDecimal(value.toString()).setScale(2, RoundingMode.HALF_UP);
+            } catch (Exception ignored) {
+            }
+        }
+        return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private String resolveTierAtBookingFromJobPost(JobPost jobPost) {
+        Map<String, Object> data = parseAdditionalData(jobPost);
+        Object value = data.get("loyaltyTierAtBooking");
+        if (value != null && !value.toString().isBlank()) {
+            return value.toString();
+        }
+        return CustomerTier.BRONZE.name();
     }
 
     private String resolveArrivalProofImage(Booking booking) {

@@ -37,6 +37,7 @@ public class ProfileService {
     private final ServiceCategoryRepository serviceCategoryRepository;
     private final ExternalLocationService externalLocationService;
     private final GeocodingService geocodingService;
+    private final LoyaltyService loyaltyService;
 
     private static final Pattern PHONE_PATTERN = Pattern.compile(".*\\d{8,}.*");
 
@@ -231,6 +232,7 @@ public class ProfileService {
     }
 
     private UserProfileResponse mapToUserResponse(User user, Address address) {
+        LoyaltyService.LoyaltySummary loyalty = loyaltyService.buildSummary(user);
         return UserProfileResponse.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
@@ -250,6 +252,13 @@ public class ProfileService {
                 .addressLabel(address != null ? address.getType() : null)
                 .latitude(address != null ? address.getLatitude() : null)
                 .longitude(address != null ? address.getLongitude() : null)
+                .completedBookingCount(loyalty.getCompletedBookingCount())
+                .currentTier(loyalty.getCurrentTier().name())
+                .currentDiscountRate(loyalty.getCurrentDiscountRate())
+                .nextTier(loyalty.getNextTier() != null ? loyalty.getNextTier().name() : null)
+                .ordersToNextTier(loyalty.getOrdersToNextTier())
+                .progressPercent(loyalty.getProgressPercent())
+                .progressMessage(loyalty.getProgressMessage())
                 .build();
     }
 

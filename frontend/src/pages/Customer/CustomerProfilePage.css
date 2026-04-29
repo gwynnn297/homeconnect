@@ -265,6 +265,77 @@
     flex-shrink: 0;
 }
 
+.cpp-loyalty-card {
+    padding: 16px 18px;
+    border: 1px solid #dbeafe;
+    border-radius: 12px;
+    background: #f8fbff;
+}
+
+.cpp-loyalty-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cpp-loyalty-head h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: #0f172a;
+}
+
+.cpp-loyalty-tier {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+}
+
+.cpp-loyalty-tier--bronze {
+    color: #7c2d12;
+    background: #ffedd5;
+    border-color: #fdba74;
+}
+
+.cpp-loyalty-tier--silver {
+    color: #334155;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.cpp-loyalty-tier--gold {
+    color: #854d0e;
+    background: #fef3c7;
+    border-color: #fcd34d;
+}
+
+.cpp-loyalty-meta {
+    margin: 10px 0 8px;
+    font-size: 0.85rem;
+    color: #475569;
+}
+
+.cpp-loyalty-progress {
+    height: 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.cpp-loyalty-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #4caf7d, #346252);
+}
+
+.cpp-loyalty-message {
+    margin: 8px 0 0;
+    font-size: 0.82rem;
+    color: #334155;
+}
+
 .cpp-avatar-phone svg {
     width: 15px;
     height: 15px;

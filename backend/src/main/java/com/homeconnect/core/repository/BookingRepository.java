@@ -33,6 +33,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
 
        Optional<Booking> findByIdAndHelper_Id(Long bookingId, Long helperId);
 
+       @Lock(LockModeType.PESSIMISTIC_WRITE)
+       @Query("SELECT b FROM Booking b WHERE b.id = :bookingId")
+       Optional<Booking> findByIdForUpdate(@Param("bookingId") Long bookingId);
+
        List<Booking> findByHelper_IdAndJobPostIdInAndStatusInOrderByCreatedAtDesc(
                      Long helperId,
                      Collection<Long> jobPostIds,
@@ -95,6 +99,16 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
 
        @Query("SELECT b.paymentStatus, COUNT(b) FROM Booking b GROUP BY b.paymentStatus")
        List<Object[]> countGroupedByPaymentStatus();
+
+       @Query("SELECT COUNT(b) FROM Booking b " +
+                     "WHERE b.customer.id = :customerId " +
+                     "AND b.status = :status " +
+                     "AND b.confirmedDoneAt >= :from " +
+                     "AND b.confirmedDoneAt < :to")
+       long countCompletedByCustomerInRange(@Param("customerId") Long customerId,
+                     @Param("status") BookingStatus status,
+                     @Param("from") LocalDateTime from,
+                     @Param("to") LocalDateTime to);
 
        Page<Booking> findByStatusOrderByDisputedAtDesc(BookingStatus status, Pageable pageable);
 }

@@ -73,4 +73,10 @@ public class JobPostResponse {
     private BigDecimal latitude;
     private BigDecimal longitude;
     private String fullAddress;
+
+    private BigDecimal originalPrice;
+    private BigDecimal discountAmount;
+    private BigDecimal finalPrice;
+    private String customerTier;
+    private Boolean isVipCustomer;
 }
