@@ -50,6 +50,13 @@ public class JobPostResponse {
     private Boolean customerArrivalConfirmed;
     private String arrivalProofImage;
 
+    private String disputeReason;
+    private String disputeEvidenceUrl;
+    private LocalDateTime disputedAt;
+    private String helperDisputeMessage;
+    private String helperDisputeEvidenceUrl;
+    private LocalDateTime helperDisputeAt;
+
     private Double workSize;
     private Boolean isPremium;
     private Boolean hasPets;

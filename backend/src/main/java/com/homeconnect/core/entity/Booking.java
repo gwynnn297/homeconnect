@@ -107,6 +107,42 @@ public class Booking {
     @Column(name = "refund_amount", precision = 12, scale = 2)
     private BigDecimal refundAmount;
 
+    @Column(name = "dispute_reason", columnDefinition = "TEXT")
+    private String disputeReason;
+
+    @Column(name = "evidence_url", length = 1000)
+    private String evidenceUrl;
+
+    @Column(name = "disputed_at")
+    private LocalDateTime disputedAt;
+
+    @Column(name = "dispute_resolved_at")
+    private LocalDateTime disputeResolvedAt;
+
+    @Column(name = "dispute_resolution_action", length = 30)
+    private String disputeResolutionAction;
+
+    @Column(name = "dispute_resolved_by_admin_id")
+    private Long disputeResolvedByAdminId;
+
+    @Column(name = "helper_dispute_message", columnDefinition = "TEXT")
+    private String helperDisputeMessage;
+
+    @Column(name = "helper_dispute_evidence_url", length = 1000)
+    private String helperDisputeEvidenceUrl;
+
+    @Column(name = "helper_dispute_at")
+    private LocalDateTime helperDisputeAt;
+
+    @Column(name = "dispute_refund_ratio", precision = 5, scale = 2)
+    private BigDecimal disputeRefundRatio;
+
+    @Column(name = "dispute_refund_amount", precision = 12, scale = 2)
+    private BigDecimal disputeRefundAmount;
+
+    @Column(name = "dispute_admin_note", columnDefinition = "TEXT")
+    private String disputeAdminNote;
+
     @Column(name = "expired_at")
     private LocalDateTime expiredAt;
 

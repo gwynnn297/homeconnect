@@ -463,6 +463,82 @@ public class WalletService {
     }
 
     /**
+     * Chia tiền khi xử lý tranh chấp: hoàn một phần cho khách, phần còn lại trả cho thợ.
+     * @param booking Booking đang tranh chấp
+     * @param refundRatio Tỷ lệ hoàn tiền cho khách (0..1)
+     */
+    @Transactional
+    public BigDecimal resolveDisputeSplit(com.homeconnect.core.entity.Booking booking, BigDecimal refundRatio) {
+        BigDecimal ratio = refundRatio != null ? refundRatio : BigDecimal.ONE;
+        if (ratio.compareTo(BigDecimal.ZERO) < 0 || ratio.compareTo(BigDecimal.ONE) > 0) {
+            throw new RuntimeException("Refund ratio không hợp lệ");
+        }
+
+        BigDecimal totalPrice = booking.getTotalPrice();
+        Long customerId = booking.getCustomer().getId();
+        Long helperId = booking.getHelper().getId();
+        Long bookingId = booking.getId();
+
+        Wallet customerWallet = walletRepository.findByUserIdWithLock(customerId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của khách hàng ID: " + customerId));
+
+        if (customerWallet.getHoldBalance().compareTo(totalPrice) < 0) {
+            totalPrice = customerWallet.getHoldBalance();
+        }
+
+        BigDecimal refundAmount = totalPrice.multiply(ratio).setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal releaseAmount = totalPrice.subtract(refundAmount).setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal commission = releaseAmount.multiply(commissionRate).setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal helperSalary = releaseAmount.subtract(commission).setScale(2, java.math.RoundingMode.HALF_UP);
+
+        customerWallet.setHoldBalance(customerWallet.getHoldBalance().subtract(totalPrice));
+        customerWallet.setAvailableBalance(customerWallet.getAvailableBalance().add(refundAmount));
+        walletRepository.save(customerWallet);
+
+        if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+            WalletTransaction refundTx = WalletTransaction.builder()
+                    .wallet(customerWallet)
+                    .amount(refundAmount)
+                    .type(TransactionType.REFUND)
+                    .referenceType(ReferenceType.BOOKING)
+                    .referenceId(bookingId.intValue())
+                    .description("Hoàn tiền khiếu nại #" + bookingId + " (" + ratio + ")")
+                    .build();
+            transactionRepository.save(refundTx);
+        }
+
+        if (releaseAmount.compareTo(BigDecimal.ZERO) > 0) {
+                WalletTransaction commissionTx = WalletTransaction.builder()
+                    .wallet(customerWallet)
+                    .amount(commission)
+                    .type(TransactionType.COMMISSION)
+                    .referenceType(ReferenceType.BOOKING)
+                    .referenceId(bookingId.intValue())
+                    .description(String.format("Thanh toán Booking #%d (Hoa hồng: %s VNĐ)", bookingId, commission))
+                    .build();
+            transactionRepository.save(commissionTx);
+
+            Wallet helperWallet = walletRepository.findByUserIdWithLock(helperId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của helper ID: " + helperId));
+
+            helperWallet.setAvailableBalance(helperWallet.getAvailableBalance().add(helperSalary));
+            walletRepository.save(helperWallet);
+
+            WalletTransaction releaseTx = WalletTransaction.builder()
+                    .wallet(helperWallet)
+                    .amount(helperSalary)
+                    .type(TransactionType.RELEASE)
+                    .referenceType(ReferenceType.BOOKING)
+                    .referenceId(bookingId.intValue())
+                    .description("Giải ngân tranh chấp cho booking #" + bookingId)
+                    .build();
+            transactionRepository.save(releaseTx);
+        }
+
+        return refundAmount;
+    }
+
+    /**
      * [BE-Wallet-03 Cronjob] Giải phóng lương cho Helper sau khi booking hoàn thành.
      * Logic:
      * 1. Tính commission = totalPrice * commissionRate

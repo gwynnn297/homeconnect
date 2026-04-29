@@ -28,4 +28,9 @@ public class BookingResponse {
     private BigDecimal totalPrice;
     private String address;
     private PaymentStatus paymentStatus;
+    private String disputeReason;
+    private String evidenceUrl;
+    private LocalDateTime disputedAt;
+    private LocalDateTime disputeResolvedAt;
+    private String disputeResolutionAction;
 }

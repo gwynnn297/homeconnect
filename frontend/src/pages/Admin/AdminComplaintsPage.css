@@ -86,6 +86,41 @@
     background: #f8fafc;
 }
 
+.btn-primary-action,
+.btn-danger-action {
+    border: none;
+    border-radius: 8px;
+    padding: 0.42rem 0.72rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary-action {
+    background: #0f766e;
+    color: #fff;
+}
+
+.btn-primary-action:hover:not(:disabled) {
+    background: #0d5f5a;
+}
+
+.btn-danger-action {
+    background: #b91c1c;
+    color: #fff;
+}
+
+.btn-danger-action:hover:not(:disabled) {
+    background: #991b1b;
+}
+
+.btn-primary-action:disabled,
+.btn-danger-action:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 @media (max-width: 720px) {
     .complaints-tab {
         width: 100%;

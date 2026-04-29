@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import HelperLayout from '../../layouts/HelperLayout';
 import NotificationModal from '../../components/NotificationModal';
 import SmartCheckinModal from '../../components/SmartCheckinModal';
+import BookingService from '../../services/BookingService';
+import CloudinaryService from '../../services/CloudinaryService';
 import HelperJobService from '../../services/HelperJobService';
 import { buildHelperJobModalModel } from '../../utils/helperJobPostDetail';
 import './HelperNewJobPage.css';
@@ -103,6 +105,13 @@ const getDisplayStatus = (tabId, jobStatus) => {
 
 const getCheckinBadgeMeta = (tabId, job) => {
     const bookingStatus = String(job?.bookingStatus || '').toUpperCase();
+    if (bookingStatus === 'DISPUTED') {
+        return {
+            badgeLabel: 'Đang bị khiếu nại',
+            badgeClass: 'pending',
+            icon: 'clock'
+        };
+    }
     if (tabId === 'CONFIRMED' && bookingStatus === 'ARRIVED') {
         return {
             badgeLabel: 'Đã đến nhà',
@@ -173,6 +182,12 @@ const HelperNewJobPage = () => {
     const [hasLoadedJobsOnce, setHasLoadedJobsOnce] = useState(false);
     const [tabCounts, setTabCounts] = useState({ NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 });
     const handledNotificationTokenRef = useRef(null);
+    const [showDisputeModal, setShowDisputeModal] = useState(false);
+    const [disputeMessage, setDisputeMessage] = useState('');
+    const [disputeEvidenceUrl, setDisputeEvidenceUrl] = useState('');
+    const [disputeUploading, setDisputeUploading] = useState(false);
+    const [disputeError, setDisputeError] = useState('');
+    const [submittingDispute, setSubmittingDispute] = useState(false);
     const tabMeta = getTabMeta(activeTab);
 
     const handleViewJob = (job) => {
@@ -222,6 +237,66 @@ const HelperNewJobPage = () => {
 
         setSelectedBookingId(bookingId);
         setOpenCheckinModal(true);
+    };
+
+    const handleOpenDisputeModal = () => {
+        if (!selectedJob?.bookingId) return;
+        setDisputeMessage('');
+        setDisputeEvidenceUrl('');
+        setDisputeError('');
+        setShowDisputeModal(true);
+    };
+
+    const handleDisputeEvidenceChange = async (e) => {
+        const file = e.target.files?.[0];
+        setDisputeError('');
+        if (!file) {
+            setDisputeEvidenceUrl('');
+            return;
+        }
+
+        setDisputeUploading(true);
+        try {
+            const url = await CloudinaryService.uploadImage(file, 'dispute-defense');
+            setDisputeEvidenceUrl(url || '');
+        } catch (err) {
+            setDisputeError(err?.message || 'Tải ảnh minh chứng thất bại.');
+            setDisputeEvidenceUrl('');
+        } finally {
+            setDisputeUploading(false);
+        }
+    };
+
+    const handleSubmitDisputeResponse = async (e) => {
+        e?.preventDefault();
+        if (!selectedJob?.bookingId) return;
+        if (!disputeMessage.trim() || disputeMessage.trim().length < 10) {
+            setDisputeError('Giải trình cần tối thiểu 10 ký tự.');
+            return;
+        }
+
+        setSubmittingDispute(true);
+        setDisputeError('');
+        try {
+            await BookingService.submitDisputeResponse(selectedJob.bookingId, {
+                message: disputeMessage.trim(),
+                evidenceUrl: disputeEvidenceUrl.trim() || undefined,
+            });
+            setToast({ type: 'success', message: `Đã gửi giải trình cho booking #${selectedJob.bookingId}.` });
+            setShowDisputeModal(false);
+            setSelectedJob((prev) => prev
+                ? { ...prev, helperDisputeAt: new Date().toISOString(), helperDisputeMessage: disputeMessage.trim(), helperDisputeEvidenceUrl: disputeEvidenceUrl.trim() || null }
+                : prev);
+            setJobs((prevJobs) => prevJobs.map((job) => (
+                Number(job?.bookingId) === Number(selectedJob.bookingId)
+                    ? { ...job, helperDisputeAt: new Date().toISOString(), helperDisputeMessage: disputeMessage.trim(), helperDisputeEvidenceUrl: disputeEvidenceUrl.trim() || null }
+                    : job
+            )));
+        } catch (err) {
+            setDisputeError(err?.message || 'Không gửi được giải trình.');
+        } finally {
+            setSubmittingDispute(false);
+        }
     };
 
     useEffect(() => {
@@ -537,6 +612,10 @@ const HelperNewJobPage = () => {
                                     const detail = buildHelperJobModalModel(selectedJob);
                                     if (!detail) return null;
                                     const pillMeta = getCheckinBadgeMeta(activeTab, selectedJob);
+                                    const bookingStatus = String(selectedJob?.bookingStatus || '').toUpperCase();
+                                    const hasDispute = bookingStatus === 'DISPUTED';
+                                    const disputeEvidence = selectedJob?.disputeEvidenceUrl || '';
+                                    const helperResponseAt = selectedJob?.helperDisputeAt;
                                     const hasScope = detail.workBullets.length > 0 || detail.workLists.length > 0;
                                     const flagEntries = [
                                         detail.flags.premium && { key: 'premium', label: 'Gói cao cấp' },
@@ -660,6 +739,23 @@ const HelperNewJobPage = () => {
                                                     {selectedJob.description?.trim() || 'Khách chưa ghi thêm mô tả chi tiết.'}
                                                 </div>
                                             </div>
+
+                                            {hasDispute && (
+                                                <div className="hnj-dispute-box">
+                                                    <h3 className="hnj-desc-title">Khách đang khiếu nại</h3>
+                                                    <p className="hnj-desc-text">{selectedJob?.disputeReason || 'Không có mô tả chi tiết.'}</p>
+                                                    {disputeEvidence ? (
+                                                        <a className="hnj-link" href={disputeEvidence} target="_blank" rel="noreferrer">
+                                                            Mở ảnh minh chứng của khách →
+                                                        </a>
+                                                    ) : null}
+                                                    {helperResponseAt ? (
+                                                        <p className="hnj-dispute-note">Bạn đã gửi giải trình vào {new Date(helperResponseAt).toLocaleString('vi-VN')}.</p>
+                                                    ) : (
+                                                        <p className="hnj-dispute-note">Vui lòng gửi giải trình trong 24 giờ để admin xem xét.</p>
+                                                    )}
+                                                </div>
+                                            )}
                                         </>
                                     );
                                 })()}
@@ -696,7 +792,80 @@ const HelperNewJobPage = () => {
                                         Check-in booking #{selectedJob.bookingId}
                                     </button>
                                 )}
+                                {String(selectedJob?.bookingStatus || '').toUpperCase() === 'DISPUTED'
+                                    && !selectedJob?.helperDisputeAt && (
+                                        <button
+                                            type="button"
+                                            className="hnj-btn-apply"
+                                            onClick={handleOpenDisputeModal}
+                                        >
+                                            Gửi giải trình
+                                        </button>
+                                    )}
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {showDisputeModal && (
+                    <div className="hnj-modal-overlay" onMouseDown={() => !submittingDispute && setShowDisputeModal(false)}>
+                        <div className="hnj-modal-content hnj-modal-content--compact" onMouseDown={(e) => e.stopPropagation()}>
+                            <div className="hnj-modal-header">
+                                <h2 className="hnj-job-main-title">Gửi giải trình khiếu nại</h2>
+                                <button
+                                    className="hnj-modal-close"
+                                    onClick={() => setShowDisputeModal(false)}
+                                    disabled={submittingDispute}
+                                >
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <form className="hnj-dispute-form" onSubmit={handleSubmitDisputeResponse}>
+                                <label className="hnj-field">
+                                    <span className="hnj-label">Giải trình</span>
+                                    <textarea
+                                        className="hnj-textarea"
+                                        rows={4}
+                                        value={disputeMessage}
+                                        onChange={(e) => setDisputeMessage(e.target.value)}
+                                        placeholder="Trình bày chi tiết tình huống và công việc đã hoàn thành..."
+                                        maxLength={2000}
+                                        disabled={submittingDispute}
+                                    />
+                                </label>
+                                <label className="hnj-field">
+                                    <span className="hnj-label">Ảnh minh chứng (không bắt buộc)</span>
+                                    <input
+                                        className="hnj-input"
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleDisputeEvidenceChange}
+                                        disabled={submittingDispute || disputeUploading}
+                                    />
+                                </label>
+                                {disputeUploading && (
+                                    <p className="hnj-dispute-note">Đang tải ảnh lên…</p>
+                                )}
+                                {disputeEvidenceUrl && (
+                                    <a className="hnj-link" href={disputeEvidenceUrl} target="_blank" rel="noreferrer">
+                                        Mở ảnh đã tải lên →
+                                    </a>
+                                )}
+                                {disputeError && (
+                                    <p className="hnj-dispute-error">{disputeError}</p>
+                                )}
+                                <div className="hnj-modal-footer">
+                                    <button type="button" className="hnj-btn-cancel" onClick={() => setShowDisputeModal(false)} disabled={submittingDispute}>
+                                        Đóng
+                                    </button>
+                                    <button type="submit" className="hnj-btn-apply" disabled={submittingDispute}>
+                                        {submittingDispute ? 'Đang gửi...' : 'Gửi giải trình'}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 )}
