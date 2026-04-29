@@ -46,6 +46,9 @@ AI/.venv/
 AI/venv/
 AI/env/
 AI/ENV/
+AI/app/__pycache__/
+AI/app/__pycache__/parser_service.cpython-313.pyc
+AI/app/__pycache__/prompts.cpython-313.pyc
 **/__pycache__/
 *.py[cod]
 *$py.class

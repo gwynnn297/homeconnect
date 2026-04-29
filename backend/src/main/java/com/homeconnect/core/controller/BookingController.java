@@ -1,6 +1,8 @@
 package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.DirectBookingRequest;
+import com.homeconnect.core.dto.request.BookingReportRequest;
+import com.homeconnect.core.dto.request.HelperDisputeResponseRequest;
 import com.homeconnect.core.dto.request.SelectApplicantRequest;
 import com.homeconnect.core.dto.response.ApiResponse;
 import com.homeconnect.core.dto.response.BookingResponse;
@@ -181,6 +183,39 @@ public class BookingController {
 
                 return ResponseEntity.ok(ApiResponse.<Void>builder()
                                 .message("Hủy đơn hàng thành công!")
+                                .build());
+        }
+
+        @Operation(summary = "Khiếu nại đơn hàng (PB-30)", description = "Khách report booking COMPLETED. Đơn sẽ chuyển DISPUTED để admin xử lý dòng tiền.")
+        @PostMapping("/{bookingId}/report")
+        @PreAuthorize("hasRole('CUSTOMER')")
+        public ResponseEntity<ApiResponse<BookingResponse>> reportBooking(
+                        @PathVariable Long bookingId,
+                        @Valid @RequestBody BookingReportRequest request,
+                        Authentication authentication) {
+
+                Long customerId = securityUtil.getCurrentUserId(authentication);
+                BookingResponse response = bookingService.reportBooking(bookingId, customerId, request);
+
+                return ResponseEntity.ok(ApiResponse.<BookingResponse>builder()
+                                .message("Đã gửi khiếu nại thành công")
+                                .data(response)
+                                .build());
+        }
+
+        @Operation(summary = "Helper giải trình khiếu nại", description = "Helper gửi giải trình/ảnh minh chứng cho booking đang bị khiếu nại.")
+        @PostMapping("/{bookingId}/dispute-response")
+        @PreAuthorize("hasRole('HELPER')")
+        public ResponseEntity<ApiResponse<Void>> submitDisputeResponse(
+                        @PathVariable Long bookingId,
+                        @Valid @RequestBody HelperDisputeResponseRequest request,
+                        Authentication authentication) {
+
+                Long helperId = securityUtil.getCurrentUserId(authentication);
+                bookingService.submitDisputeResponse(bookingId, helperId, request);
+
+                return ResponseEntity.ok(ApiResponse.<Void>builder()
+                                .message("Đã gửi giải trình thành công")
                                 .build());
         }
 }

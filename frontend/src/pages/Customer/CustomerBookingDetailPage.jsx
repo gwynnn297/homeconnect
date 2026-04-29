@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import BookingService from '../../services/BookingService';
+import CloudinaryService from '../../services/CloudinaryService';
 import ReviewService from '../../services/ReviewService';
 import './CustomerBookingDetailPage.css';
 
@@ -53,6 +54,10 @@ const getBookingStatusUI = (status) => {
             return { label: 'Đang thực hiện công việc', tone: 'success' };
         case 'COMPLETED':
             return { label: 'Hoàn thành', tone: 'success' };
+        case 'DISPUTED':
+            return { label: 'Đang tranh chấp', tone: 'warning' };
+        case 'RESOLVED':
+            return { label: 'Đã xử lý tranh chấp', tone: 'neutral' };
         case 'CANCELLED':
             return { label: 'Đã hủy', tone: 'danger' };
         default:
@@ -68,6 +73,8 @@ const getPaymentStatusUI = (status) => {
         case 'PAID':
         case 'SUCCESS':
             return { label: 'Đã thanh toán', tone: 'success' };
+        case 'RELEASED':
+            return { label: 'Đã giải ngân cho thợ', tone: 'neutral' };
         case 'REFUNDED':
             return { label: 'Đã hoàn tiền', tone: 'neutral' };
         case 'FAILED':
@@ -150,6 +157,12 @@ const CustomerBookingDetailPage = () => {
     const [confirmingArrival, setConfirmingArrival] = useState(false);
 
     const [confirming, setConfirming] = useState(false);
+    const [reporting, setReporting] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [reportReason, setReportReason] = useState('');
+    const [reportEvidenceUrl, setReportEvidenceUrl] = useState('');
+    const [reportEvidenceUploading, setReportEvidenceUploading] = useState(false);
+    const [reportEvidenceError, setReportEvidenceError] = useState('');
     const [reviewLoading, setReviewLoading] = useState(false);
     const [existingReview, setExistingReview] = useState(null);
     const [submittingReview, setSubmittingReview] = useState(false);
@@ -304,12 +317,70 @@ const CustomerBookingDetailPage = () => {
         }
     };
 
+    const handleReportDispute = async (e) => {
+        e?.preventDefault();
+        if (!bookingId) return;
+        if (!reportReason.trim() || reportReason.trim().length < 10) {
+            setActionError('Lý do khiếu nại cần tối thiểu 10 ký tự.');
+            return;
+        }
+        if (reportEvidenceUploading) {
+            setActionError('Ảnh minh chứng đang được tải lên. Vui lòng đợi hoàn tất.');
+            return;
+        }
+        if (!reportEvidenceUrl.trim()) {
+            setActionError('Ảnh minh chứng là bắt buộc. Vui lòng tải lên trước khi gửi.');
+            return;
+        }
+
+        clearFeedback();
+        setReporting(true);
+        try {
+            await BookingService.reportBooking(bookingId, {
+                reason: reportReason.trim(),
+                evidenceUrl: reportEvidenceUrl.trim() || undefined,
+            });
+            setActionSuccess('Đã gửi khiếu nại thành công. Đơn đang chờ admin xử lý.');
+            setShowReportModal(false);
+            setReportReason('');
+            setReportEvidenceUrl('');
+            setReportEvidenceError('');
+            await reloadBooking();
+        } catch (err) {
+            setActionError(err?.message || 'Không gửi được khiếu nại. Vui lòng thử lại.');
+        } finally {
+            setReporting(false);
+        }
+    };
+
+    const handleReportEvidenceChange = async (e) => {
+        const file = e.target.files?.[0];
+        setReportEvidenceError('');
+        if (!file) {
+            setReportEvidenceUrl('');
+            return;
+        }
+
+        setReportEvidenceUploading(true);
+        try {
+            const uploadedUrl = await CloudinaryService.uploadImage(file, 'disputes');
+            setReportEvidenceUrl(uploadedUrl || '');
+        } catch (err) {
+            setReportEvidenceError(err?.message || 'Tải ảnh minh chứng thất bại.');
+            setReportEvidenceUrl('');
+        } finally {
+            setReportEvidenceUploading(false);
+        }
+    };
+
     const statusUI = getBookingStatusUI(booking?.status);
     const paymentUI = getPaymentStatusUI(booking?.paymentStatus);
     const normalizedStatus = String(booking?.status || '').toUpperCase();
     const statusUpper = normalizedStatus;
     const showConfirmBanner = statusUpper === 'PENDING_COMPLETION';
     const showReviewSection = statusUpper === 'COMPLETED';
+    const canReportDispute = statusUpper === 'COMPLETED' && String(booking?.paymentStatus || '').toUpperCase() === 'HOLDING';
+    const hasDisputeData = statusUpper === 'DISPUTED' || statusUpper === 'RESOLVED';
     const editableWindow = existingReview && canEditReviewByTime(existingReview);
     const helperName = booking?.helperName || 'Helper';
     const hasArrivalSignal = Boolean(booking?.arrivalProofImage) || Boolean(booking?.arrivedAt) || ['ARRIVED', 'IN_PROGRESS'].includes(normalizedStatus);
@@ -724,7 +795,57 @@ const CustomerBookingDetailPage = () => {
                             </section>
                         ) : null}
 
+                        {hasDisputeData ? (
+                            <div className="cbd-card cbd-dispute-card">
+                                <div className="cbd-section-title">Thông tin khiếu nại</div>
+                                <div className="cbd-kv">
+                                    <div className="cbd-k">Lý do</div>
+                                    <div className="cbd-v">{booking?.disputeReason || '---'}</div>
+                                </div>
+                                <div className="cbd-kv">
+                                    <div className="cbd-k">Minh chứng</div>
+                                    <div className="cbd-v">
+                                        {booking?.evidenceUrl ? (
+                                            <a className="cbd-link-ghost" href={booking.evidenceUrl} target="_blank" rel="noreferrer">
+                                                Mở liên kết minh chứng →
+                                            </a>
+                                        ) : (
+                                            'Không có'
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="cbd-kv">
+                                    <div className="cbd-k">Thời điểm gửi</div>
+                                    <div className="cbd-v">{formatDateTime(booking?.disputedAt)}</div>
+                                </div>
+                                {statusUpper === 'RESOLVED' ? (
+                                    <>
+                                        <div className="cbd-kv">
+                                            <div className="cbd-k">Kết quả xử lý</div>
+                                            <div className="cbd-v">{booking?.disputeResolutionAction === 'REFUND_CUSTOMER' ? 'Hoàn tiền cho khách' : 'Giữ thanh toán cho thợ'}</div>
+                                        </div>
+                                        <div className="cbd-kv">
+                                            <div className="cbd-k">Thời điểm xử lý</div>
+                                            <div className="cbd-v">{formatDateTime(booking?.disputeResolvedAt)}</div>
+                                        </div>
+                                    </>
+                                ) : null}
+                            </div>
+                        ) : null}
+
                         <div className="cbd-actions">
+                            {canReportDispute ? (
+                                <button
+                                    className="cbd-btn cbd-btn--danger cbd-btn--rounded"
+                                    type="button"
+                                    onClick={() => {
+                                        clearFeedback();
+                                        setShowReportModal(true);
+                                    }}
+                                >
+                                    Khiếu nại đơn hàng
+                                </button>
+                            ) : null}
                             <button className="cbd-btn cbd-btn--rounded" type="button" onClick={() => navigate('/customer/manage-posts')}>
                                 Danh sách bài đăng
                             </button>
@@ -732,6 +853,68 @@ const CustomerBookingDetailPage = () => {
                                 Về tổng quan
                             </button>
                         </div>
+
+                        {showReportModal ? (
+                            <div className="cbd-report-modal-overlay" role="presentation" onClick={() => !reporting && setShowReportModal(false)}>
+                                <div className="cbd-report-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+                                    <h3>Gửi khiếu nại đơn hàng</h3>
+                                    <p>Nêu rõ vấn đề và đính kèm ảnh minh chứng (nếu có). Admin sẽ xem xét trước khi nhả tiền.</p>
+                                    <form onSubmit={handleReportDispute} className="cbd-field">
+                                        <label className="cbd-field">
+                                            <span className="cbd-label">Lý do khiếu nại</span>
+                                            <textarea
+                                                className="cbd-textarea"
+                                                rows={4}
+                                                value={reportReason}
+                                                onChange={(ev) => setReportReason(ev.target.value)}
+                                                placeholder="Ví dụ: Thợ đến trễ 45 phút và làm hỏng đồ trong bếp..."
+                                                maxLength={2000}
+                                                disabled={reporting}
+                                            />
+                                        </label>
+
+                                        <label className="cbd-field">
+                                            <span className="cbd-label">Ảnh minh chứng (bắt buộc)</span>
+                                            <span className="cbd-field-hint">
+                                                Vui lòng tải ảnh rõ nét, đầy đủ góc chụp liên quan để chúng tôi xử lý nhanh và chính xác.
+                                            </span>
+                                            <input
+                                                className="cbd-input"
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleReportEvidenceChange}
+                                                disabled={reporting || reportEvidenceUploading}
+                                            />
+                                            {reportEvidenceUploading ? (
+                                                <span className="cbd-field-hint">Đang tải ảnh lên…</span>
+                                            ) : null}
+                                            {reportEvidenceError ? (
+                                                <span className="cbd-field-hint" style={{ color: '#b91c1c' }}>
+                                                    {reportEvidenceError}
+                                                </span>
+                                            ) : null}
+                                            {reportEvidenceUrl ? (
+                                                <>
+                                                    <EvidencePreview url={reportEvidenceUrl} />
+                                                    <a className="cbd-link-ghost" href={reportEvidenceUrl} target="_blank" rel="noreferrer">
+                                                        Mở ảnh minh chứng →
+                                                    </a>
+                                                </>
+                                            ) : null}
+                                        </label>
+
+                                        <div className="cbd-report-modal-actions">
+                                            <button type="button" className="cbd-btn" onClick={() => setShowReportModal(false)} disabled={reporting}>
+                                                Đóng
+                                            </button>
+                                            <button type="submit" className="cbd-btn cbd-btn--danger" disabled={reporting}>
+                                                {reporting ? 'Đang gửi...' : 'Gửi khiếu nại'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        ) : null}
                     </>
                 )}
             </div>

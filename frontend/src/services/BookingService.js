@@ -40,6 +40,16 @@ const BookingService = {
     confirmComplete: async (bookingId) => {
         return apiClient.post(`${BOOKING_BASE_URL}/${bookingId}/confirm-complete`, {});
     },
+
+    /** Khách khiếu nại đơn đã COMPLETED */
+    reportBooking: async (bookingId, payload) => {
+        return apiClient.post(`${BOOKING_BASE_URL}/${bookingId}/report`, payload);
+    },
+
+    /** Helper gửi giải trình khiếu nại */
+    submitDisputeResponse: async (bookingId, payload) => {
+        return apiClient.post(`${BOOKING_BASE_URL}/${bookingId}/dispute-response`, payload);
+    },
 };
 
 export default BookingService;

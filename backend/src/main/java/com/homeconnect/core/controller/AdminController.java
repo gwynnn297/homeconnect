@@ -2,6 +2,7 @@ package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.BroadcastNotificationRequest;
 import com.homeconnect.core.dto.request.HelperReviewRequest;
+import com.homeconnect.core.dto.request.admin.AdminResolveDisputeRequest;
 import com.homeconnect.core.dto.request.admin.AdminCancelBookingRequest;
 import com.homeconnect.core.dto.request.admin.AdminCancelJobPostRequest;
 import com.homeconnect.core.dto.request.admin.AdminUpdateUserStatusRequest;
@@ -16,6 +17,7 @@ import com.homeconnect.core.dto.response.admin.AdminAuditLogListResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostEditLogListResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostDetailResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostListResponse;
+import com.homeconnect.core.dto.response.admin.AdminDisputeListResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserDetailResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserListItemResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserListResponse;
@@ -269,6 +271,27 @@ public class AdminController {
         bookingService.handleCustomerNoShow(bookingId, payoutRatio, reason, authentication.getName());
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .message("Đã xử lý customer no-show")
+                .build());
+    }
+
+    @Operation(summary = "Danh sách tranh chấp booking", description = "Lấy các đơn đang ở trạng thái DISPUTED để admin xử lý")
+    @GetMapping("/disputes")
+    public ResponseEntity<AdminDisputeListResponse> getDisputes(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("disputedAt").descending());
+        return ResponseEntity.ok(bookingService.getDisputes(pageable));
+    }
+
+    @Operation(summary = "Xử lý tranh chấp booking", description = "REFUND_CUSTOMER: hoàn tiền cho khách. REJECT_REPORT: giải ngân tiền cho thợ.")
+    @PostMapping("/disputes/{bookingId}/resolve")
+    public ResponseEntity<ApiResponse<Void>> resolveDispute(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody AdminResolveDisputeRequest request,
+            Authentication authentication) {
+        bookingService.resolveDispute(bookingId, request, authentication.getName());
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .message("Đã xử lý tranh chấp thành công")
                 .build());
     }
 

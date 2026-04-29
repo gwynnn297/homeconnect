@@ -135,6 +135,22 @@ const AdminService = {
         });
     },
 
+    // ===== TRANH CHAP BOOKING =====
+    getDisputes: async (params = {}) => {
+        return apiClient.get('/api/v1/admin/disputes', { params });
+    },
+
+    resolveDispute: async (bookingId, action, refundRatio, adminNote) => {
+        const payload = { action };
+        if (refundRatio !== undefined && refundRatio !== null) {
+            payload.refundRatio = refundRatio;
+        }
+        if (adminNote !== undefined && adminNote !== null) {
+            payload.adminNote = adminNote;
+        }
+        return apiClient.post(`/api/v1/admin/disputes/${bookingId}/resolve`, payload);
+    },
+
     // ===== QUẢN LÝ TIN ĐĂNG (JOB POSTS) =====
     getJobPosts: async (params = {}) => {
         return apiClient.get('/api/v1/admin/job-posts', { params });

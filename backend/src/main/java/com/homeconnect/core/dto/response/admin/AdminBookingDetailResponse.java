@@ -61,6 +61,13 @@ public class AdminBookingDetailResponse {
 
     private LocalDateTime confirmedDoneAt;
 
+    private String disputeReason;
+    private String evidenceUrl;
+    private LocalDateTime disputedAt;
+    private LocalDateTime disputeResolvedAt;
+    private String disputeResolutionAction;
+    private Long disputeResolvedByAdminId;
+
     private Boolean isFlagged;
 
     private LocalDateTime createdAt;

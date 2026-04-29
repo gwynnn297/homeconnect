@@ -1,10 +1,16 @@
 package com.homeconnect.core.service;
 
 import com.homeconnect.core.dto.request.DirectBookingRequest;
+import com.homeconnect.core.dto.request.BookingReportRequest;
+import com.homeconnect.core.dto.request.HelperDisputeResponseRequest;
+import com.homeconnect.core.dto.request.admin.AdminResolveDisputeRequest;
 import com.homeconnect.core.dto.response.BookingResponse;
 import com.homeconnect.core.dto.response.JobApplicantResponse;
+import com.homeconnect.core.dto.response.admin.AdminDisputeItemResponse;
+import com.homeconnect.core.dto.response.admin.AdminDisputeListResponse;
 import com.homeconnect.core.entity.*;
 import com.homeconnect.core.enums.BookingStatus;
+import com.homeconnect.core.enums.DisputeResolutionAction;
 import com.homeconnect.core.enums.PaymentStatus;
 import com.homeconnect.core.enums.ScheduleStatus;
 import com.homeconnect.core.exception.ApiException;
@@ -16,8 +22,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -529,6 +538,11 @@ public class BookingService {
                 .totalPrice(b.getTotalPrice())
                 .address(fullAddress)
                 .paymentStatus(b.getPaymentStatus())
+                .disputeReason(b.getDisputeReason())
+                .evidenceUrl(b.getEvidenceUrl())
+                .disputedAt(b.getDisputedAt())
+                .disputeResolvedAt(b.getDisputeResolvedAt())
+                .disputeResolutionAction(b.getDisputeResolutionAction())
                 .build();
     }
 
@@ -614,7 +628,8 @@ public class BookingService {
             throw new RuntimeException("Bạn không có quyền hủy đơn hàng này");
         }
 
-        if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
+        if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED
+            || booking.getStatus() == BookingStatus.DISPUTED || booking.getStatus() == BookingStatus.RESOLVED) {
             throw new RuntimeException("Đơn hàng đã hoàn thành hoặc đã bị hủy trước đó");
         }
 
@@ -679,7 +694,8 @@ public class BookingService {
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
         Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
 
-        if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
+        if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED
+            || booking.getStatus() == BookingStatus.DISPUTED || booking.getStatus() == BookingStatus.RESOLVED) {
             throw new ApiException("Đơn hàng đã hoàn thành hoặc đã hủy trước đó", HttpStatus.BAD_REQUEST);
         }
         if (!ADMIN_CANCEL_ALLOWED_STATUSES.contains(booking.getStatus())) {
@@ -763,7 +779,8 @@ public class BookingService {
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
         Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
 
-        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED) {
+        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED
+            || booking.getStatus() == BookingStatus.DISPUTED || booking.getStatus() == BookingStatus.RESOLVED) {
             throw new ApiException("Không thể xử lý no-show với đơn đã hoàn tất/hủy", HttpStatus.BAD_REQUEST);
         }
         if (!ADMIN_NO_SHOW_ALLOWED_STATUSES.contains(booking.getStatus())) {
@@ -840,7 +857,8 @@ public class BookingService {
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
         Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
 
-        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED) {
+        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED
+            || booking.getStatus() == BookingStatus.DISPUTED || booking.getStatus() == BookingStatus.RESOLVED) {
             throw new ApiException("Không thể xử lý no-show với đơn đã hoàn tất/hủy", HttpStatus.BAD_REQUEST);
         }
         if (!ADMIN_NO_SHOW_ALLOWED_STATUSES.contains(booking.getStatus())) {
@@ -898,5 +916,197 @@ public class BookingService {
                 "SUCCESS",
                 booking.getCancelReason(),
                 "{\"status\":\"CANCELLED\",\"payoutRatio\":" + payoutRatio + "}");
+    }
+
+    @Transactional
+    public BookingResponse reportBooking(Long bookingId, Long customerId, BookingReportRequest request) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+
+        if (!booking.getCustomer().getId().equals(customerId)) {
+            throw new ApiException("Bạn không có quyền khiếu nại đơn này", HttpStatus.FORBIDDEN);
+        }
+        if (booking.getStatus() != BookingStatus.COMPLETED) {
+            throw new ApiException("Chỉ có thể khiếu nại đơn ở trạng thái COMPLETED", HttpStatus.BAD_REQUEST);
+        }
+        if (booking.getPaymentStatus() != PaymentStatus.HOLDING) {
+            throw new ApiException("Đơn đã giải ngân/hoàn tiền, không thể mở khiếu nại", HttpStatus.BAD_REQUEST);
+        }
+
+        booking.setStatus(BookingStatus.DISPUTED);
+        booking.setDisputeReason(request.getReason().trim());
+        booking.setEvidenceUrl(request.getEvidenceUrl() != null ? request.getEvidenceUrl().trim() : null);
+        booking.setDisputedAt(LocalDateTime.now());
+        booking.setDisputeResolvedAt(null);
+        booking.setDisputeResolutionAction(null);
+        booking.setDisputeResolvedByAdminId(null);
+        booking.setHelperDisputeMessage(null);
+        booking.setHelperDisputeEvidenceUrl(null);
+        booking.setHelperDisputeAt(null);
+        booking.setDisputeRefundRatio(null);
+        booking.setDisputeRefundAmount(null);
+        bookingRepository.save(booking);
+
+        Long jobPostId = booking.getJobPostId() != null ? booking.getJobPostId() : booking.getId();
+        notificationService.createNotification(
+            booking.getHelper().getId(),
+            "Booking đang bị khiếu nại",
+            "Job #" + jobPostId + " (Booking #" + booking.getId() + ") đã bị khiếu nại. Hệ thống đang chờ admin xử lý.",
+            "DISPUTE_OPENED");
+
+        return mapToBookingResponse(booking, customerId);
+    }
+
+    @Transactional
+    public void submitDisputeResponse(Long bookingId, Long helperId, HelperDisputeResponseRequest request) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+
+        if (!booking.getHelper().getId().equals(helperId)) {
+            throw new ApiException("Bạn không có quyền giải trình đơn này", HttpStatus.FORBIDDEN);
+        }
+        if (booking.getStatus() != BookingStatus.DISPUTED) {
+            throw new ApiException("Đơn hàng không ở trạng thái DISPUTED", HttpStatus.BAD_REQUEST);
+        }
+        if (booking.getHelperDisputeAt() != null) {
+            throw new ApiException("Giải trình đã được gửi trước đó", HttpStatus.BAD_REQUEST);
+        }
+        if (booking.getDisputedAt() != null) {
+            Duration elapsed = Duration.between(booking.getDisputedAt(), LocalDateTime.now());
+            if (elapsed.compareTo(Duration.ofHours(24)) > 0) {
+                throw new ApiException("Đã quá hạn 24h để gửi giải trình", HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        booking.setHelperDisputeMessage(request.getMessage().trim());
+        booking.setHelperDisputeEvidenceUrl(request.getEvidenceUrl() != null ? request.getEvidenceUrl().trim() : null);
+        booking.setHelperDisputeAt(LocalDateTime.now());
+        bookingRepository.save(booking);
+
+        Long jobPostId = booking.getJobPostId() != null ? booking.getJobPostId() : booking.getId();
+        notificationService.createNotification(
+            booking.getCustomer().getId(),
+            "Helper đã phản hồi khiếu nại",
+            "Job #" + jobPostId + " (Booking #" + booking.getId() + ") đã có giải trình từ helper. Admin sẽ sớm xử lý.",
+            "DISPUTE_RESPONSE");
+    }
+
+    @Transactional(readOnly = true)
+    public AdminDisputeListResponse getDisputes(Pageable pageable) {
+        Page<Booking> page = bookingRepository.findByStatusOrderByDisputedAtDesc(BookingStatus.DISPUTED, pageable);
+        List<AdminDisputeItemResponse> items = page.getContent().stream()
+                .map(this::mapToAdminDisputeItem)
+                .toList();
+
+        return AdminDisputeListResponse.builder()
+                .disputes(items)
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .currentPage(page.getNumber())
+                .pageSize(page.getSize())
+                .message("Danh sách booking đang tranh chấp")
+                .build();
+    }
+
+    @Transactional
+    public void resolveDispute(Long bookingId, AdminResolveDisputeRequest request, String adminEmail) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
+
+        if (booking.getStatus() != BookingStatus.DISPUTED) {
+            throw new ApiException("Đơn hàng không ở trạng thái DISPUTED", HttpStatus.BAD_REQUEST);
+        }
+        if (booking.getPaymentStatus() != PaymentStatus.HOLDING) {
+            throw new ApiException("Đơn hàng không còn tiền hold để xử lý tranh chấp", HttpStatus.BAD_REQUEST);
+        }
+
+        DisputeResolutionAction action = request.getAction();
+        Long adminId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
+        String adminNote = request.getAdminNote() != null ? request.getAdminNote().trim() : null;
+
+        if (action == DisputeResolutionAction.REFUND_CUSTOMER) {
+            BigDecimal refundRatio = request.getRefundRatio() != null
+                ? request.getRefundRatio()
+                : BigDecimal.ONE;
+
+            if (refundRatio.compareTo(BigDecimal.ZERO) <= 0 || refundRatio.compareTo(BigDecimal.ONE) > 0) {
+            throw new ApiException("Tỷ lệ hoàn tiền không hợp lệ", HttpStatus.BAD_REQUEST);
+            }
+
+                BigDecimal refundAmount = walletService.resolveDisputeSplit(booking, refundRatio);
+            booking.setPaymentStatus(refundRatio.compareTo(BigDecimal.ONE) == 0
+                ? PaymentStatus.REFUNDED
+                : PaymentStatus.RELEASED);
+            booking.setDisputeRefundRatio(refundRatio);
+            booking.setDisputeRefundAmount(refundAmount);
+
+                String ratioPercent = refundRatio.multiply(BigDecimal.valueOf(100))
+                    .setScale(0, java.math.RoundingMode.HALF_UP) + "%";
+                String reasonSuffix = (adminNote != null && !adminNote.isBlank())
+                    ? " Lý do: " + adminNote
+                    : "";
+
+                notificationService.createNotification(
+                    booking.getCustomer().getId(),
+                    "Khiếu nại đã được chấp nhận",
+                    "Đơn #" + booking.getId() + " đã được hoàn " + ratioPercent + " tiền về ví khả dụng của bạn." + reasonSuffix,
+                    "DISPUTE_REFUND");
+                Long jobPostId = booking.getJobPostId() != null ? booking.getJobPostId() : booking.getId();
+                notificationService.createNotification(
+                    booking.getHelper().getId(),
+                    "Khiếu nại booking đã được xử lý",
+                    "Job #" + jobPostId + " (Booking #" + booking.getId() + ") được admin xử lý theo hướng hoàn " + ratioPercent + " tiền cho khách." + reasonSuffix,
+                    "DISPUTE_REFUND");
+        } else if (action == DisputeResolutionAction.REJECT_REPORT) {
+            walletService.releaseSalary(booking);
+            booking.setPaymentStatus(PaymentStatus.RELEASED);
+            booking.setDisputeRefundRatio(BigDecimal.ZERO);
+            booking.setDisputeRefundAmount(BigDecimal.ZERO);
+
+                String reasonSuffix = (adminNote != null && !adminNote.isBlank())
+                    ? " Lý do: " + adminNote
+                    : "";
+
+                notificationService.createNotification(
+                    booking.getCustomer().getId(),
+                    "Khiếu nại không được chấp nhận",
+                    "Đơn #" + booking.getId() + " đã được admin kết luận thanh toán cho thợ." + reasonSuffix,
+                    "DISPUTE_REJECT");
+                Long jobPostId = booking.getJobPostId() != null ? booking.getJobPostId() : booking.getId();
+                notificationService.createNotification(
+                    booking.getHelper().getId(),
+                    "Khiếu nại booking đã được xử lý",
+                    "Job #" + jobPostId + " (Booking #" + booking.getId() + ") được admin kết luận thanh toán cho bạn." + reasonSuffix,
+                    "DISPUTE_REJECT");
+        } else {
+            throw new ApiException("Action xử lý tranh chấp không hợp lệ", HttpStatus.BAD_REQUEST);
+        }
+
+        booking.setStatus(BookingStatus.RESOLVED);
+        booking.setDisputeResolvedAt(LocalDateTime.now());
+        booking.setDisputeResolutionAction(action.name());
+        booking.setDisputeResolvedByAdminId(adminId);
+        booking.setDisputeAdminNote(adminNote != null && adminNote.isBlank() ? null : adminNote);
+        bookingRepository.save(booking);
+    }
+
+    private AdminDisputeItemResponse mapToAdminDisputeItem(Booking booking) {
+        return AdminDisputeItemResponse.builder()
+                .bookingId(booking.getId())
+                .customerId(booking.getCustomer().getId())
+                .customerName(booking.getCustomer().getFullName())
+                .helperId(booking.getHelper().getId())
+                .helperName(booking.getHelper().getFullName())
+                .status(booking.getStatus())
+                .paymentStatus(booking.getPaymentStatus())
+                .totalPrice(booking.getTotalPrice())
+                .disputeReason(booking.getDisputeReason())
+                .evidenceUrl(booking.getEvidenceUrl())
+                .disputedAt(booking.getDisputedAt())
+                .helperDisputeMessage(booking.getHelperDisputeMessage())
+                .helperDisputeEvidenceUrl(booking.getHelperDisputeEvidenceUrl())
+                .helperDisputeAt(booking.getHelperDisputeAt())
+                .scheduledStartTime(booking.getScheduledStartTime())
+                .build();
     }
 }

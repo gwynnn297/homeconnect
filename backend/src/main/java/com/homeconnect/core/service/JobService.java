@@ -373,7 +373,7 @@ public class JobService {
                     helperId,
                     new ArrayList<>(orderedPostIds),
                     List.of(BookingStatus.CONFIRMED, BookingStatus.ARRIVED, BookingStatus.IN_PROGRESS,
-                            BookingStatus.COMPLETED));
+                        BookingStatus.COMPLETED, BookingStatus.DISPUTED, BookingStatus.RESOLVED));
 
             Map<Long, Booking> map = new HashMap<>();
             for (Booking booking : bookings) {
@@ -520,6 +520,12 @@ public class JobService {
                                 ? booking.getArrivalProofImage()
                                 : booking.getCheckinPhotoUrl())
                         : null)
+                .disputeReason(booking != null ? booking.getDisputeReason() : null)
+                .disputeEvidenceUrl(booking != null ? booking.getEvidenceUrl() : null)
+                .disputedAt(booking != null ? booking.getDisputedAt() : null)
+                .helperDisputeMessage(booking != null ? booking.getHelperDisputeMessage() : null)
+                .helperDisputeEvidenceUrl(booking != null ? booking.getHelperDisputeEvidenceUrl() : null)
+                .helperDisputeAt(booking != null ? booking.getHelperDisputeAt() : null)
                 .createdAt(jobPost.getCreatedAt())
                 .workSize(workSize)
                 .additionalData(additionalDataMap)
