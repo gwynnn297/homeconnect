@@ -62,7 +62,7 @@ const SearchHelperPage = () => {
                 setFilters(prev => ({
                     ...prev,
                     provinceCode: pCode,
-                    district: info.district
+                    district: '' // Mặc định tìm tất cả thợ trong tỉnh thay vì lọc theo quận nhà
                 }));
                 fetchDistricts(pCode);
             }

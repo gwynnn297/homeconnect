@@ -26,24 +26,38 @@ public class HelperProfileSpecification {
 
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            // Join User một lần duy nhất để dùng chung cho các bộ lọc
+            Join<HelperProfile, User> userJoin = root.join("user");
 
-            // Luôn bắt buộc thợ phải Online và đã được Xác thực (KYC VERIFIED)
+            // 1. Ràng buộc cứng: Online và Verified
             predicates.add(cb.equal(root.get("isOnline"), true));
             predicates.add(cb.equal(root.get("kycStatus"), KycStatus.VERIFIED));
 
-            // ===== RÀNG BUỘC TỈNH/THÀNH (Automated Gating) =====
-            // Lọc thợ dựa trên KHU VỰC LÀM VIỆC (Working Districts), không phải địa chỉ nhà
+            // 2. Lọc theo Tỉnh/Thành (Regional Gating) - Hỗ trợ Fallback
             if (province != null && !province.isBlank()) {
-                Subquery<Long> districtSubquery = query.subquery(Long.class);
-                var districtRoot = districtSubquery.from(HelperWorkingDistrict.class);
-                districtSubquery.select(districtRoot.get("helper").get("id"))
-                        .where(cb.equal(districtRoot.get("provinceCode"), province));
-                predicates.add(root.get("user").get("id").in(districtSubquery));
+                // Điều kiện A: Thợ đăng ký làm việc tại tỉnh này
+                Subquery<Long> wdSubquery = query.subquery(Long.class);
+                var wdRoot = wdSubquery.from(HelperWorkingDistrict.class);
+                wdSubquery.select(wdRoot.get("helper").get("id"))
+                        .where(cb.equal(wdRoot.get("provinceCode"), province));
+                
+                // Điều kiện B: Thợ sống tại tỉnh này (Địa chỉ mặc định)
+                Subquery<Long> addrSubquery = query.subquery(Long.class);
+                var addrRoot = addrSubquery.from(Address.class);
+                addrSubquery.select(addrRoot.get("user").get("id"))
+                        .where(cb.and(
+                                cb.equal(addrRoot.get("isDefault"), true),
+                                cb.equal(addrRoot.get("provinceCode"), province)
+                        ));
+                
+                predicates.add(cb.or(
+                        userJoin.get("id").in(wdSubquery),
+                        userJoin.get("id").in(addrSubquery)
+                ));
             }
 
-            // Lọc theo Quận/Huyện làm việc (District)
+            // 3. Lọc theo Quận/Huyện làm việc
             if (district != null && !district.isBlank()) {
-                Join<HelperProfile, User> userJoin = root.join("user");
                 Join<User, HelperWorkingDistrict> districtJoin = userJoin.join("workingDistricts");
                 predicates.add(cb.or(
                         cb.equal(districtJoin.get("districtCode"), district),
@@ -51,26 +65,24 @@ public class HelperProfileSpecification {
                 ));
             }
 
-            // Lọc theo Dịch vụ (Service)
+            // 4. Lọc theo Dịch vụ (Service Category)
             if (serviceId != null) {
-                Join<HelperProfile, User> userJoin = root.join("user");
                 Join<User, HelperService> serviceJoin = userJoin.join("services");
                 predicates.add(cb.equal(serviceJoin.get("category").get("categoryId"), serviceId));
                 predicates.add(cb.equal(serviceJoin.get("isActive"), true));
             }
 
-            // Lọc theo Đánh giá tối thiểu (Rating)
+            // 5. Đánh giá tối thiểu (Rating)
             if (minRating != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("ratingAverage"), minRating));
             }
 
-            // Lọc theo Quê quán (Hometown)
+            // 6. Quê quán (Hometown - String match)
             if (hometownCode != null && !hometownCode.isBlank()) {
-                // Ở đây ta so khớp theo tên Tỉnh (String) gửi lên từ FE
                 predicates.add(cb.equal(root.get("hometownName"), hometownCode));
             }
 
-            query.distinct(true); // Tránh trùng lặp khi join nhiều bảng
+            query.distinct(true);
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }

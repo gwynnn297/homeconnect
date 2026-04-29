@@ -805,12 +805,18 @@ const ProfessionalProfileTab = () => {
                 const data = res.data;
                 if (!data) return;
                 setProfile(data);
+
+                // Khởi tạo workProvinceCode từ quận/huyện đầu tiên nếu có
+                const firstWD = data.workingDistricts?.[0];
+                const initialProvCode = firstWD?.provinceCode ? String(firstWD.provinceCode) : '';
+
                 setForm((f) => ({
                     ...f,
                     bio: data.bio || '',
                     experienceYears: data.experienceYears ?? 0,
                     dateOfBirth: data.dateOfBirth || '',
                     hometownName: data.hometownName || '',
+                    workProvinceCode: initialProvCode,
                     // workingDistricts from backend: [{ code, name, provinceCode, type }]
                     workingDistricts: data.workingDistricts?.map((d) => ({
                         code: String(d.code),
@@ -819,6 +825,19 @@ const ProfessionalProfileTab = () => {
                     })) || [],
                     categoryIds: data.categories?.map((c) => String(c.id ?? c.categoryId)).filter(Boolean) || [],
                 }));
+
+                // Nếu đã có tỉnh, tự động load danh sách quận để hiển thị tên chính xác
+                if (initialProvCode) {
+                    setLoadingWorkDist(true);
+                    ProfileService.getDistricts(initialProvCode)
+                        .then((distRes) => {
+                            const payload = distRes?.data ?? distRes;
+                            const dists = Array.isArray(payload) ? payload : (Array.isArray(payload?.districts) ? payload.districts : []);
+                            setAllWorkDistricts(dists.map((d) => ({ value: String(d.code), label: d.name })));
+                        })
+                        .catch(() => { })
+                        .finally(() => setLoadingWorkDist(false));
+                }
             })
             .catch((err) => console.error('[ProfessionalTab] fetch failed:', err))
             .finally(() => setLoadingInit(false));
