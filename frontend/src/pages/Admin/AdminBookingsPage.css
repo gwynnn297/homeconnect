@@ -9,6 +9,33 @@
     font-size: 0.9rem;
 }
 
+.admin-bookings-page .pagination-controls {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.admin-bookings-page .pagination-controls button {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.admin-bookings-page .pagination-controls button.active {
+    background: #346252;
+    border-color: #346252;
+    color: #fff;
+}
+
+.admin-bookings-page .pagination-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
     .admin-bookings-page .filter-group-wide {
         grid-column: span 1;

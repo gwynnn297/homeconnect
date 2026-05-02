@@ -1,6 +1,7 @@
 package com.homeconnect.core.service;
 
 import com.homeconnect.core.dto.response.NotificationResponse;
+import com.homeconnect.core.dto.response.NotificationPageResponse;
 import com.homeconnect.core.entity.JobPost;
 import com.homeconnect.core.entity.Notification;
 import com.homeconnect.core.repository.NotificationRepository;
@@ -8,6 +9,7 @@ import com.homeconnect.core.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -44,12 +46,21 @@ public class NotificationService {
      * Giới hạn limit trong khoảng [1..100] để tránh query quá nặng.
      */
     @Transactional(readOnly = true)
-    public List<NotificationResponse> getLatestNotifications(Long userId, int limit) {
+    public NotificationPageResponse getNotifications(Long userId, String type, int page, int limit) {
         int boundedLimit = Math.min(Math.max(limit, 1), 100);
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, boundedLimit))
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        int safePage = Math.max(page, 1);
+        Pageable pageable = PageRequest.of(safePage - 1, boundedLimit);
+
+        var notificationsPage = (type == null || type.isBlank())
+                ? notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                : notificationRepository.findByUserIdAndTypeOrderByCreatedAtDesc(userId, type.trim().toUpperCase(), pageable);
+
+        return NotificationPageResponse.builder()
+                .data(notificationsPage.getContent().stream().map(this::toResponse).toList())
+                .totalRecords(notificationsPage.getTotalElements())
+                .totalPages(notificationsPage.getTotalPages())
+                .currentPage(safePage)
+                .build();
     }
 
     /**

@@ -450,6 +450,23 @@
     border-color: #059669;
 }
 
+.hnj-checkout-btn {
+    border: 1px solid #0ea5e9;
+    background: #e0f2fe;
+    color: #0c4a6e;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.hnj-checkout-btn:hover {
+    background: #bae6fd;
+    border-color: #0284c7;
+}
+
 /* Modal Overlay */
 .hnj-modal-overlay {
     position: fixed;
@@ -1107,6 +1124,23 @@
 
 .hnj-btn-checkin:hover {
     background-color: #059669;
+}
+
+.hnj-btn-checkout {
+    flex: 1;
+    padding: 14px 20px;
+    border-radius: 12px;
+    border: none;
+    background-color: #0ea5e9;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.hnj-btn-checkout:hover {
+    background-color: #0284c7;
 }
 
 .hnj-dispute-box {

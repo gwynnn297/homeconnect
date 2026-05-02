@@ -20,6 +20,7 @@ import AdminUsersPage from '../pages/Admin/AdminUsersPage'
 import AdminUserDetailPage from '../pages/Admin/AdminUserDetailPage'
 import AdminBookingsPage from '../pages/Admin/AdminBookingsPage'
 import AdminBookingDetailPage from '../pages/Admin/AdminBookingDetailPage'
+import AdminFraudAlertsPage from '../pages/Admin/AdminFraudAlertsPage'
 import AdminJobPostsPage from '../pages/Admin/AdminJobPostsPage'
 import AdminJobPostDetailPage from '../pages/Admin/AdminJobPostDetailPage'
 import AdminWalletTransactionsPage from '../pages/Admin/AdminWalletTransactionsPage'
@@ -70,6 +71,7 @@ const AuthRouter = () => {
         <Route path="/admin/users" element={<AdminUsersPage />} />
         <Route path="/admin/users/:userId" element={<AdminUserDetailPage />} />
         <Route path="/admin/bookings" element={<AdminBookingsPage />} />
+        <Route path="/admin/fraud-alerts" element={<AdminFraudAlertsPage />} />
         <Route path="/admin/bookings/:bookingId" element={<AdminBookingDetailPage />} />
         <Route path="/admin/job-posts" element={<AdminJobPostsPage />} />
         <Route path="/admin/job-posts/:postId" element={<AdminJobPostDetailPage />} />

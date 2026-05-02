@@ -148,6 +148,32 @@ function EvidencePreview({ url }) {
     );
 }
 
+function CheckoutPhotoPreview({ url }) {
+    const [broken, setBroken] = useState(false);
+
+    if (!url) {
+        return (
+            <div className="cbd-checkout-image-empty">
+                Helper chưa gửi ảnh checkout.
+            </div>
+        );
+    }
+
+    if (broken) {
+        return (
+            <div className="cbd-checkout-image-empty cbd-checkout-image-empty--error">
+                Không thể tải ảnh checkout từ liên kết đã cung cấp.
+            </div>
+        );
+    }
+
+    return (
+        <div className="cbd-checkout-image-wrap">
+            <img src={url} alt="Ảnh checkout helper gửi" onError={() => setBroken(true)} />
+        </div>
+    );
+}
+
 const CustomerBookingDetailPage = () => {
     const navigate = useNavigate();
     const { bookingId } = useParams();
@@ -420,6 +446,33 @@ const CustomerBookingDetailPage = () => {
     const canSubmitArrivalConfirm = canShowArrivalConfirmSection
         && Boolean(booking?.arrivalProofImage)
         && (!hasConfirmedFlag || isInconsistentArrivalState);
+    const hasCheckoutEvidence = Boolean(booking?.checkoutPhotoUrl) || Boolean(booking?.checkedOutAt) || Boolean(booking?.checkoutReason);
+    const executionTimeline = [
+        {
+            key: 'arrive',
+            title: 'Helper đến địa điểm',
+            time: formatDateTime(booking?.arrivedAt),
+            done: Boolean(booking?.arrivedAt),
+        },
+        {
+            key: 'start',
+            title: 'Bắt đầu công việc',
+            time: formatDateTime(booking?.confirmedStartAt),
+            done: Boolean(booking?.confirmedStartAt) || ['IN_PROGRESS', 'PENDING_COMPLETION', 'COMPLETED', 'DISPUTED', 'RESOLVED'].includes(statusUpper),
+        },
+        {
+            key: 'checkout',
+            title: 'Helper checkout',
+            time: formatDateTime(booking?.checkedOutAt),
+            done: Boolean(booking?.checkedOutAt) || ['PENDING_COMPLETION', 'COMPLETED', 'DISPUTED', 'RESOLVED'].includes(statusUpper),
+        },
+        {
+            key: 'confirm',
+            title: 'Khách xác nhận hoàn thành',
+            time: formatDateTime(booking?.confirmedDoneAt),
+            done: Boolean(booking?.confirmedDoneAt) || ['COMPLETED', 'DISPUTED', 'RESOLVED'].includes(statusUpper),
+        },
+    ];
 
     const handleConfirmArrival = async () => {
         if (!booking?.bookingId || confirmingArrival) return;
@@ -505,6 +558,61 @@ const CustomerBookingDetailPage = () => {
                                 </button>
                             </div>
                         ) : null}
+
+                        <div className={`cbd-card cbd-checkout-proof-card ${booking?.isFlagged ? 'cbd-checkout-proof-card--flagged' : ''}`}>
+                            <div className="cbd-checkout-head">
+                                <div className="cbd-section-title">Thông tin checkout của helper</div>
+                                <span className={`cbd-pill ${hasCheckoutEvidence ? 'cbd-pill--success' : 'cbd-pill--warning'}`}>
+                                    {hasCheckoutEvidence ? 'Đã có dữ liệu checkout' : 'Chưa có dữ liệu checkout'}
+                                </span>
+                            </div>
+                            {booking?.isFlagged ? (
+                                <div className="cbd-feedback cbd-feedback--warning" role="alert">
+                                    <span className="cbd-feedback__icon cbd-feedback__icon--warning" aria-hidden>
+                                        !
+                                    </span>
+                                    <span>
+                                        Hệ thống phát hiện checkout sớm hơn 80% thời lượng dự kiến. Bạn vui lòng kiểm tra kỹ hiện trạng trước khi xác nhận hoàn thành.
+                                    </span>
+                                </div>
+                            ) : null}
+                            <div className="cbd-kv">
+                                <div className="cbd-k">Thời điểm helper báo xong</div>
+                                <div className="cbd-v">{booking?.checkedOutAt ? formatDateTime(booking?.checkedOutAt) : 'Chưa ghi nhận'}</div>
+                            </div>
+                            <div className="cbd-kv">
+                                <div className="cbd-k">Lý do checkout sớm</div>
+                                <div className="cbd-v">{booking?.checkoutReason || 'Không có'}</div>
+                            </div>
+                            <div className="cbd-kv">
+                                <div className="cbd-k">Ảnh sau khi hoàn thành</div>
+                                <div className="cbd-v">
+                                    {booking?.checkoutPhotoUrl ? (
+                                        <a className="cbd-link-ghost" href={booking.checkoutPhotoUrl} target="_blank" rel="noreferrer">
+                                            Mở ảnh checkout →
+                                        </a>
+                                    ) : (
+                                        'Chưa có liên kết ảnh'
+                                    )}
+                                </div>
+                            </div>
+                            <CheckoutPhotoPreview url={booking?.checkoutPhotoUrl} />
+                        </div>
+
+                        <div className="cbd-card cbd-timeline-card">
+                            <div className="cbd-section-title">Tiến độ thực hiện công việc</div>
+                            <div className="cbd-timeline">
+                                {executionTimeline.map((step) => (
+                                    <div key={step.key} className={`cbd-timeline-item ${step.done ? 'done' : ''}`}>
+                                        <div className="cbd-timeline-dot">{step.done ? '✓' : '•'}</div>
+                                        <div className="cbd-timeline-content">
+                                            <div className="cbd-timeline-title">{step.title}</div>
+                                            <div className="cbd-timeline-time">{step.time}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
 
                         <div className="cbd-grid">
                             <div className="cbd-card">

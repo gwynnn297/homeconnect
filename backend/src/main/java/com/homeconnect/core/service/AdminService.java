@@ -13,6 +13,8 @@ import com.homeconnect.core.dto.response.admin.AdminBookingListItemResponse;
 import com.homeconnect.core.dto.response.admin.AdminBookingListResponse;
 import com.homeconnect.core.dto.response.admin.AdminAuditLogItemResponse;
 import com.homeconnect.core.dto.response.admin.AdminAuditLogListResponse;
+import com.homeconnect.core.dto.response.admin.AdminFraudAlertItemResponse;
+import com.homeconnect.core.dto.response.admin.AdminFraudAlertListResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostEditLogItemResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostEditLogListResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostDetailResponse;
@@ -36,7 +38,9 @@ import com.homeconnect.core.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -1552,6 +1556,26 @@ public class AdminService {
         }
 
         @Transactional(readOnly = true)
+        public AdminFraudAlertListResponse getFraudAlerts(int page, int limit) {
+                int boundedLimit = Math.min(Math.max(limit, 1), 100);
+                int safePage = Math.max(page, 1);
+                Pageable pageable = PageRequest.of(safePage - 1, boundedLimit, Sort.by("createdAt").descending());
+                Specification<Booking> spec = BookingSpecification.forAdmin(null, true, null, null, null);
+                Page<Booking> resultPage = bookingRepository.findAll(spec, pageable);
+
+                List<AdminFraudAlertItemResponse> items = resultPage.getContent().stream()
+                                .map(this::mapToFraudAlertItem)
+                                .collect(Collectors.toList());
+
+                return AdminFraudAlertListResponse.builder()
+                                .data(items)
+                                .totalRecords(resultPage.getTotalElements())
+                                .totalPages(resultPage.getTotalPages())
+                                .currentPage(safePage)
+                                .build();
+        }
+
+        @Transactional(readOnly = true)
         public AdminBookingDetailResponse getAdminBookingDetail(Long bookingId) {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -1573,6 +1597,19 @@ public class AdminService {
                                 .scheduledStartTime(b.getScheduledStartTime())
                                 .scheduledEndTime(b.getScheduledEndTime())
                                 .isFlagged(b.getIsFlagged())
+                                .createdAt(b.getCreatedAt())
+                                .build();
+        }
+
+        private AdminFraudAlertItemResponse mapToFraudAlertItem(Booking b) {
+                return AdminFraudAlertItemResponse.builder()
+                                .bookingId(b.getId())
+                                .customerName(b.getCustomer() != null ? b.getCustomer().getFullName() : "—")
+                                .helperName(b.getHelper() != null ? b.getHelper().getFullName() : "—")
+                                .serviceName(b.getCategory() != null ? b.getCategory().getName() : "—")
+                                .status(b.getStatus())
+                                .totalPrice(b.getTotalPrice())
+                                .scheduledStartTime(b.getScheduledStartTime())
                                 .createdAt(b.getCreatedAt())
                                 .build();
         }

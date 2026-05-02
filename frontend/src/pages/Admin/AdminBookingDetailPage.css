@@ -35,6 +35,55 @@
     margin-bottom: 2rem;
 }
 
+.admin-booking-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.admin-booking-timeline-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    opacity: 0.72;
+}
+
+.admin-booking-timeline-item.done {
+    opacity: 1;
+}
+
+.admin-booking-timeline-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 900;
+    margin-top: 2px;
+}
+
+.admin-booking-timeline-item.done .admin-booking-timeline-dot {
+    border-color: rgba(52, 98, 82, 0.35);
+    background: rgba(52, 98, 82, 0.12);
+    color: #1f3f35;
+}
+
+.admin-booking-timeline-label {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.admin-booking-timeline-time {
+    font-size: 0.9rem;
+    color: #64748b;
+}
+
 .modal-content-wide {
     max-width: 520px;
 }

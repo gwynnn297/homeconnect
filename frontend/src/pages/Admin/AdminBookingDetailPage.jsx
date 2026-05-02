@@ -70,6 +70,13 @@ const AdminBookingDetailPage = () => {
     const canCancel = b && b.status !== 'COMPLETED' && b.status !== 'CANCELLED';
     const canUnflag = b && b.isFlagged;
     const canMarkNoShow = b && b.status !== 'COMPLETED' && b.status !== 'CANCELLED';
+    const executionTimeline = [
+        { key: 'arrive', label: 'Thợ đến địa điểm', time: fmtDate(b?.arrivedAt), done: Boolean(b?.arrivedAt) },
+        { key: 'arrivalConfirm', label: 'Khách xác nhận thợ đến', time: fmtDate(b?.customerArrivalConfirmedAt), done: Boolean(b?.customerArrivalConfirmed) },
+        { key: 'start', label: 'Bắt đầu công việc', time: fmtDate(b?.confirmedStartAt), done: Boolean(b?.confirmedStartAt) },
+        { key: 'checkout', label: 'Thợ checkout', time: fmtDate(b?.checkedOutAt), done: Boolean(b?.checkedOutAt) },
+        { key: 'complete', label: 'Khách xác nhận hoàn thành', time: fmtDate(b?.confirmedDoneAt), done: Boolean(b?.confirmedDoneAt) || ['COMPLETED', 'DISPUTED', 'RESOLVED'].includes(String(b?.status || '').toUpperCase()) },
+    ];
 
     const handleCancel = async () => {
         if (cancelReason.trim().length < 5) {
@@ -258,6 +265,17 @@ const AdminBookingDetailPage = () => {
 
                 <div className="detail-section">
                     <h2>Thực hiện</h2>
+                    <div className="admin-booking-timeline">
+                        {executionTimeline.map((step) => (
+                            <div key={step.key} className={`admin-booking-timeline-item ${step.done ? 'done' : ''}`}>
+                                <div className="admin-booking-timeline-dot">{step.done ? '✓' : '•'}</div>
+                                <div className="admin-booking-timeline-body">
+                                    <div className="admin-booking-timeline-label">{step.label}</div>
+                                    <div className="admin-booking-timeline-time">{step.time}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                     <dl className="admin-user-dl">
                         <dt>Đến nơi (arrived)</dt>
                         <dd>{fmtDate(b.arrivedAt)}</dd>

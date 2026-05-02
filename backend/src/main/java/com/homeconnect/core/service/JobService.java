@@ -333,7 +333,8 @@ public class JobService {
                     return availableCount > 0;
                 })
                 .sorted(java.util.Comparator.comparing((JobPost jp) -> isVipCustomer(jp)).reversed()
-                        .thenComparing(JobPost::getCreatedAt, java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                        .thenComparing(JobPost::getCreatedAt,
+                                java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
                 .map(jp -> mapToJobPostResponse(jp, false))
                 .collect(Collectors.toList());
     }
@@ -351,7 +352,8 @@ public class JobService {
                         helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
                 .filter(jp -> isJobInRegisteredDistrict(jp, helperDistricts))
                 .sorted(java.util.Comparator.comparing((JobPost jp) -> isVipCustomer(jp)).reversed()
-                        .thenComparing(JobPost::getCreatedAt, java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
+                        .thenComparing(JobPost::getCreatedAt,
+                                java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
                 .map(jp -> mapToJobPostResponse(jp, false))
                 .collect(Collectors.toList());
     }
@@ -398,7 +400,7 @@ public class JobService {
                     helperId,
                     new ArrayList<>(orderedPostIds),
                     List.of(BookingStatus.CONFIRMED, BookingStatus.ARRIVED, BookingStatus.IN_PROGRESS,
-                        BookingStatus.COMPLETED, BookingStatus.DISPUTED, BookingStatus.RESOLVED));
+                            BookingStatus.COMPLETED, BookingStatus.DISPUTED, BookingStatus.RESOLVED));
 
             Map<Long, Booking> map = new HashMap<>();
             for (Booking booking : bookings) {
@@ -558,11 +560,13 @@ public class JobService {
                 .hasPets(jobPost.getHasPets())
                 .bringTools(jobPost.getBringTools());
 
-        BigDecimal originalPrice = extractBigDecimal(additionalDataMap, "loyaltyOriginalPrice", jobPost.getOfferPrice());
+        BigDecimal originalPrice = extractBigDecimal(additionalDataMap, "loyaltyOriginalPrice",
+                jobPost.getOfferPrice());
         BigDecimal discountAmount = extractBigDecimal(additionalDataMap, "loyaltyDiscountAmount", BigDecimal.ZERO);
         BigDecimal finalPrice = extractBigDecimal(additionalDataMap, "loyaltyFinalPrice", jobPost.getOfferPrice());
         String customerTier = extractString(additionalDataMap, "loyaltyTierAtBooking", CustomerTier.BRONZE.name());
-        boolean vipCustomer = "GOLD".equalsIgnoreCase(customerTier) || Boolean.TRUE.equals(extractBoolean(additionalDataMap, "isVipCustomer"));
+        boolean vipCustomer = "GOLD".equalsIgnoreCase(customerTier)
+                || Boolean.TRUE.equals(extractBoolean(additionalDataMap, "isVipCustomer"));
         builder.originalPrice(originalPrice)
                 .discountAmount(discountAmount)
                 .finalPrice(finalPrice)
@@ -590,9 +594,11 @@ public class JobService {
     }
 
     private BigDecimal extractBigDecimal(Map<String, Object> data, String key, BigDecimal defaultValue) {
-        if (data == null) return defaultValue;
+        if (data == null)
+            return defaultValue;
         Object value = data.get(key);
-        if (value == null) return defaultValue;
+        if (value == null)
+            return defaultValue;
         try {
             return new BigDecimal(value.toString()).setScale(2, java.math.RoundingMode.HALF_UP);
         } catch (Exception e) {
@@ -601,23 +607,29 @@ public class JobService {
     }
 
     private String extractString(Map<String, Object> data, String key, String defaultValue) {
-        if (data == null) return defaultValue;
+        if (data == null)
+            return defaultValue;
         Object value = data.get(key);
         return value == null ? defaultValue : value.toString();
     }
 
     private Boolean extractBoolean(Map<String, Object> data, String key) {
-        if (data == null) return null;
+        if (data == null)
+            return null;
         Object value = data.get(key);
-        if (value == null) return null;
-        if (value instanceof Boolean b) return b;
+        if (value == null)
+            return null;
+        if (value instanceof Boolean b)
+            return b;
         return "true".equalsIgnoreCase(value.toString());
     }
 
     private boolean isVipCustomer(JobPost jobPost) {
         Map<String, Object> data = deserializeAdditionalData(jobPost.getAdditionalData());
-        if (data == null) return false;
-        if (Boolean.TRUE.equals(extractBoolean(data, "isVipCustomer"))) return true;
+        if (data == null)
+            return false;
+        if (Boolean.TRUE.equals(extractBoolean(data, "isVipCustomer")))
+            return true;
         String tier = extractString(data, "loyaltyTierAtBooking", CustomerTier.BRONZE.name());
         return CustomerTier.GOLD.name().equalsIgnoreCase(tier);
     }

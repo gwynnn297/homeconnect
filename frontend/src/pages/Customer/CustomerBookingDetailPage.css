@@ -297,6 +297,119 @@
   color: #14532d;
 }
 
+.cbd-feedback--warning {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #7c2d12;
+}
+
+.cbd-feedback__icon--warning {
+  background: rgba(245, 158, 11, 0.2);
+  color: #b45309;
+}
+
+.cbd-checkout-proof-card {
+  margin-bottom: 16px;
+}
+
+.cbd-checkout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.cbd-checkout-proof-card--flagged {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(125deg, #fffbeb 0%, #fff8e7 100%);
+}
+
+.cbd-checkout-image-wrap {
+  margin-top: 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  max-width: 420px;
+  background: #f9fafb;
+}
+
+.cbd-checkout-image-wrap img {
+  display: block;
+  width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+
+.cbd-checkout-image-empty {
+  margin-top: 14px;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
+  padding: 14px;
+}
+
+.cbd-checkout-image-empty--error {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.cbd-timeline-card {
+  margin-bottom: 16px;
+}
+
+.cbd-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cbd-timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  opacity: 0.7;
+}
+
+.cbd-timeline-item.done {
+  opacity: 1;
+}
+
+.cbd-timeline-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  margin-top: 2px;
+}
+
+.cbd-timeline-item.done .cbd-timeline-dot {
+  border-color: rgba(22, 163, 74, 0.35);
+  background: #dcfce7;
+  color: #166534;
+}
+
+.cbd-timeline-title {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.cbd-timeline-time {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* Confirm completion banner */
 .cbd-action-banner {
   display: flex;

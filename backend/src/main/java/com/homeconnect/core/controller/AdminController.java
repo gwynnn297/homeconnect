@@ -18,6 +18,7 @@ import com.homeconnect.core.dto.response.admin.AdminJobPostEditLogListResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostDetailResponse;
 import com.homeconnect.core.dto.response.admin.AdminJobPostListResponse;
 import com.homeconnect.core.dto.response.admin.AdminDisputeListResponse;
+import com.homeconnect.core.dto.response.admin.AdminFraudAlertListResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserDetailResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserListItemResponse;
 import com.homeconnect.core.dto.response.admin.AdminUserListResponse;
@@ -166,6 +167,14 @@ public class AdminController {
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         return ResponseEntity.ok(adminService.getViolations(violationType, pageable));
+    }
+
+    @Operation(summary = "Danh sách cảnh báo gian lận", description = "Theo dõi các booking có cờ bất thường để admin xử lý nhanh")
+    @GetMapping("/fraud-alerts")
+    public ResponseEntity<AdminFraudAlertListResponse> getFraudAlerts(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(adminService.getFraudAlerts(page, limit));
     }
 
     @Operation(summary = "Lịch sử chỉnh sửa tin đăng", description = "Theo dõi việc user chỉnh sửa tin để lách kiểm duyệt")

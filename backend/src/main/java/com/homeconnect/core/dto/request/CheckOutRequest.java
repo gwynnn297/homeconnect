@@ -2,6 +2,8 @@ package com.homeconnect.core.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
@@ -9,12 +11,15 @@ import lombok.Data;
 public class CheckOutRequest {
 
     @NotBlank(message = "Ảnh hoàn thành không được để trống")
+    @Size(max = 500, message = "URL ảnh hoàn thành không được vượt quá 500 ký tự")
+    @Pattern(regexp = "^https?://.+$", message = "URL ảnh hoàn thành phải bắt đầu bằng http:// hoặc https://")
     @Schema(
         description = "URL ảnh sau khi hoàn thành (Upload lên Firebase/Cloud trước, rồi gửi URL vào đây)",
         example = "https://firebasestorage.googleapis.com/v0/b/homeconnect.../after_clean.jpg"
     )
     private String checkoutPhotoUrl;
 
+    @Size(max = 500, message = "Lý do hoàn thành không được vượt quá 500 ký tự")
     @Schema(description = "Lý do hoàn thành (Bắt buộc chọn nếu làm < 80% thời gian: Làm xong sớm, Khách cho về sớm...)", example = "Làm xong sớm")
     private String checkoutReason;
 }

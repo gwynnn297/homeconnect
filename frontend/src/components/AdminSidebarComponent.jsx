@@ -132,6 +132,19 @@ const AdminSidebarComponent = () => {
                     </div>
                 </NavLink>
 
+                <NavLink to="/admin/fraud-alerts" className={linkClass}>
+                    <div className="sidebar-link-left">
+                        <div className="icon-wrapper">
+                            <svg className="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 2l9 4v6c0 5-3.8 9.7-9 10-5.2-.3-9-5-9-10V6l9-4z"></path>
+                                <path d="M12 8v5"></path>
+                                <circle cx="12" cy="16" r="1"></circle>
+                            </svg>
+                        </div>
+                        <span>Cảnh báo gian lận</span>
+                    </div>
+                </NavLink>
+
                 <NavLink to="/admin/job-posts" className={linkClass}>
                     <div className="sidebar-link-left">
                         <div className="icon-wrapper">

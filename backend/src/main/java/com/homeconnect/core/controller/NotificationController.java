@@ -1,6 +1,7 @@
 package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.response.ApiResponse;
+import com.homeconnect.core.dto.response.NotificationPageResponse;
 import com.homeconnect.core.dto.response.NotificationResponse;
 import com.homeconnect.core.service.NotificationService;
 import com.homeconnect.core.util.SecurityUtil;
@@ -14,8 +15,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/v1/notifications")
 @RequiredArgsConstructor
@@ -28,14 +27,16 @@ public class NotificationController {
     @Operation(summary = "Lấy danh sách thông báo", description = "Lấy danh sách thông báo mới nhất của user hiện tại")
     @GetMapping
     @PreAuthorize("hasAnyRole('HELPER','CUSTOMER','ADMIN')")
-    public ResponseEntity<ApiResponse<List<NotificationResponse>>> getNotifications(
-            @RequestParam(name = "limit", defaultValue = "20") Integer limit,
+    public ResponseEntity<ApiResponse<NotificationPageResponse>> getNotifications(
+            @RequestParam(name = "type", required = false) String type,
+            @RequestParam(name = "page", defaultValue = "1") Integer page,
+            @RequestParam(name = "limit", defaultValue = "15") Integer limit,
             Authentication authentication) {
 
         Long userId = securityUtil.getCurrentUserId(authentication);
-        List<NotificationResponse> notifications = notificationService.getLatestNotifications(userId, limit);
+        NotificationPageResponse notifications = notificationService.getNotifications(userId, type, page, limit);
 
-        return ResponseEntity.ok(ApiResponse.<List<NotificationResponse>>builder()
+        return ResponseEntity.ok(ApiResponse.<NotificationPageResponse>builder()
                 .message("Lấy danh sách thông báo thành công")
                 .data(notifications)
                 .build());

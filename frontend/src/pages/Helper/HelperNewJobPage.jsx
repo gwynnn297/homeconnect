@@ -4,6 +4,7 @@ import HelperLayout from '../../layouts/HelperLayout';
 import NotificationModal from '../../components/NotificationModal';
 import SmartCheckinModal from '../../components/SmartCheckinModal';
 import BookingService from '../../services/BookingService';
+import CheckoutService from '../../services/CheckoutService';
 import CloudinaryService from '../../services/CloudinaryService';
 import HelperJobService from '../../services/HelperJobService';
 import { buildHelperJobModalModel } from '../../utils/helperJobPostDetail';
@@ -14,8 +15,8 @@ const extractPayload = (res) => (res && typeof res === 'object' && 'data' in res
 const TABS = [
     { id: 'NEW', label: 'Việc mới' },
     { id: 'PENDING', label: 'Chờ xác nhận' },
-    { id: 'CONFIRMED', label: 'Xác nhận' },
-    { id: 'COMPLETED', label: 'Hoàn thành' }
+    { id: 'CONFIRMED', label: 'Ca đang làm' },
+    { id: 'COMPLETED', label: 'Lịch sử ca' }
 ];
 
 const TAB_UI = {
@@ -34,15 +35,15 @@ const TAB_UI = {
         icon: 'clock'
     },
     CONFIRMED: {
-        title: 'Đã được xác nhận',
-        desc: 'Bạn đã được chọn. Vui lòng chuẩn bị đến đúng giờ.',
-        badgeLabel: 'Đã xác nhận làm việc',
+        title: 'Theo dõi quá trình thực hiện',
+        desc: 'Quản lý ca làm theo từng bước: đến nơi, bắt đầu, checkout và chờ khách xác nhận.',
+        badgeLabel: 'Đang theo dõi ca làm',
         badgeClass: 'confirmed',
         icon: 'check'
     },
     COMPLETED: {
-        title: 'Đã hoàn thành',
-        desc: 'Công việc bạn đã hoàn tất.',
+        title: 'Lịch sử ca đã hoàn tất',
+        desc: 'Theo dõi các ca đã hoàn thành và trạng thái thanh toán/khiếu nại.',
         badgeLabel: 'Đã hoàn thành',
         badgeClass: 'done',
         icon: 'check'
@@ -127,6 +128,20 @@ const getCheckinBadgeMeta = (tabId, job) => {
             icon: 'check'
         };
     }
+    if (tabId === 'CONFIRMED' && bookingStatus === 'IN_PROGRESS') {
+        return {
+            badgeLabel: 'Đang thực hiện công việc',
+            badgeClass: 'confirmed',
+            icon: 'check'
+        };
+    }
+    if (tabId === 'CONFIRMED' && bookingStatus === 'PENDING_COMPLETION') {
+        return {
+            badgeLabel: 'Đã checkout, chờ khách xác nhận',
+            badgeClass: 'pending',
+            icon: 'clock'
+        };
+    }
 
     return getDisplayStatus(tabId, job?.status);
 };
@@ -188,6 +203,12 @@ const HelperNewJobPage = () => {
     const [disputeUploading, setDisputeUploading] = useState(false);
     const [disputeError, setDisputeError] = useState('');
     const [submittingDispute, setSubmittingDispute] = useState(false);
+    const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+    const [checkoutPhotoUrl, setCheckoutPhotoUrl] = useState('');
+    const [checkoutReason, setCheckoutReason] = useState('');
+    const [checkoutUploading, setCheckoutUploading] = useState(false);
+    const [checkoutError, setCheckoutError] = useState('');
+    const [submittingCheckout, setSubmittingCheckout] = useState(false);
     const tabMeta = getTabMeta(activeTab);
 
     const handleViewJob = (job) => {
@@ -237,6 +258,73 @@ const HelperNewJobPage = () => {
 
         setSelectedBookingId(bookingId);
         setOpenCheckinModal(true);
+    };
+
+    const handleOpenCheckoutModal = () => {
+        if (!selectedJob?.bookingId) return;
+        setCheckoutPhotoUrl('');
+        setCheckoutReason('');
+        setCheckoutError('');
+        setShowCheckoutModal(true);
+    };
+
+    const handleCheckoutEvidenceChange = async (e) => {
+        const file = e.target.files?.[0];
+        setCheckoutError('');
+        if (!file) {
+            setCheckoutPhotoUrl('');
+            return;
+        }
+
+        setCheckoutUploading(true);
+        try {
+            const url = await CloudinaryService.uploadImage(file, 'checkout');
+            setCheckoutPhotoUrl(url || '');
+        } catch (err) {
+            setCheckoutError(err?.message || 'Tải ảnh checkout thất bại.');
+            setCheckoutPhotoUrl('');
+        } finally {
+            setCheckoutUploading(false);
+        }
+    };
+
+    const handleSubmitCheckout = async (e) => {
+        e?.preventDefault();
+        if (!selectedJob?.bookingId) return;
+        if (!checkoutPhotoUrl.trim()) {
+            setCheckoutError('Ảnh hoàn thành là bắt buộc.');
+            return;
+        }
+
+        setSubmittingCheckout(true);
+        setCheckoutError('');
+        try {
+            await CheckoutService.checkOut(selectedJob.bookingId, {
+                checkoutPhotoUrl: checkoutPhotoUrl.trim(),
+                checkoutReason: checkoutReason.trim() || undefined,
+            });
+            setToast({ type: 'success', message: `Đã checkout thành công cho booking #${selectedJob.bookingId}.` });
+            setShowCheckoutModal(false);
+
+            const nextBookingPatch = {
+                bookingStatus: 'PENDING_COMPLETION',
+                checkoutPhotoUrl: checkoutPhotoUrl.trim(),
+                checkoutReason: checkoutReason.trim() || null,
+                checkedOutAt: new Date().toISOString(),
+            };
+            setSelectedJob((prev) => (prev
+                ? { ...prev, ...nextBookingPatch }
+                : prev));
+            setJobs((prevJobs) => prevJobs.map((job) => (
+                Number(job?.bookingId) === Number(selectedJob.bookingId)
+                    ? { ...job, ...nextBookingPatch }
+                    : job
+            )));
+        } catch (err) {
+            setCheckoutError(err?.message || 'Checkout thất bại. Vui lòng thử lại.');
+        } finally {
+            setSubmittingCheckout(false);
+        }
     };
 
     const handleOpenDisputeModal = () => {
@@ -405,6 +493,7 @@ const HelperNewJobPage = () => {
 
     useEffect(() => {
         const targetPostId = location?.state?.targetPostId;
+        const targetBookingId = location?.state?.targetBookingId;
         const cameFromNotification = Boolean(location?.state?.fromNotification);
         const notificationToken = location?.state?.notificationToken ?? null;
         if (!cameFromNotification) return;
@@ -412,16 +501,27 @@ const HelperNewJobPage = () => {
         if (!hasLoadedJobsOnce) return;
         if (loadingJobs || jobsError) return;
 
-        if (activeTab !== 'NEW') {
-            setActiveTab('NEW');
+        const desiredTab = targetBookingId != null ? 'CONFIRMED' : 'NEW';
+        if (activeTab !== desiredTab) {
+            setActiveTab(desiredTab);
             return;
         }
 
-        if (targetPostId == null) {
+        if (targetBookingId == null && targetPostId == null) {
             setToast({
                 message: 'Không xác định được bài đăng từ thông báo.',
                 type: 'error'
             });
+        } else if (targetBookingId != null) {
+            const matchedBookingJob = jobs.find((job) => Number(job?.bookingId) === Number(targetBookingId));
+            if (matchedBookingJob) {
+                setSelectedJob(matchedBookingJob);
+            } else {
+                setToast({
+                    message: `Không tìm thấy booking #${targetBookingId} (có thể chưa vào ca đang làm hoặc đã hoàn tất).`,
+                    type: 'error'
+                });
+            }
         } else {
             const matchedJob = jobs.find((job) => Number(job?.postId) === Number(targetPostId));
             if (matchedJob) {
@@ -575,6 +675,21 @@ const HelperNewJobPage = () => {
                                         Check-in ngay
                                     </button>
                                 )}
+                                {activeTab === 'CONFIRMED'
+                                    && Number(job?.bookingId) > 0
+                                    && String(job?.bookingStatus || '').toUpperCase() === 'IN_PROGRESS' && (
+                                        <button
+                                            type="button"
+                                            className="hnj-checkout-btn"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedJob(job);
+                                                handleOpenCheckoutModal();
+                                            }}
+                                        >
+                                            Checkout
+                                        </button>
+                                    )}
                                 <button className="hnj-view-btn">
                                     Xem chi tiết
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
@@ -798,6 +913,17 @@ const HelperNewJobPage = () => {
                                         Check-in booking #{selectedJob.bookingId}
                                     </button>
                                 )}
+                                {activeTab === 'CONFIRMED'
+                                    && Number(selectedJob?.bookingId) > 0
+                                    && String(selectedJob?.bookingStatus || '').toUpperCase() === 'IN_PROGRESS' && (
+                                        <button
+                                            type="button"
+                                            className="hnj-btn-checkout"
+                                            onClick={handleOpenCheckoutModal}
+                                        >
+                                            Checkout booking #{selectedJob.bookingId}
+                                        </button>
+                                    )}
                                 {String(selectedJob?.bookingStatus || '').toUpperCase() === 'DISPUTED'
                                     && !selectedJob?.helperDisputeAt && (
                                         <button
@@ -869,6 +995,69 @@ const HelperNewJobPage = () => {
                                     </button>
                                     <button type="submit" className="hnj-btn-apply" disabled={submittingDispute}>
                                         {submittingDispute ? 'Đang gửi...' : 'Gửi giải trình'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {showCheckoutModal && (
+                    <div className="hnj-modal-overlay" onMouseDown={() => !submittingCheckout && setShowCheckoutModal(false)}>
+                        <div className="hnj-modal-content hnj-modal-content--compact" onMouseDown={(e) => e.stopPropagation()}>
+                            <div className="hnj-modal-header">
+                                <h2 className="hnj-job-main-title">Checkout công việc</h2>
+                                <button
+                                    className="hnj-modal-close"
+                                    onClick={() => setShowCheckoutModal(false)}
+                                    disabled={submittingCheckout}
+                                >
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <form className="hnj-dispute-form" onSubmit={handleSubmitCheckout}>
+                                <label className="hnj-field">
+                                    <span className="hnj-label">Ảnh hoàn thành (bắt buộc)</span>
+                                    <input
+                                        className="hnj-input"
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleCheckoutEvidenceChange}
+                                        disabled={submittingCheckout || checkoutUploading}
+                                    />
+                                </label>
+                                {checkoutUploading && (
+                                    <p className="hnj-dispute-note">Đang tải ảnh checkout lên…</p>
+                                )}
+                                {checkoutPhotoUrl && (
+                                    <a className="hnj-link" href={checkoutPhotoUrl} target="_blank" rel="noreferrer">
+                                        Mở ảnh checkout đã tải lên →
+                                    </a>
+                                )}
+                                <label className="hnj-field">
+                                    <span className="hnj-label">Lý do hoàn thành sớm (nếu có)</span>
+                                    <textarea
+                                        className="hnj-textarea"
+                                        rows={3}
+                                        value={checkoutReason}
+                                        onChange={(e) => setCheckoutReason(e.target.value)}
+                                        placeholder="Nếu tổng thời gian làm dưới 80%, bạn bắt buộc nhập lý do tại đây."
+                                        maxLength={500}
+                                        disabled={submittingCheckout}
+                                    />
+                                </label>
+                                {checkoutError && (
+                                    <p className="hnj-dispute-error">{checkoutError}</p>
+                                )}
+                                <div className="hnj-modal-footer">
+                                    <button type="button" className="hnj-btn-cancel" onClick={() => setShowCheckoutModal(false)} disabled={submittingCheckout}>
+                                        Đóng
+                                    </button>
+                                    <button type="submit" className="hnj-btn-checkout" disabled={submittingCheckout || checkoutUploading}>
+                                        {submittingCheckout ? 'Đang checkout...' : 'Xác nhận checkout'}
                                     </button>
                                 </div>
                             </form>

@@ -24,6 +24,12 @@ public class BookingResponse {
     private String arrivalProofImage;
     private Boolean customerArrivalConfirmed;
     private LocalDateTime customerArrivalConfirmedAt;
+    private String checkoutPhotoUrl;
+    private String checkoutReason;
+    private LocalDateTime checkedOutAt;
+    private LocalDateTime confirmedStartAt;
+    private LocalDateTime confirmedDoneAt;
+    private Boolean isFlagged;
     private BookingStatus status;
     private BigDecimal totalPrice;
     private BigDecimal originalPrice;

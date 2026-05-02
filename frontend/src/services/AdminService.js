@@ -175,6 +175,10 @@ const AdminService = {
     getJobPostEditLogs: async (params = {}) => {
         return apiClient.get('/api/v1/admin/job-post-edit-logs', { params });
     },
+
+    getFraudAlerts: async (params = {}) => {
+        return apiClient.get('/api/v1/admin/fraud-alerts', { params });
+    },
 };
 
 export default AdminService;

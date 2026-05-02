@@ -6,12 +6,14 @@ const NotificationService = {
      * Endpoint: GET /api/v1/notifications
      * Role: HELPER, CUSTOMER, ADMIN
      * 
-     * @param {number} limit - Số lượng thông báo muốn lấy (mặc định là 20)
+     * @param {string} type - Loại thông báo (SYSTEM, MATCHING, PAYMENT...)
+     * @param {number} page - Trang hiện tại (bắt đầu từ 1)
+     * @param {number} limit - Số lượng thông báo muốn lấy mỗi trang
      * @returns {Promise<any>}
      */
-    getNotifications: async (limit = 20) => {
+    getNotifications: async ({ type = '', page = 1, limit = 15 } = {}) => {
         return apiClient.get('/api/v1/notifications', {
-            params: { limit }
+            params: { type, page, limit }
         });
     },
 

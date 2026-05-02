@@ -453,6 +453,14 @@ public class BookingService {
             throw new ApiException("Đơn hàng phải ở trạng thái IN_PROGRESS mới có thể check-out",
                     HttpStatus.BAD_REQUEST);
         }
+        String normalizedPhotoUrl = checkoutPhotoUrl != null ? checkoutPhotoUrl.trim() : "";
+        if (normalizedPhotoUrl.isEmpty()) {
+            throw new ApiException("Ảnh hoàn thành không được để trống", HttpStatus.BAD_REQUEST);
+        }
+        String normalizedReason = checkoutReason != null ? checkoutReason.trim() : null;
+        if (normalizedReason != null && normalizedReason.isEmpty()) {
+            normalizedReason = null;
+        }
 
         // [Conflict 1] Kiểm tra nếu thực tế làm < 80% thời gian đặt
         LocalDateTime startRef = booking.getConfirmedStartAt() != null
@@ -465,27 +473,29 @@ public class BookingService {
 
         boolean isUndertime = workedMinutes < scheduledMinutes * 0.8;
         if (isUndertime) {
-            if (checkoutReason == null || checkoutReason.trim().isEmpty()) {
+            if (normalizedReason == null) {
                 throw new ApiException(
                         "Bạn hoàn thành sớm hơn 80% thời gian dự kiến. Vui lòng cung cấp lý do (Làm xong sớm, Khách cho về...)",
                         HttpStatus.BAD_REQUEST);
             }
             // Gắn flag bất thường, log để Admin theo dõi
             booking.setIsFlagged(true);
-            booking.setCheckoutReason(checkoutReason);
+            booking.setCheckoutReason(normalizedReason);
             log.warn("[PB-14][Conflict1] Helper {} checked out early. Reason: {}. Booking {} is FLAGGED.",
-                    helperId, checkoutReason, bookingId);
+                    helperId, normalizedReason, bookingId);
+        } else {
+            booking.setCheckoutReason(normalizedReason);
         }
 
         booking.setStatus(BookingStatus.PENDING_COMPLETION); // WAITING_FOR_CONFIRMATION
-        booking.setCheckoutPhotoUrl(checkoutPhotoUrl);
+        booking.setCheckoutPhotoUrl(normalizedPhotoUrl);
         booking.setCheckedOutAt(LocalDateTime.now());
         bookingRepository.save(booking);
 
         log.info("[BE-Exec-03] Helper {} checked out booking {}. Status: PENDING_COMPLETION", helperId, bookingId);
 
         String notifContent = isUndertime
-                ? "Thợ đã báo hoàn thành sớm (Lý do: " + checkoutReason + "). Vui lòng kiểm tra kỹ trước khi xác nhận."
+                ? "Thợ đã báo hoàn thành sớm (Lý do: " + normalizedReason + "). Vui lòng kiểm tra kỹ trước khi xác nhận."
                 : "Công việc đã xong. Vui lòng kiểm tra và bấm 'Xác nhận & Đánh giá'.";
 
         notificationService.createNotification(booking.getCustomer().getId(),
@@ -557,6 +567,12 @@ public class BookingService {
                 .arrivalProofImage(arrivalProofImage)
                 .customerArrivalConfirmed(Boolean.TRUE.equals(b.getCustomerArrivalConfirmed()))
                 .customerArrivalConfirmedAt(b.getCustomerArrivalConfirmedAt())
+                .checkoutPhotoUrl(b.getCheckoutPhotoUrl())
+                .checkoutReason(b.getCheckoutReason())
+                .checkedOutAt(b.getCheckedOutAt())
+                .confirmedStartAt(b.getConfirmedStartAt())
+                .confirmedDoneAt(b.getConfirmedDoneAt())
+                .isFlagged(Boolean.TRUE.equals(b.getIsFlagged()))
                 .status(b.getStatus())
                 .totalPrice(b.getTotalPrice())
                 .originalPrice(b.getOriginalPrice())

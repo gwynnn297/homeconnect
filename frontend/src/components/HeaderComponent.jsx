@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import logoHomieConnect from '../assets/LogoHomieConnect.png';
 import ProfileService from '../services/ProfileService';
 import NotificationService from '../services/NotificationService';
+import { getTabForNotification, getTabsForRole } from '../constants/notificationRoleConfig';
 import './HeaderComponent.css';
 
 const getInitials = (name) => {
@@ -18,7 +19,14 @@ const HeaderComponent = () => {
     // Notifications state
     const [showNotifications, setShowNotifications] = useState(false);
     const notificationRef = useRef(null);
-    const [notifications, setNotifications] = useState([]);
+    const [allNotifications, setAllNotifications] = useState([]);
+    const [pagination, setPagination] = useState({
+        currentPage: 0,
+        totalPages: 0,
+        loadingInitial: false,
+        loadingMore: false,
+    });
+    const [activeNotificationTab, setActiveNotificationTab] = useState('ALL');
     const [unreadCount, setUnreadCount] = useState(0);
     const [helperStatus, setHelperStatus] = useState({ isOnline: false, kycStatus: null });
 
@@ -28,6 +36,9 @@ const HeaderComponent = () => {
             return JSON.parse(localStorage.getItem('user')) || {};
         } catch { return {}; }
     });
+
+    const userRole = userInfo?.role || 'CUSTOMER';
+    const notificationTabs = getTabsForRole(userRole);
 
     // Hàm fetch avatar + name từ API — dùng khi mount và khi có 'profile:updated'
     const fetchUserProfile = useCallback(() => {
@@ -86,18 +97,44 @@ const HeaderComponent = () => {
         return () => window.removeEventListener('storage', onStorage);
     }, []);
 
-    const fetchNotifications = useCallback(async () => {
+    const fetchNotifications = useCallback(async (page = 1, append = false) => {
         if (!userInfo?.role) return;
+        setPagination((prev) => ({
+            ...prev,
+            loadingInitial: page === 1 ? true : prev.loadingInitial,
+            loadingMore: page > 1 ? true : prev.loadingMore,
+        }));
+
         try {
-            const res = await NotificationService.getNotifications(20);
-            const data = res?.data || [];
-            if (Array.isArray(data)) {
-                setNotifications(data);
-                // Backend response: NotificationResponse has `isRead` only (không có `status`)
-                setUnreadCount(data.filter((n) => n?.isRead === false).length);
-            }
+            const res = await NotificationService.getNotifications({ page, limit: 15 });
+            const payload = res?.data || {};
+            const incoming = Array.isArray(payload?.data) ? payload.data : [];
+            setAllNotifications((prev) => {
+                const merged = append ? [...prev, ...incoming] : incoming;
+                const uniqueById = new Map();
+                const withoutId = [];
+                merged.forEach((item) => {
+                    if (item?.notificationId != null) {
+                        uniqueById.set(item.notificationId, item);
+                    } else {
+                        withoutId.push(item);
+                    }
+                });
+                return [...Array.from(uniqueById.values()), ...withoutId];
+            });
+            setPagination({
+                currentPage: Number(payload?.current_page || page),
+                totalPages: Number(payload?.total_pages || 0),
+                loadingInitial: false,
+                loadingMore: false,
+            });
         } catch (error) {
             console.error("Failed to fetch notifications:", error);
+            setPagination((prev) => ({
+                ...prev,
+                loadingInitial: false,
+                loadingMore: false,
+            }));
         }
     }, [userInfo?.role]);
 
@@ -106,14 +143,12 @@ const HeaderComponent = () => {
         try {
             const res = await NotificationService.markAsRead(notificationId);
             const updatedNotification = res?.data;
-            setNotifications((prev) => {
-                const next = prev.map((n) => {
+            setAllNotifications((prev) =>
+                prev.map((n) => {
                     if (n?.notificationId !== notificationId) return n;
                     return updatedNotification ? { ...n, ...updatedNotification } : { ...n, isRead: true };
-                });
-                setUnreadCount(next.filter((n) => n?.isRead === false).length);
-                return next;
-            });
+                })
+            );
         } catch (error) {
             console.error('Failed to mark notification as read:', error);
         }
@@ -122,19 +157,38 @@ const HeaderComponent = () => {
     const markAllNotificationsAsRead = useCallback(async () => {
         try {
             await NotificationService.markAllAsRead();
-            setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-            setUnreadCount(0);
+            setAllNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
         } catch (error) {
             console.error('Failed to mark all notifications as read:', error);
         }
     }, []);
 
-    const extractJobIdFromNotification = useCallback((notif) => {
+    const extractTargetFromNotification = useCallback((notif) => {
         const content = `${notif?.title ?? ''} ${notif?.content ?? ''}`;
-        // Backend currently encodes postId into content like: "Job #123: ..." or "đơn hàng #123"
-        const match = content.match(/(?:job|đơn hàng|booking)\s*#\s*(\d+)/i);
-        if (match?.[1]) return Number(match[1]);
-        return null;
+        const type = String(notif?.type || '').toUpperCase();
+
+        // Ưu tiên nhận diện ngữ cảnh id từ nội dung thông báo.
+        const idMatch = content.match(/(đơn(?:\s+hàng)?|booking|job)\s*#\s*(\d+)/i);
+        const keyword = idMatch?.[1]?.toLowerCase() || '';
+        const id = idMatch?.[2] ? Number(idMatch[2]) : null;
+
+        if (id == null) {
+            return { targetPostId: null, targetBookingId: null };
+        }
+
+        // Các thông báo vận hành booking cần mở theo bookingId.
+        if (
+            keyword.includes('đơn') ||
+            keyword.includes('booking') ||
+            type === 'ARRIVAL_CONFIRMED' ||
+            type.startsWith('BOOKING_') ||
+            type.startsWith('WORK_')
+        ) {
+            return { targetPostId: null, targetBookingId: id };
+        }
+
+        // Mặc định là postId cho luồng việc mới.
+        return { targetPostId: id, targetBookingId: null };
     }, []);
 
     const openJobFromNotification = useCallback(async (notif) => {
@@ -150,19 +204,42 @@ const HeaderComponent = () => {
             return;
         }
 
-        const jobId = extractJobIdFromNotification(notif);
+        const { targetPostId, targetBookingId } = extractTargetFromNotification(notif);
         navigate('/helper/new-jobs', {
             state: {
-                targetPostId: jobId ?? null,
+                targetPostId,
+                targetBookingId,
                 fromNotification: true,
                 notificationToken: `${notif?.notificationId ?? 'unknown'}-${Date.now()}`
             }
         });
-    }, [extractJobIdFromNotification, userInfo?.role, markNotificationAsRead, navigate]);
+    }, [extractTargetFromNotification, userInfo?.role, markNotificationAsRead, navigate]);
 
     useEffect(() => {
-        fetchNotifications();
-    }, [fetchNotifications]);
+        fetchNotifications(1, false);
+    }, [fetchNotifications, userInfo?.role]);
+
+    useEffect(() => {
+        if (!notificationTabs.some((tab) => tab.key === activeNotificationTab)) {
+            setActiveNotificationTab(notificationTabs[0]?.key || 'ALL');
+        }
+    }, [activeNotificationTab, notificationTabs]);
+
+    const visibleNotifications = allNotifications.filter((n) => {
+        if (activeNotificationTab === 'ALL') return true;
+        return getTabForNotification(userRole, n) === activeNotificationTab;
+    });
+
+    const hasLoadedAll = pagination.totalPages > 0 && pagination.currentPage >= pagination.totalPages;
+
+    const handleNotificationListScroll = (e) => {
+        const el = e.currentTarget;
+        const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
+        if (!nearBottom || pagination.loadingInitial || pagination.loadingMore || hasLoadedAll) {
+            return;
+        }
+        fetchNotifications(pagination.currentPage + 1, true);
+    };
 
     useEffect(() => {
         if (!userInfo?.role) return;
@@ -179,9 +256,10 @@ const HeaderComponent = () => {
         eventSource.addEventListener('notification', (event) => {
             try {
                 const newNotification = JSON.parse(event.data);
-                setNotifications((prev) => [newNotification, ...prev]);
-                // Chỉ tăng badge khi chưa đọc
-                setUnreadCount((prev) => (newNotification?.isRead === false ? prev + 1 : prev));
+                setAllNotifications((prev) => {
+                    const deduped = prev.filter((item) => item.notificationId !== newNotification.notificationId);
+                    return [newNotification, ...deduped];
+                });
             } catch (err) {
                 console.error("SSE error parsing notification data", err);
             }
@@ -193,6 +271,14 @@ const HeaderComponent = () => {
 
         return () => eventSource.close();
     }, [userInfo?.role]);
+
+    useEffect(() => {
+        setUnreadCount(allNotifications.filter((n) => n?.isRead === false).length);
+    }, [allNotifications]);
+
+    const switchNotificationTab = (nextTab) => {
+        setActiveNotificationTab(nextTab);
+    };
 
     const handleToggleNotifications = () => {
         setShowNotifications(prev => !prev);
@@ -297,9 +383,23 @@ const HeaderComponent = () => {
                                     <h4>Thông báo</h4>
                                     {unreadCount > 0 && <span className="mark-read-btn" onClick={markAllNotificationsAsRead}>Đánh dấu đã đọc</span>}
                                 </div>
-                                <div className="notification-list">
-                                    {notifications.length > 0 ? (
-                                        notifications.map((notif, index) => (
+                                <div className="notification-tabs">
+                                    {notificationTabs.map((tab) => (
+                                        <button
+                                            key={tab.key}
+                                            type="button"
+                                            className={`notification-tab-btn ${activeNotificationTab === tab.key ? 'active' : ''}`}
+                                            onClick={() => switchNotificationTab(tab.key)}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="notification-list" onScroll={handleNotificationListScroll}>
+                                    {pagination.loadingInitial ? (
+                                        <div className="notification-empty">Đang tải thông báo...</div>
+                                    ) : visibleNotifications.length > 0 ? (
+                                        visibleNotifications.map((notif, index) => (
                                             <div
                                                 key={notif.notificationId ?? index}
                                                 className={`notification-item ${notif?.isRead === false ? 'unread' : ''}`}
@@ -323,6 +423,12 @@ const HeaderComponent = () => {
                                         ))
                                     ) : (
                                         <div className="notification-empty">Không có thông báo nào</div>
+                                    )}
+                                    {pagination.loadingMore && (
+                                        <div className="notification-load-more">Đang tải thêm...</div>
+                                    )}
+                                    {!pagination.loadingInitial && !pagination.loadingMore && hasLoadedAll && visibleNotifications.length > 0 && (
+                                        <div className="notification-load-more notification-load-more-end">Bạn đã xem hết thông báo</div>
                                     )}
                                 </div>
                             </div>
