@@ -6,6 +6,11 @@ import apiClient, { isAccountBlockedError } from '../../services/apiClient';
 import './CustomerDashboardPage.css';
 
 const JOB_LIST_ENDPOINTS = ['/api/v1/jobs/my', '/api/v1/jobs/customer', '/api/v1/jobs'];
+const TIER_DISCOUNT_PERCENT = {
+    GOLD: 15,
+    SILVER: 10,
+    BRONZE: 5,
+};
 
 const normalizeServiceLabel = (label = '') =>
     String(label)
@@ -140,12 +145,25 @@ const getJobStatusText = (status = '') => {
     }
 };
 
+const getTierLabel = (tier = 'BRONZE') => {
+    switch (String(tier).toUpperCase()) {
+        case 'GOLD':
+            return 'GOLD';
+        case 'SILVER':
+            return 'SILVER';
+        case 'BRONZE':
+        default:
+            return 'BRONZE';
+    }
+};
+
 /* ──────────────────────────────────────────
    Component
 ────────────────────────────────────────── */
 const CustomerDashboardPage = () => {
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
+    const [showMembershipModal, setShowMembershipModal] = useState(false);
 
     const [categories, setCategories] = useState([]);
     const [isLoadingCategories, setIsLoadingCategories] = useState(false);
@@ -154,6 +172,8 @@ const CustomerDashboardPage = () => {
     const [jobs, setJobs] = useState([]);
     const [isLoadingJobs, setIsLoadingJobs] = useState(false);
     const [jobsError, setJobsError] = useState('');
+    const [memberTier, setMemberTier] = useState('BRONZE');
+    const [memberDiscountPercent, setMemberDiscountPercent] = useState(TIER_DISCOUNT_PERCENT.BRONZE);
 
     useEffect(() => {
         const loadCategories = async () => {
@@ -212,6 +232,31 @@ const CustomerDashboardPage = () => {
         };
 
         loadJobs();
+    }, []);
+
+    useEffect(() => {
+        const loadMembership = async () => {
+            try {
+                const res = await ProfileService.getMyProfile();
+                const profile = res?.data ?? res;
+                const tier = String(profile?.currentTier || 'BRONZE').toUpperCase();
+                const safeTier = tier in TIER_DISCOUNT_PERCENT ? tier : 'BRONZE';
+                const discountFromProfile = Number(profile?.currentDiscountRate);
+                const mappedDiscount = TIER_DISCOUNT_PERCENT[safeTier];
+                const discountPercent = Number.isFinite(discountFromProfile)
+                    ? Math.max(0, Math.round(discountFromProfile * 100))
+                    : mappedDiscount;
+
+                setMemberTier(safeTier);
+                setMemberDiscountPercent(discountPercent);
+            } catch (err) {
+                if (isAccountBlockedError(err)) return;
+                setMemberTier('BRONZE');
+                setMemberDiscountPercent(TIER_DISCOUNT_PERCENT.BRONZE);
+            }
+        };
+
+        loadMembership();
     }, []);
 
     const PALETTE = useMemo(
@@ -294,6 +339,16 @@ const CustomerDashboardPage = () => {
 
         return { openCount, upcomingCount, completedThisMonthCount, recentPosts };
     }, [normalizedJobs]);
+
+    const membershipMessage = useMemo(() => {
+        if (memberTier === 'GOLD') {
+            return `Bạn đã đạt hạng Vàng (VIP) trong tháng này với ưu đãi giảm ${memberDiscountPercent}% cho mỗi đơn mới.`;
+        }
+        if (memberTier === 'SILVER') {
+            return `Bạn đang ở hạng Bạc trong tháng này với ưu đãi giảm ${memberDiscountPercent}% cho mỗi đơn mới.`;
+        }
+        return `Bạn đang ở hạng Đồng trong tháng này với ưu đãi giảm ${memberDiscountPercent}% cho mỗi đơn mới.`;
+    }, [memberTier, memberDiscountPercent]);
 
     return (
         <CustomerLayout>
@@ -389,10 +444,14 @@ const CustomerDashboardPage = () => {
                             <h2 className="cdh-section-title">Ưu đãi hôm nay</h2>
                         </div>
                         <div className="cdh-promo-card">
-                            <p className="cdh-promo-badge">Giảm 15%</p>
-                            <h3 className="cdh-promo-title">Áp dụng cho gói dọn dẹp buổi sáng</h3>
-                            <p className="cdh-promo-desc">Đặt lịch trước 10h để nhận ưu đãi tự động.</p>
-                            <button className="cdh-promo-btn" onClick={() => navigate('/customer-dashboard')}>
+                            <p className="cdh-promo-badge">Giảm {memberDiscountPercent}%</p>
+                            <h3 className="cdh-promo-title">
+                                Thành viên hạng {getTierLabel(memberTier)} đang được giảm {memberDiscountPercent}%
+                            </h3>
+                            <p className="cdh-promo-desc">
+                                Ưu đãi hiển thị theo hạng thành viên hiện tại của bạn (BRONZE/SILVER/GOLD).
+                            </p>
+                            <button className="cdh-promo-btn" onClick={() => setShowMembershipModal(true)}>
                                 Xem chi tiết
                             </button>
                         </div>
@@ -425,6 +484,30 @@ const CustomerDashboardPage = () => {
                         )}
                     </div>
                 </section>
+
+                {showMembershipModal ? (
+                    <div className="cdh-modal-overlay" role="presentation" onClick={() => setShowMembershipModal(false)}>
+                        <div
+                            className="cdh-modal"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="Chi tiết hạng thành viên"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <h3 className="cdh-modal-title">Hạng thành viên</h3>
+                            <p className="cdh-modal-tier">{memberTier}</p>
+                            <p className="cdh-modal-meta">
+                                Đã hoàn thành {dashboardStats.completedThisMonthCount} đơn trong tháng này • Ưu đãi hiện tại {memberDiscountPercent}%
+                            </p>
+                            <p className="cdh-modal-message">{membershipMessage}</p>
+                            <div className="cdh-modal-actions">
+                                <button type="button" className="cdh-promo-btn" onClick={() => setShowMembershipModal(false)}>
+                                    Đóng
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
 
             </div>
         </CustomerLayout>

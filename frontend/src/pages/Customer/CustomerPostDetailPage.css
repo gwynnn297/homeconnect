@@ -6,7 +6,8 @@
 
 .cpd-header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: center;
     gap: 14px;
     margin-bottom: 18px;
 }
@@ -26,6 +27,7 @@
 
 .cpd-header-main {
     flex: 1;
+    text-align: center;
 }
 
 .cpd-title {
@@ -40,6 +42,7 @@
     display: flex;
     gap: 10px;
     align-items: center;
+    justify-content: center;
     flex-wrap: wrap;
 }
 

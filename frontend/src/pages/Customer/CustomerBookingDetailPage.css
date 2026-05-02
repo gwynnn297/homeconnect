@@ -8,7 +8,8 @@
 .cbd-header {
   display: flex;
   gap: 14px;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 18px;
 }
 
@@ -31,6 +32,7 @@
 .cbd-header-main {
   flex: 1;
   min-width: 0;
+  text-align: center;
 }
 
 .cbd-title {
@@ -45,6 +47,7 @@
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 10px;
+  justify-content: center;
 }
 
 .cbd-badge {
@@ -172,6 +175,7 @@
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 20px;
+  justify-content: center;
 }
 
 .cbd-btn {

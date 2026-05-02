@@ -172,6 +172,8 @@ const CustomerBookingDetailPage = () => {
     const [comment, setComment] = useState('');
     const [tags, setTags] = useState('');
     const [evidencePhotoUrl, setEvidencePhotoUrl] = useState('');
+    const [reviewEvidenceUploading, setReviewEvidenceUploading] = useState(false);
+    const [reviewEvidenceError, setReviewEvidenceError] = useState('');
 
     const [actionError, setActionError] = useState('');
     const [actionSuccess, setActionSuccess] = useState('');
@@ -272,6 +274,10 @@ const CustomerBookingDetailPage = () => {
     const handleSubmitReview = async (e) => {
         e.preventDefault();
         if (!bookingId) return;
+        if (reviewEvidenceUploading) {
+            setActionError('Ảnh minh chứng đang được tải lên. Vui lòng đợi hoàn tất.');
+            return;
+        }
         clearFeedback();
         setSubmittingReview(true);
         try {
@@ -298,6 +304,10 @@ const CustomerBookingDetailPage = () => {
     const handleUpdateReview = async (e) => {
         e.preventDefault();
         if (!existingReview?.id) return;
+        if (reviewEvidenceUploading) {
+            setActionError('Ảnh minh chứng đang được tải lên. Vui lòng đợi hoàn tất.');
+            return;
+        }
         clearFeedback();
         setSubmittingReview(true);
         try {
@@ -373,6 +383,25 @@ const CustomerBookingDetailPage = () => {
         }
     };
 
+    const handleReviewEvidenceChange = async (e) => {
+        const file = e.target.files?.[0];
+        setReviewEvidenceError('');
+        clearFeedback();
+        if (!file) {
+            return;
+        }
+
+        setReviewEvidenceUploading(true);
+        try {
+            const uploadedUrl = await CloudinaryService.uploadImage(file, 'reviews');
+            setEvidencePhotoUrl(uploadedUrl || '');
+        } catch (err) {
+            setReviewEvidenceError(err?.message || 'Tải ảnh minh chứng thất bại.');
+        } finally {
+            setReviewEvidenceUploading(false);
+        }
+    };
+
     const statusUI = getBookingStatusUI(booking?.status);
     const paymentUI = getPaymentStatusUI(booking?.paymentStatus);
     const normalizedStatus = String(booking?.status || '').toUpperCase();
@@ -411,9 +440,6 @@ const CustomerBookingDetailPage = () => {
         <CustomerLayout>
             <div className="cbd-container slide-up">
                 <div className="cbd-header">
-                    <button className="cbd-back" type="button" onClick={() => navigate(-1)}>
-                        ← Quay lại
-                    </button>
                     <div className="cbd-header-main">
                         <h1 className="cbd-title">Chi tiết đơn làm việc</h1>
                         <div className="cbd-sub">
@@ -755,16 +781,38 @@ const CustomerBookingDetailPage = () => {
                                             </label>
 
                                             <label className="cbd-field">
-                                                <span className="cbd-label">URL ảnh minh chứng (tùy chọn)</span>
+                                                <span className="cbd-label">Ảnh minh chứng (tùy chọn)</span>
                                                 <input
                                                     className="cbd-input"
-                                                    type="url"
-                                                    value={evidencePhotoUrl}
-                                                    onChange={(ev) => setEvidencePhotoUrl(ev.target.value)}
-                                                    disabled={submittingReview}
-                                                    placeholder="https://…"
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleReviewEvidenceChange}
+                                                    disabled={submittingReview || reviewEvidenceUploading}
                                                 />
-                                                <EvidencePreview url={evidencePhotoUrl.trim()} />
+                                                {reviewEvidenceUploading ? (
+                                                    <span className="cbd-field-hint">Đang tải ảnh lên…</span>
+                                                ) : null}
+                                                {reviewEvidenceError ? (
+                                                    <span className="cbd-field-hint" style={{ color: '#b91c1c' }}>
+                                                        {reviewEvidenceError}
+                                                    </span>
+                                                ) : null}
+                                                {evidencePhotoUrl.trim() ? (
+                                                    <>
+                                                        <EvidencePreview url={evidencePhotoUrl.trim()} />
+                                                        <button
+                                                            type="button"
+                                                            className="cbd-btn cbd-btn--ghost"
+                                                            disabled={submittingReview || reviewEvidenceUploading}
+                                                            onClick={() => {
+                                                                setEvidencePhotoUrl('');
+                                                                setReviewEvidenceError('');
+                                                            }}
+                                                        >
+                                                            Xóa ảnh đã chọn
+                                                        </button>
+                                                    </>
+                                                ) : null}
                                             </label>
 
                                             <div className="cbd-review-form__actions">
@@ -784,7 +832,7 @@ const CustomerBookingDetailPage = () => {
                                                 <button
                                                     className="cbd-btn cbd-btn--primary cbd-btn--lg cbd-btn--rounded"
                                                     type="submit"
-                                                    disabled={submittingReview}
+                                                    disabled={submittingReview || reviewEvidenceUploading}
                                                 >
                                                     {submittingReview ? 'Đang gửi…' : editingReview ? 'Lưu thay đổi' : 'Gửi đánh giá'}
                                                 </button>

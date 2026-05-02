@@ -24,6 +24,19 @@ const formatVnd = (value) => {
     return `${Math.round(n).toLocaleString('vi-VN')} đ`;
 };
 
+const resolveHelperCompensation = (job) => {
+    const rawOriginalPrice = job?.originalPrice ?? job?.offerPrice;
+    const originalPrice = Number(rawOriginalPrice);
+    if (!Number.isFinite(originalPrice)) return formatVnd(job?.offerPrice);
+
+    const rawCommissionRate = job?.commissionRate ?? job?.additionalData?.commissionRate ?? 0.15;
+    const parsedRate = Number(rawCommissionRate);
+    const commissionRate = Number.isFinite(parsedRate) ? Math.max(0, Math.min(1, parsedRate)) : 0.15;
+
+    const helperCompensation = originalPrice * (1 - commissionRate);
+    return formatVnd(helperCompensation);
+};
+
 const formatWorkDate = (value) => {
     if (!value) return null;
     const [y, m, d] = String(value).split('-');
@@ -133,8 +146,10 @@ export function buildHelperJobModalModel(job) {
     if (!job) return null;
 
     const { bullets, lists } = collectWorkScope(job);
-    const area = [job.wardName, job.districtName, job.provinceName].filter(Boolean).join(', ') || '—';
-    const extra = (job.fullAddress && String(job.fullAddress).trim()) || (job.addressDetail && String(job.addressDetail).trim()) || null;
+    const areaOnly = [job.wardName, job.districtName, job.provinceName].filter(Boolean).join(', ');
+    const fullAddress = (job.fullAddress && String(job.fullAddress).trim()) || '';
+    const composedAddress = [job.addressDetail, job.wardName, job.districtName, job.provinceName].filter(Boolean).join(', ');
+    const preferredAddress = fullAddress || composedAddress || areaOnly || '—';
 
     return {
         title: job.title || 'Công việc',
@@ -146,10 +161,10 @@ export function buildHelperJobModalModel(job) {
             duration: job.durationHours != null ? `${job.durationHours} giờ` : null,
         },
         location: {
-            area,
-            extra: extra && extra !== area ? extra : null,
+            area: preferredAddress,
+            extra: null,
         },
-        offerPrice: formatVnd(job.offerPrice),
+        offerPrice: resolveHelperCompensation(job),
         flags: {
             premium: job.isPremium === true,
             pets: job.hasPets === true,

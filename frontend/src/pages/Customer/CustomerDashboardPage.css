@@ -313,6 +313,63 @@
     white-space: nowrap;
 }
 
+.cdh-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 16px;
+}
+
+.cdh-modal {
+    width: min(520px, 100%);
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.25);
+    padding: 20px;
+}
+
+.cdh-modal-title {
+    margin: 0;
+    color: var(--text-main);
+    font-size: 20px;
+    font-weight: 900;
+}
+
+.cdh-modal-tier {
+    margin: 10px 0 0;
+    color: var(--primary);
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+}
+
+.cdh-modal-meta {
+    margin: 10px 0 0;
+    color: var(--text-main);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.5;
+}
+
+.cdh-modal-message {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.55;
+    font-weight: 600;
+}
+
+.cdh-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
 @media (max-width: 992px) {
     .cdh-categories-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));

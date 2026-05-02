@@ -306,11 +306,7 @@ const CustomerWalletPage = () => {
 
     return (
         <CustomerLayout>
-            <div className="vw-page">
-                <div className="vw-header">
-                    <h2 className="vw-title">Ví của tôi</h2>
-                    <p className="vw-subtitle">Quản lý số dư, nạp tiền và theo dõi lịch sử giao dịch.</p>
-                </div>
+            <div className="vw-page">               
 
                 {/* BALANCE CARDS */}
                 <div className="vw-balance-grid">

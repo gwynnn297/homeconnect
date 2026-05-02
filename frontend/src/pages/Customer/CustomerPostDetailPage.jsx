@@ -271,9 +271,6 @@ const CustomerPostDetailPage = () => {
         <CustomerLayout>
             <div className="cpd-container slide-up">
                 <div className="cpd-header">
-                    <button className="cpd-back" type="button" onClick={() => navigate(-1)}>
-                        ← Quay lại
-                    </button>
                     <div className="cpd-header-main">
                         <h1 className="cpd-title">Chi tiết bài đăng</h1>
                         <div className="cpd-sub">
@@ -377,7 +374,7 @@ const CustomerPostDetailPage = () => {
                                 >
                                     {viewModel.customerArrivalConfirmed
                                         ? 'Xem xác nhận helper đã đến'
-                                        : 'Xem ảnh địa điểm để xác nhận helper đã đến đúng nhà'}
+                                        : 'Xem chi tiết đơn làm việc'}
                                 </button>
                             ) : null}
                         </div>
