@@ -8,5 +8,6 @@ public enum ReferenceType {
     BOOKING, // Liên quan đến booking
     DEPOSIT, // Liên quan đến deposit
     WITHDRAWAL, // Liên quan đến yêu cầu rút tiền
-    WEBHOOK // Từ webhook payment gateway
+    WEBHOOK, // Từ webhook payment gateway
+    DIRECT_BOOKING // Đặt thợ trực tiếp
 }

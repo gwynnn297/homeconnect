@@ -336,7 +336,7 @@ const SERVICE_DETAIL_CONFIG = {
     4: {
         equipmentTitle: '🏢 Dụng cụ vệ sinh văn phòng',
         equipmentItems: [
-            'Chổi, cây lau nhà, máy hút bụi (nếu có)', 
+            'Chổi, cây lau nhà, máy hút bụi (nếu có)',
             'Khăn lau, dụng cụ lau kính, hóa chất vệ sinh bề mặt',
             'Bao rác, găng tay, dung dịch sát khuẩn tay/nút bấm thang máy'
         ],
@@ -522,75 +522,75 @@ const CustomerPostJobPage = () => {
                     : {}),
                 ...(Number(jobData.categoryId) === COOKING_CATEGORY_ID && jobData.additionalData && typeof jobData.additionalData === 'object'
                     ? {
-                          additionalData: {
-                              isTaskerShopping: Boolean(jobData.additionalData.isTaskerShopping),
-                              eaterCount: Math.min(50, Math.max(1, Math.round(Number(jobData.additionalData.eaterCount)) || 1)),
-                              dishNames: Array.isArray(jobData.additionalData.dishNames)
-                                  ? jobData.additionalData.dishNames
-                                  : [],
-                              flavorRegion: COOKING_FLAVOR_SET.has(String(jobData.additionalData.flavorRegion || '').toUpperCase())
-                                  ? String(jobData.additionalData.flavorRegion).toUpperCase()
-                                  : 'NAM',
-                              fruitDessert: Boolean(jobData.additionalData.fruitDessert),
-                          },
-                      }
+                        additionalData: {
+                            isTaskerShopping: Boolean(jobData.additionalData.isTaskerShopping),
+                            eaterCount: Math.min(50, Math.max(1, Math.round(Number(jobData.additionalData.eaterCount)) || 1)),
+                            dishNames: Array.isArray(jobData.additionalData.dishNames)
+                                ? jobData.additionalData.dishNames
+                                : [],
+                            flavorRegion: COOKING_FLAVOR_SET.has(String(jobData.additionalData.flavorRegion || '').toUpperCase())
+                                ? String(jobData.additionalData.flavorRegion).toUpperCase()
+                                : 'NAM',
+                            fruitDessert: Boolean(jobData.additionalData.fruitDessert),
+                        },
+                    }
                     : {}),
                 ...(Number(jobData.categoryId) === SHOPPING_CATEGORY_ID && jobData.additionalData && typeof jobData.additionalData === 'object'
                     ? {
-                          additionalData: {
-                              isTaskerAdvance: Boolean(jobData.additionalData.isTaskerAdvance),
-                              ...(Boolean(jobData.additionalData.isTaskerAdvance)
-                                  ? {
-                                        shoppingAmount: Math.min(
-                                            SHOPPING_MONEY_MAX_VND,
-                                            Math.max(
-                                                SHOPPING_MONEY_MIN_VND,
-                                                Math.round(Number(jobData.additionalData.shoppingAmount)) || 0
-                                            )
-                                        ),
-                                    }
-                                  : {}),
-                              ...(Array.isArray(jobData.additionalData.shoppingItemNames) &&
-                              jobData.additionalData.shoppingItemNames.some((s) => String(s ?? '').trim())
-                                  ? {
-                                        shoppingItemNames: jobData.additionalData.shoppingItemNames
-                                            .map((s) => String(s ?? '').trim())
-                                            .filter(Boolean),
-                                    }
-                                  : {}),
-                          },
-                      }
+                        additionalData: {
+                            isTaskerAdvance: Boolean(jobData.additionalData.isTaskerAdvance),
+                            ...(Boolean(jobData.additionalData.isTaskerAdvance)
+                                ? {
+                                    shoppingAmount: Math.min(
+                                        SHOPPING_MONEY_MAX_VND,
+                                        Math.max(
+                                            SHOPPING_MONEY_MIN_VND,
+                                            Math.round(Number(jobData.additionalData.shoppingAmount)) || 0
+                                        )
+                                    ),
+                                }
+                                : {}),
+                            ...(Array.isArray(jobData.additionalData.shoppingItemNames) &&
+                                jobData.additionalData.shoppingItemNames.some((s) => String(s ?? '').trim())
+                                ? {
+                                    shoppingItemNames: jobData.additionalData.shoppingItemNames
+                                        .map((s) => String(s ?? '').trim())
+                                        .filter(Boolean),
+                                }
+                                : {}),
+                        },
+                    }
                     : {}),
                 ...(Number(jobData.categoryId) === CHILDCARE_CATEGORY_ID &&
-                jobData.additionalData &&
-                typeof jobData.additionalData === 'object'
+                    jobData.additionalData &&
+                    typeof jobData.additionalData === 'object'
                     ? {
-                          additionalData: {
-                              ...(CHILDCARE_AGE_SET.has(
-                                  String(jobData.additionalData.childAgeBand1 || '').toUpperCase().trim()
-                              )
-                                  ? {
-                                        childAgeBand1: String(
-                                            jobData.additionalData.childAgeBand1
-                                        )
-                                            .toUpperCase()
-                                            .trim(),
-                                    }
-                                  : {}),
-                              ...(Number(jobData.workSize) === 2 &&
-                              CHILDCARE_AGE_SET.has(
-                                  String(jobData.additionalData.childAgeBand2 || '').toUpperCase().trim()
-                              )
-                                  ? {
-                                        childAgeBand2: String(
-                                            jobData.additionalData.childAgeBand2
-                                        )
-                                            .toUpperCase()
-                                            .trim(),
-                                    }
-                                  : {}),
-                          },
-                      }
+                        additionalData: {
+                            ...(CHILDCARE_AGE_SET.has(
+                                String(jobData.additionalData.childAgeBand1 || '').toUpperCase().trim()
+                            )
+                                ? {
+                                    childAgeBand1: String(
+                                        jobData.additionalData.childAgeBand1
+                                    )
+                                        .toUpperCase()
+                                        .trim(),
+                                }
+                                : {}),
+                            ...(Number(jobData.workSize) === 2 &&
+                                CHILDCARE_AGE_SET.has(
+                                    String(jobData.additionalData.childAgeBand2 || '').toUpperCase().trim()
+                                )
+                                ? {
+                                    childAgeBand2: String(
+                                        jobData.additionalData.childAgeBand2
+                                    )
+                                        .toUpperCase()
+                                        .trim(),
+                                }
+                                : {}),
+                        },
+                    }
                     : {})
             };
             const res = await apiClient.post('/api/v1/jobs', payload);
@@ -641,14 +641,14 @@ const CustomerPostJobPage = () => {
                 durationHours: parsedDurationHours,
                 ...(categoryChanged
                     ? {
-                          workSize: undefined,
-                          hasPets: false,
-                          isPremium: false,
-                          bringTools: false,
-                          additionalData: {},
-                          title: '',
-                          description: ''
-                      }
+                        workSize: undefined,
+                        hasPets: false,
+                        isPremium: false,
+                        bringTools: false,
+                        additionalData: {},
+                        title: '',
+                        description: ''
+                    }
                     : {}),
             };
         });
@@ -1330,16 +1330,16 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
         const subs = officeCleaning
             ? 0
             : Array.isArray(initialData.serviceIds)
-              ? initialData.serviceIds.length
-              : 0;
+                ? initialData.serviceIds.length
+                : 0;
         const cooking = isCookingCategoryId(initialData.categoryId);
         const officeInit = officeCleaning ? resolveInitialOfficePreset(initialData) : null;
         const officeMaxJH = officeInit
             ? officeInit.band === 'LT900'
                 ? 6
                 : officeInit.band === 'LT400'
-                  ? 8
-                  : 4
+                    ? 8
+                    : 4
             : 12;
         const maxJH = homeCleaning ? 4 : officeCleaning ? officeMaxJH : 12;
 
@@ -1394,8 +1394,8 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
         const initMinTotalRule = cooking
             ? minTotalHoursForCookingDishCount(initDishN)
             : isCleaningCategoryId(initialData.categoryId)
-              ? 2
-              : 1;
+                ? 2
+                : 1;
         let base = Math.round(total - subs * HOURS_PER_SUB_SERVICE);
         const maxBase = maxJH - subs * HOURS_PER_SUB_SERVICE;
         const minBase = Math.max(
@@ -1431,8 +1431,8 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
         isOfficeCleaningCategoryId(initialData.categoryId)
             ? []
             : Array.isArray(initialData.serviceIds)
-              ? initialData.serviceIds
-              : []
+                ? initialData.serviceIds
+                : []
     );
     const [subServices, setSubServices] = useState([]);
     const [loadingSubServices, setLoadingSubServices] = useState(false);
@@ -1687,22 +1687,24 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                         ? getOfficePresetById(officePresetId).maxM2
                         : getCleaningWorkSizeMid(initialData.categoryId, baseDurationHours)
                     : cookingMode
-                      ? Number(dishCount)
-                      : childcareMode
-                        ? Math.min(CHILDCARE_MAX_CHILDREN, Math.max(1, Math.round(Number(childCount))))
-                        : gardeningMode
-                          ? Math.min(
-                                GARDEN_AREA_M2_MAX,
-                                Math.max(GARDEN_AREA_M2_MIN, Number(gardenAreaM2))
-                            )
-                          : paintRepairMode
-                            ? paintRepairN
-                            : undefined;
+                        ? Number(dishCount)
+                        : childcareMode
+                            ? Math.min(CHILDCARE_MAX_CHILDREN, Math.max(1, Math.round(Number(childCount))))
+                            : gardeningMode
+                                ? Math.min(
+                                    GARDEN_AREA_M2_MAX,
+                                    Math.max(GARDEN_AREA_M2_MIN, Number(gardenAreaM2))
+                                )
+                                : paintRepairMode
+                                    ? paintRepairN
+                                    : undefined;
                 const res = await apiClient.post('/api/v1/jobs/estimate', {
                     categoryId: initialData.categoryId,
                     serviceIds: selectedSubServiceIds.map((id) => Math.round(Number(id))).filter((id) => Number.isFinite(id)),
                     durationHours: Math.round(Number(durationHours)),
                     isPremium: Boolean(isPremium),
+                    hasPets: Boolean(hasPets),
+                    bringTools: Boolean(bringTools),
                     ...(ws != null && Number.isFinite(Number(ws)) ? { workSize: Number(ws) } : {}),
                     /* Giá category 2 chỉ phụ thuộc isTaskerShopping; không gửi full additionalData để tránh gọi lại API mỗi lần gõ tên món */
                     ...(cookingMode ? { additionalData: { isTaskerShopping: Boolean(isTaskerShopping) } } : {}),
@@ -1739,6 +1741,8 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
         dishCount,
         isTaskerShopping,
         isPremium,
+        bringTools,
+        hasPets,
         shoppingEstimateAdditionalData,
     ]);
 
@@ -1784,11 +1788,11 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                 isTaskerAdvance: advance,
                 ...(advance
                     ? {
-                          shoppingAmount: Math.min(
-                              SHOPPING_MONEY_MAX_VND,
-                              Math.max(SHOPPING_MONEY_MIN_VND, amt)
-                          ),
-                      }
+                        shoppingAmount: Math.min(
+                            SHOPPING_MONEY_MAX_VND,
+                            Math.max(SHOPPING_MONEY_MIN_VND, amt)
+                        ),
+                    }
                     : {}),
                 ...(itemNames.length > 0 ? { shoppingItemNames: itemNames } : {}),
             };
@@ -1818,19 +1822,19 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                 ...(cookingMode ? { workSize: dishN } : {}),
                 ...(childcareMode
                     ? {
-                          workSize: Math.min(
-                              CHILDCARE_MAX_CHILDREN,
-                              Math.max(1, Math.round(Number(childCount)))
-                          ),
-                      }
+                        workSize: Math.min(
+                            CHILDCARE_MAX_CHILDREN,
+                            Math.max(1, Math.round(Number(childCount)))
+                        ),
+                    }
                     : {}),
                 ...(gardeningMode
                     ? {
-                          workSize: Math.min(
-                              GARDEN_AREA_M2_MAX,
-                              Math.max(GARDEN_AREA_M2_MIN, Number(gardenAreaM2))
-                          ),
-                      }
+                        workSize: Math.min(
+                            GARDEN_AREA_M2_MAX,
+                            Math.max(GARDEN_AREA_M2_MIN, Number(gardenAreaM2))
+                        ),
+                    }
                     : {}),
                 ...(paintRepairMode ? { workSize: paintRepairN } : {}),
                 additionalData: additionalDataPayload,
@@ -1875,18 +1879,18 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
             if (baseDurationHours + (subs + 1) * HOURS_PER_SUB_SERVICE > maxJobDurationHours) {
                 setSubServiceBlockMessage(
                     homeCleaningMode || officeCleaningMode
-                        ? `${officeCleaningMode ? 'Vệ sinh VP' : 'Dọn nhà'} tối đa ${maxJobDurationHours} giờ tổng. Mỗi dịch vụ con cộng thêm ${HOURS_PER_SUB_SERVICE} giờ — không thể thêm mục này (hãy giảm giờ phần chính trước).`
+                        ? `${officeCleaningMode ? 'Vệ sinh VP' : 'Dọn nhà'} tối đa ${maxJobDurationHours} giờ tổng. Phí dịch vụ con tính riêng, nhưng mỗi mục vẫn cần thêm ${HOURS_PER_SUB_SERVICE} giờ để thợ thực hiện — hãy giảm giờ phần chính trước.`
                         : cookingMode
-                          ? `Nấu ăn tối đa ${maxJobDurationHours} giờ tổng. Mỗi dịch vụ con cộng thêm ${HOURS_PER_SUB_SERVICE} giờ — không thể thêm mục này (hãy giảm giờ phần chính trước).`
-                          : childcareMode
-                            ? `Trông trẻ tối đa ${maxJobDurationHours} giờ tổng. Mỗi dịch vụ con cộng thêm ${HOURS_PER_SUB_SERVICE} giờ — không thể thêm mục này (hãy giảm giờ phần chính trước).`
-                          : gardeningMode
-                            ? `Làm vườn tối đa ${maxJobDurationHours} giờ tổng. Mỗi dịch vụ con cộng thêm ${HOURS_PER_SUB_SERVICE} giờ — không thể thêm mục này (hãy giảm giờ phần chính trước).`
-                          : paintRepairMode
-                            ? `Sơn sửa tối đa ${maxJobDurationHours} giờ tổng. Mỗi dịch vụ con cộng thêm ${HOURS_PER_SUB_SERVICE} giờ — không thể thêm mục này (hãy tăng hạng mục hoặc bớt dịch vụ con).`
-                          : shoppingMode
-                            ? `Đi chợ tối đa ${maxJobDurationHours} giờ tổng (gói cố định ${SHOPPING_DEFAULT_BASE_DURATION_HOURS} giờ + dịch vụ con). Không thể thêm mục — hãy bớt dịch vụ con nếu cần.`
-                            : `Tổng thời lượng tối đa ${maxJobDurationHours} giờ. Thêm dịch vụ con cần +${HOURS_PER_SUB_SERVICE} giờ — đã đạt giới hạn.`
+                            ? `Nấu ăn tối đa ${maxJobDurationHours} giờ tổng. Phí dịch vụ con tính riêng, nhưng vẫn cần thêm ${HOURS_PER_SUB_SERVICE} giờ thực hiện — hãy giảm giờ phần chính trước.`
+                            : childcareMode
+                                ? `Trông trẻ tối đa ${maxJobDurationHours} giờ tổng. Phí dịch vụ con tính riêng, mỗi mục cộng thêm ${HOURS_PER_SUB_SERVICE} giờ làm việc — đã đạt giới hạn.`
+                                : gardeningMode
+                                    ? `Làm vườn tối đa ${maxJobDurationHours} giờ tổng. Phí dịch vụ con tính riêng, mỗi mục cộng thêm ${HOURS_PER_SUB_SERVICE} giờ làm việc — đã đạt giới hạn.`
+                                    : paintRepairMode
+                                        ? `Sơn sửa tối đa ${maxJobDurationHours} giờ tổng. Phí dịch vụ con tính riêng, mỗi mục cộng thêm ${HOURS_PER_SUB_SERVICE} giờ làm việc — đã đạt giới hạn.`
+                                        : shoppingMode
+                                            ? `Đi chợ tối đa ${maxJobDurationHours} giờ tổng (gói cố định ${SHOPPING_DEFAULT_BASE_DURATION_HOURS} giờ + dịch vụ con). Mỗi mục con vẫn cần thêm ${HOURS_PER_SUB_SERVICE} giờ thợ làm việc.`
+                                            : `Tổng thời lượng tối đa ${maxJobDurationHours} giờ. Dịch vụ con cần thêm ${HOURS_PER_SUB_SERVICE} giờ thực hiện — đã đạt giới hạn.`
                 );
                 return;
             }
@@ -1965,8 +1969,8 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
     const durationOptions = homeCleaningMode
         ? [2, 3, 4]
         : officeCleaningMode
-          ? [2, 3, 4, 5, 6, 8]
-          : [1, 2, 3, 4, 6, 8];
+            ? [2, 3, 4, 5, 6, 8]
+            : [1, 2, 3, 4, 6, 8];
 
     const durationOptionsWithCurrent = useMemo(() => {
         if (cleaningMode) return durationOptions;
@@ -2175,8 +2179,8 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                             }}
                                         />
                                         {shoppingMode &&
-                                        (Number(shoppingMoneyVnd) < SHOPPING_MONEY_MIN_VND ||
-                                            Number(shoppingMoneyVnd) > SHOPPING_MONEY_MAX_VND) ? (
+                                            (Number(shoppingMoneyVnd) < SHOPPING_MONEY_MIN_VND ||
+                                                Number(shoppingMoneyVnd) > SHOPPING_MONEY_MAX_VND) ? (
                                             <div className="pj-error" role="alert" style={{ marginTop: 8 }}>
                                                 {Number(shoppingMoneyVnd) > SHOPPING_MONEY_MAX_VND
                                                     ? `Tối đa ${SHOPPING_MONEY_MAX_VND.toLocaleString('vi-VN')} ₫.`
@@ -2211,281 +2215,281 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                             ) : null}
 
                             {!shoppingMode ? (
-                            <div className="pj-form-group">
-                                <label className="pj-label">
-                                    {paintRepairMode
-                                        ? '🔨 Số hạng mục sơn sửa (workSize) *'
-                                        : '⏱️ Thời lượng làm việc *'}
-                                </label>
-                                {cleaningMode ? (
-                                    <div className="pj-cleaning-duration">
-                                        {homeCleaningMode ? (
-                                            <>
-                                                <p className="pj-cleaning-lead">
-                                                    Chọn thời gian theo diện tích căn — tối thiểu <strong>2 giờ</strong>, tối đa{' '}
-                                                    <strong>4 giờ</strong> (theo quy định dịch vụ dọn nhà).
-                                                </p>
-                                                <div className="pj-cleaning-cards">
-                                                    {durationOptions.map((h) => {
-                                                        const meta = getCleaningAreaMeta(initialData.categoryId, h);
-                                                        const active = baseDurationHours === h;
-                                                        return (
-                                                            <button
-                                                                key={h}
-                                                                type="button"
-                                                                className={`pj-cleaning-card ${active ? 'active' : ''}`}
-                                                                style={
-                                                                    active
-                                                                        ? {
-                                                                              borderColor: serviceInfo.color,
-                                                                              boxShadow: `0 0 0 2px ${serviceInfo.color}33`,
-                                                                          }
-                                                                        : {}
-                                                                }
-                                                                onClick={() => applyMainDurationHours(h)}
-                                                            >
-                                                                <span className="pj-cleaning-card-hours">{h} giờ</span>
-                                                                {meta ? (
-                                                                    <>
-                                                                        <span className="pj-cleaning-card-m2">
-                                                                            {meta.minM2}–{meta.maxM2} m²
-                                                                        </span>
-                                                                        <span className="pj-cleaning-card-hint">{meta.hint}</span>
-                                                                    </>
-                                                                ) : null}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                                {areaMeta ? (
-                                                    <div className="pj-cleaning-selected">
-                                                        <span className="pj-cleaning-selected-icon" aria-hidden>
-                                                            📐
-                                                        </span>
-                                                        <div>
-                                                            <div className="pj-cleaning-selected-title">
-                                                                Diện tích gợi ý với {baseDurationHours} giờ phần chính
-                                                            </div>
-                                                            <div className="pj-cleaning-selected-text">
-                                                                Khoảng <strong>
-                                                                    {areaMeta.minM2}–{areaMeta.maxM2} m²
-                                                                </strong>
-                                                                {areaMeta.hint ? ` · ${areaMeta.hint}` : ''}
-                                                            </div>
-                                                        </div>
+                                <div className="pj-form-group">
+                                    <label className="pj-label">
+                                        {paintRepairMode
+                                            ? '🔨 Số hạng mục sơn sửa (workSize) *'
+                                            : '⏱️ Thời lượng làm việc *'}
+                                    </label>
+                                    {cleaningMode ? (
+                                        <div className="pj-cleaning-duration">
+                                            {homeCleaningMode ? (
+                                                <>
+                                                    <p className="pj-cleaning-lead">
+                                                        Chọn thời gian theo diện tích căn — tối thiểu <strong>2 giờ</strong>, tối đa{' '}
+                                                        <strong>4 giờ</strong> (theo quy định dịch vụ dọn nhà).
+                                                    </p>
+                                                    <div className="pj-cleaning-cards">
+                                                        {durationOptions.map((h) => {
+                                                            const meta = getCleaningAreaMeta(initialData.categoryId, h);
+                                                            const active = baseDurationHours === h;
+                                                            return (
+                                                                <button
+                                                                    key={h}
+                                                                    type="button"
+                                                                    className={`pj-cleaning-card ${active ? 'active' : ''}`}
+                                                                    style={
+                                                                        active
+                                                                            ? {
+                                                                                borderColor: serviceInfo.color,
+                                                                                boxShadow: `0 0 0 2px ${serviceInfo.color}33`,
+                                                                            }
+                                                                            : {}
+                                                                    }
+                                                                    onClick={() => applyMainDurationHours(h)}
+                                                                >
+                                                                    <span className="pj-cleaning-card-hours">{h} giờ</span>
+                                                                    {meta ? (
+                                                                        <>
+                                                                            <span className="pj-cleaning-card-m2">
+                                                                                {meta.minM2}–{meta.maxM2} m²
+                                                                            </span>
+                                                                            <span className="pj-cleaning-card-hint">{meta.hint}</span>
+                                                                        </>
+                                                                    ) : null}
+                                                                </button>
+                                                            );
+                                                        })}
                                                     </div>
-                                                ) : null}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <p className="pj-cleaning-lead">
-                                                    <strong>Vệ sinh văn phòng:</strong> chọn nhóm diện tích sàn ước lượng, sau đó chọn gói
-                                                    thời lượng. Backend nhận <strong>workSize</strong> = m² tối đa của gói và kiểm tra với{' '}
-                                                    <strong>giờ làm việc</strong>: trên <strong>60 m²</strong> cần tối thiểu{' '}
-                                                    <strong>2 giờ</strong>, trên <strong>100 m²</strong> cần <strong>3 giờ</strong>, trên{' '}
-                                                    <strong>150 m²</strong> cần <strong>4 giờ</strong> — khớp backend (JobService). Nhóm{' '}
-                                                    <strong>&lt; 400 m²</strong> dùng <strong>2 người</strong>; nhóm <strong>&lt; 900 m²</strong>{' '}
-                                                    dùng <strong>3 người</strong> (tối đa <strong>6 giờ</strong> cho gói 900 m²).
-                                                </p>
-                                                <label className="pj-label" style={{ marginTop: 12, display: 'block' }}>
-                                                    📐 Khoảng diện tích văn phòng
-                                                </label>
-                                                <div
-                                                    className="pj-duration-group"
-                                                    style={{ marginTop: 8 }}
-                                                    role="group"
-                                                    aria-label="Chọn nhóm diện tích"
-                                                >
-                                                    {OFFICE_AREA_BANDS.map((b) => {
-                                                        const active = officeAreaBand === b.id;
-                                                        return (
-                                                            <button
-                                                                key={b.id}
-                                                                type="button"
-                                                                className={`pj-duration-btn ${active ? 'active' : ''}`}
-                                                                style={
-                                                                    active
-                                                                        ? {
-                                                                              backgroundColor: serviceInfo.color,
-                                                                              borderColor: serviceInfo.color,
-                                                                          }
-                                                                        : {}
-                                                                }
-                                                                onClick={() => selectOfficeBand(b.id)}
-                                                            >
-                                                                <span style={{ display: 'block', fontWeight: 700 }}>{b.badge}</span>
-                                                                <span style={{ display: 'block', fontSize: '0.85em', opacity: 0.9 }}>
-                                                                    {b.title}
-                                                                </span>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                                <label className="pj-label" style={{ marginTop: 20, display: 'block' }}>
-                                                    ⏱️ Gói thời lượng & diện tích ({getOfficeBandWorkerLabel(officeAreaBand)})
-                                                </label>
-                                                <p className="pj-cleaning-lead pj-cooking-hint" style={{ marginTop: 4, marginBottom: 12 }}>
-                                                    Mỗi thẻ đặt <strong>giờ làm việc</strong> và mức <strong>m²</strong> gửi lên API (tối đa{' '}
-                                                    {maxJobDurationHours} giờ cho nhóm đang chọn).
-                                                </p>
-                                                <div className="pj-cleaning-cards">
-                                                    {getOfficePresetsForBand(officeAreaBand).map((preset) => {
-                                                        const active = officePresetId === preset.id;
-                                                        return (
-                                                            <button
-                                                                key={preset.id}
-                                                                type="button"
-                                                                className={`pj-cleaning-card ${active ? 'active' : ''}`}
-                                                                style={
-                                                                    active
-                                                                        ? {
-                                                                              borderColor: serviceInfo.color,
-                                                                              boxShadow: `0 0 0 2px ${serviceInfo.color}33`,
-                                                                          }
-                                                                        : {}
-                                                                }
-                                                                onClick={() => selectOfficePreset(preset)}
-                                                            >
-                                                                <span className="pj-cleaning-card-hours">{preset.lineM2}</span>
-                                                                <span className="pj-cleaning-card-m2">{preset.lineTime}</span>
-                                                                <span className="pj-cleaning-card-hint">
-                                                                    {preset.baseHours} giờ làm việc
-                                                                </span>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                                {areaMeta ? (
-                                                    <div className="pj-cleaning-selected">
-                                                        <span className="pj-cleaning-selected-icon" aria-hidden>
-                                                            ✓
-                                                        </span>
-                                                        <div>
-                                                            <div className="pj-cleaning-selected-title">Gói đang chọn</div>
-                                                            <div className="pj-cleaning-selected-text">
-                                                                {areaMeta.hint}
-                                                                <div style={{ marginTop: 6 }}>
-                                                                    Thời lượng hiện tại: <strong>{durationHours} giờ</strong>.
+                                                    {areaMeta ? (
+                                                        <div className="pj-cleaning-selected">
+                                                            <span className="pj-cleaning-selected-icon" aria-hidden>
+                                                                📐
+                                                            </span>
+                                                            <div>
+                                                                <div className="pj-cleaning-selected-title">
+                                                                    Diện tích gợi ý với {baseDurationHours} giờ phần chính
+                                                                </div>
+                                                                <div className="pj-cleaning-selected-text">
+                                                                    Khoảng <strong>
+                                                                        {areaMeta.minM2}–{areaMeta.maxM2} m²
+                                                                    </strong>
+                                                                    {areaMeta.hint ? ` · ${areaMeta.hint}` : ''}
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                    ) : null}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <p className="pj-cleaning-lead">
+                                                        <strong>Vệ sinh văn phòng:</strong> chọn nhóm diện tích sàn ước lượng, sau đó chọn gói
+                                                        thời lượng. Backend nhận <strong>workSize</strong> = m² tối đa của gói và kiểm tra với{' '}
+                                                        <strong>giờ làm việc</strong>: trên <strong>60 m²</strong> cần tối thiểu{' '}
+                                                        <strong>2 giờ</strong>, trên <strong>100 m²</strong> cần <strong>3 giờ</strong>, trên{' '}
+                                                        <strong>150 m²</strong> cần <strong>4 giờ</strong> — khớp backend (JobService). Nhóm{' '}
+                                                        <strong>&lt; 400 m²</strong> dùng <strong>2 người</strong>; nhóm <strong>&lt; 900 m²</strong>{' '}
+                                                        dùng <strong>3 người</strong> (tối đa <strong>6 giờ</strong> cho gói 900 m²).
+                                                    </p>
+                                                    <label className="pj-label" style={{ marginTop: 12, display: 'block' }}>
+                                                        📐 Khoảng diện tích văn phòng
+                                                    </label>
+                                                    <div
+                                                        className="pj-duration-group"
+                                                        style={{ marginTop: 8 }}
+                                                        role="group"
+                                                        aria-label="Chọn nhóm diện tích"
+                                                    >
+                                                        {OFFICE_AREA_BANDS.map((b) => {
+                                                            const active = officeAreaBand === b.id;
+                                                            return (
+                                                                <button
+                                                                    key={b.id}
+                                                                    type="button"
+                                                                    className={`pj-duration-btn ${active ? 'active' : ''}`}
+                                                                    style={
+                                                                        active
+                                                                            ? {
+                                                                                backgroundColor: serviceInfo.color,
+                                                                                borderColor: serviceInfo.color,
+                                                                            }
+                                                                            : {}
+                                                                    }
+                                                                    onClick={() => selectOfficeBand(b.id)}
+                                                                >
+                                                                    <span style={{ display: 'block', fontWeight: 700 }}>{b.badge}</span>
+                                                                    <span style={{ display: 'block', fontSize: '0.85em', opacity: 0.9 }}>
+                                                                        {b.title}
+                                                                    </span>
+                                                                </button>
+                                                            );
+                                                        })}
                                                     </div>
-                                                ) : null}
-                                            </>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <>
-                                        {cookingMode ? (
-                                            <p className="pj-cleaning-lead pj-cooking-hint" style={{ marginBottom: 10 }}>
-                                                Số giờ trên thẻ là <strong>phần chính (nấu)</strong>. Mỗi dịch vụ con (mục bên dưới)
-                                                cộng <strong>+{HOURS_PER_SUB_SERVICE} giờ</strong> vào <strong>tổng</strong> (tối đa{' '}
-                                                {maxJobDurationHours} giờ). Quy tắc theo số món áp dụng trên <strong>tổng giờ</strong>{' '}
-                                                (phần chính + dịch vụ con), khớp backend.
-                                            </p>
-                                        ) : null}
-                                        {gardeningMode && !cookingMode ? (
-                                            <p className="pj-cleaning-lead pj-cooking-hint" style={{ marginBottom: 10 }}>
-                                                <strong>Làm vườn:</strong> backend nhận <strong>workSize</strong> = diện tích vườn (m²) và
-                                                kiểm tra với <strong>tổng giờ</strong> — trên <strong>50 m²</strong> cần tối thiểu{' '}
-                                                <strong>3 giờ tổng</strong>, trên <strong>80 m²</strong> cần tối thiểu{' '}
-                                                <strong>4 giờ tổng</strong> (phần chính + dịch vụ con).
-                                            </p>
-                                        ) : null}
-                                        {paintRepairMode && !cookingMode ? (
-                                            <>
+                                                    <label className="pj-label" style={{ marginTop: 20, display: 'block' }}>
+                                                        ⏱️ Gói thời lượng & diện tích ({getOfficeBandWorkerLabel(officeAreaBand)})
+                                                    </label>
+                                                    <p className="pj-cleaning-lead pj-cooking-hint" style={{ marginTop: 4, marginBottom: 12 }}>
+                                                        Mỗi thẻ đặt <strong>giờ làm việc</strong> và mức <strong>m²</strong> gửi lên API (tối đa{' '}
+                                                        {maxJobDurationHours} giờ cho nhóm đang chọn).
+                                                    </p>
+                                                    <div className="pj-cleaning-cards">
+                                                        {getOfficePresetsForBand(officeAreaBand).map((preset) => {
+                                                            const active = officePresetId === preset.id;
+                                                            return (
+                                                                <button
+                                                                    key={preset.id}
+                                                                    type="button"
+                                                                    className={`pj-cleaning-card ${active ? 'active' : ''}`}
+                                                                    style={
+                                                                        active
+                                                                            ? {
+                                                                                borderColor: serviceInfo.color,
+                                                                                boxShadow: `0 0 0 2px ${serviceInfo.color}33`,
+                                                                            }
+                                                                            : {}
+                                                                    }
+                                                                    onClick={() => selectOfficePreset(preset)}
+                                                                >
+                                                                    <span className="pj-cleaning-card-hours">{preset.lineM2}</span>
+                                                                    <span className="pj-cleaning-card-m2">{preset.lineTime}</span>
+                                                                    <span className="pj-cleaning-card-hint">
+                                                                        {preset.baseHours} giờ làm việc
+                                                                    </span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    {areaMeta ? (
+                                                        <div className="pj-cleaning-selected">
+                                                            <span className="pj-cleaning-selected-icon" aria-hidden>
+                                                                ✓
+                                                            </span>
+                                                            <div>
+                                                                <div className="pj-cleaning-selected-title">Gói đang chọn</div>
+                                                                <div className="pj-cleaning-selected-text">
+                                                                    {areaMeta.hint}
+                                                                    <div style={{ marginTop: 6 }}>
+                                                                        Thời lượng hiện tại: <strong>{durationHours} giờ</strong>.
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {cookingMode ? (
                                                 <p className="pj-cleaning-lead pj-cooking-hint" style={{ marginBottom: 10 }}>
-                                                    <strong>Sơn sửa:</strong> chọn <strong>số hạng mục</strong> (ví dụ: 1 phòng + vá tường + cửa
-                                                    = 3). Backend nhận <strong>workSize</strong> = số hạng mục và kiểm tra{' '}
-                                                    <strong>tổng thời lượng</strong>: trên <strong>2 hạng mục</strong> cần ≥{' '}
-                                                    <strong>3 giờ tổng</strong>, trên <strong>4 hạng mục</strong> cần ≥ <strong>4 giờ tổng</strong>{' '}
-                                                    — ứng dụng <strong>tự đặt giờ</strong> cho khớp (bạn không chọn số giờ thủ công).
+                                                    Số giờ trên thẻ là <strong>phần chính (nấu)</strong>. Mỗi dịch vụ con (mục bên dưới)
+                                                    cộng <strong>+{HOURS_PER_SUB_SERVICE} giờ</strong> vào <strong>tổng</strong> (tối đa{' '}
+                                                    {maxJobDurationHours} giờ). Quy tắc theo số món áp dụng trên <strong>tổng giờ</strong>{' '}
+                                                    (phần chính + dịch vụ con), khớp backend.
                                                 </p>
-                                                <div
-                                                    className="pj-duration-group pj-cooking-dish-chips"
-                                                    role="group"
-                                                    aria-label="Chọn nhanh số hạng mục"
-                                                >
-                                                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                                            ) : null}
+                                            {gardeningMode && !cookingMode ? (
+                                                <p className="pj-cleaning-lead pj-cooking-hint" style={{ marginBottom: 10 }}>
+                                                    <strong>Làm vườn:</strong> backend nhận <strong>workSize</strong> = diện tích vườn (m²) và
+                                                    kiểm tra với <strong>tổng giờ</strong> — trên <strong>50 m²</strong> cần tối thiểu{' '}
+                                                    <strong>3 giờ tổng</strong>, trên <strong>80 m²</strong> cần tối thiểu{' '}
+                                                    <strong>4 giờ tổng</strong> (phần chính + dịch vụ con).
+                                                </p>
+                                            ) : null}
+                                            {paintRepairMode && !cookingMode ? (
+                                                <>
+                                                    <p className="pj-cleaning-lead pj-cooking-hint" style={{ marginBottom: 10 }}>
+                                                        <strong>Sơn sửa:</strong> chọn <strong>số hạng mục</strong> (ví dụ: 1 phòng + vá tường + cửa
+                                                        = 3). Backend nhận <strong>workSize</strong> = số hạng mục và kiểm tra{' '}
+                                                        <strong>tổng thời lượng</strong>: trên <strong>2 hạng mục</strong> cần ≥{' '}
+                                                        <strong>3 giờ tổng</strong>, trên <strong>4 hạng mục</strong> cần ≥ <strong>4 giờ tổng</strong>{' '}
+                                                        — ứng dụng <strong>tự đặt giờ</strong> cho khớp (bạn không chọn số giờ thủ công).
+                                                    </p>
+                                                    <div
+                                                        className="pj-duration-group pj-cooking-dish-chips"
+                                                        role="group"
+                                                        aria-label="Chọn nhanh số hạng mục"
+                                                    >
+                                                        {[1, 2, 3, 4, 5, 6].map((n) => (
+                                                            <button
+                                                                key={n}
+                                                                type="button"
+                                                                className={`pj-duration-btn ${Number(paintItemCount) === n ? 'active' : ''}`}
+                                                                style={
+                                                                    Number(paintItemCount) === n
+                                                                        ? {
+                                                                            backgroundColor: serviceInfo.color,
+                                                                            borderColor: serviceInfo.color,
+                                                                        }
+                                                                        : {}
+                                                                }
+                                                                onClick={() => setPaintItemCount(n)}
+                                                            >
+                                                                {n} hạng mục
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <div className="pj-form-row" style={{ marginTop: 10, alignItems: 'flex-end' }}>
+                                                        <div className="pj-form-group half">
+                                                            <label className="pj-label" htmlFor="pj-paint-item-count">
+                                                                Hoặc nhập ({PAINT_ITEM_COUNT_MIN}–{PAINT_ITEM_COUNT_MAX})
+                                                            </label>
+                                                            <input
+                                                                id="pj-paint-item-count"
+                                                                type="number"
+                                                                className="pj-input"
+                                                                min={PAINT_ITEM_COUNT_MIN}
+                                                                max={PAINT_ITEM_COUNT_MAX}
+                                                                step={1}
+                                                                value={paintItemCount}
+                                                                onChange={(e) => {
+                                                                    const t = e.target.value;
+                                                                    if (t === '') return;
+                                                                    const v = Number(t);
+                                                                    if (!Number.isFinite(v)) return;
+                                                                    setPaintItemCount(
+                                                                        Math.min(
+                                                                            PAINT_ITEM_COUNT_MAX,
+                                                                            Math.max(PAINT_ITEM_COUNT_MIN, Math.round(v))
+                                                                        )
+                                                                    );
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    {getPaintRepairDurationViolationMessage(paintRepairN, durationHours) ? (
+                                                        <div className="pj-error" role="alert" style={{ marginTop: 10 }}>
+                                                            {getPaintRepairDurationViolationMessage(paintRepairN, durationHours)} — hãy bớt{' '}
+                                                            <strong>dịch vụ con</strong> hoặc giảm số hạng mục.
+                                                        </div>
+                                                    ) : null}
+                                                </>
+                                            ) : null}
+                                            {!paintRepairMode ? (
+                                                <div className="pj-duration-group">
+                                                    {durationOptionsWithCurrent.map((h) => (
                                                         <button
-                                                            key={n}
+                                                            key={h}
                                                             type="button"
-                                                            className={`pj-duration-btn ${Number(paintItemCount) === n ? 'active' : ''}`}
+                                                            className={`pj-duration-btn ${baseDurationHours === h ? 'active' : ''}`}
                                                             style={
-                                                                Number(paintItemCount) === n
+                                                                baseDurationHours === h
                                                                     ? {
-                                                                          backgroundColor: serviceInfo.color,
-                                                                          borderColor: serviceInfo.color,
-                                                                      }
+                                                                        backgroundColor: serviceInfo.color,
+                                                                        borderColor: serviceInfo.color,
+                                                                    }
                                                                     : {}
                                                             }
-                                                            onClick={() => setPaintItemCount(n)}
+                                                            onClick={() => applyMainDurationHours(h)}
                                                         >
-                                                            {n} hạng mục
+                                                            {h} giờ
                                                         </button>
                                                     ))}
                                                 </div>
-                                                <div className="pj-form-row" style={{ marginTop: 10, alignItems: 'flex-end' }}>
-                                                    <div className="pj-form-group half">
-                                                        <label className="pj-label" htmlFor="pj-paint-item-count">
-                                                            Hoặc nhập ({PAINT_ITEM_COUNT_MIN}–{PAINT_ITEM_COUNT_MAX})
-                                                        </label>
-                                                        <input
-                                                            id="pj-paint-item-count"
-                                                            type="number"
-                                                            className="pj-input"
-                                                            min={PAINT_ITEM_COUNT_MIN}
-                                                            max={PAINT_ITEM_COUNT_MAX}
-                                                            step={1}
-                                                            value={paintItemCount}
-                                                            onChange={(e) => {
-                                                                const t = e.target.value;
-                                                                if (t === '') return;
-                                                                const v = Number(t);
-                                                                if (!Number.isFinite(v)) return;
-                                                                setPaintItemCount(
-                                                                    Math.min(
-                                                                        PAINT_ITEM_COUNT_MAX,
-                                                                        Math.max(PAINT_ITEM_COUNT_MIN, Math.round(v))
-                                                                    )
-                                                                );
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                {getPaintRepairDurationViolationMessage(paintRepairN, durationHours) ? (
-                                                    <div className="pj-error" role="alert" style={{ marginTop: 10 }}>
-                                                        {getPaintRepairDurationViolationMessage(paintRepairN, durationHours)} — hãy bớt{' '}
-                                                        <strong>dịch vụ con</strong> hoặc giảm số hạng mục.
-                                                    </div>
-                                                ) : null}
-                                            </>
-                                        ) : null}
-                                        {!paintRepairMode ? (
-                                            <div className="pj-duration-group">
-                                                {durationOptionsWithCurrent.map((h) => (
-                                                    <button
-                                                        key={h}
-                                                        type="button"
-                                                        className={`pj-duration-btn ${baseDurationHours === h ? 'active' : ''}`}
-                                                        style={
-                                                            baseDurationHours === h
-                                                                ? {
-                                                                      backgroundColor: serviceInfo.color,
-                                                                      borderColor: serviceInfo.color,
-                                                                  }
-                                                                : {}
-                                                        }
-                                                        onClick={() => applyMainDurationHours(h)}
-                                                    >
-                                                        {h} giờ
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        ) : null}
-                                    </>
-                                )}
-                            </div>
+                                            ) : null}
+                                        </>
+                                    )}
+                                </div>
                             ) : null}
 
                             {gardeningMode ? (
@@ -2611,9 +2615,9 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                                     style={
                                                         active
                                                             ? {
-                                                                  backgroundColor: serviceInfo.color,
-                                                                  borderColor: serviceInfo.color,
-                                                              }
+                                                                backgroundColor: serviceInfo.color,
+                                                                borderColor: serviceInfo.color,
+                                                            }
                                                             : {}
                                                     }
                                                     onClick={() => {
@@ -2654,9 +2658,9 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                                         style={
                                                             active
                                                                 ? {
-                                                                      borderColor: serviceInfo.color,
-                                                                      boxShadow: `0 0 0 2px ${serviceInfo.color}33`,
-                                                                  }
+                                                                    borderColor: serviceInfo.color,
+                                                                    boxShadow: `0 0 0 2px ${serviceInfo.color}33`,
+                                                                }
                                                                 : {}
                                                         }
                                                         onClick={() => setChildAgeBand1(opt.value)}
@@ -2688,9 +2692,9 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                                             style={
                                                                 active
                                                                     ? {
-                                                                          borderColor: serviceInfo.color,
-                                                                          boxShadow: `0 0 0 2px ${serviceInfo.color}33`,
-                                                                      }
+                                                                        borderColor: serviceInfo.color,
+                                                                        boxShadow: `0 0 0 2px ${serviceInfo.color}33`,
+                                                                    }
                                                                     : {}
                                                             }
                                                             onClick={() => setChildAgeBand2(opt.value)}
@@ -2915,9 +2919,9 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                                         style={
                                                             active
                                                                 ? {
-                                                                      borderColor: serviceInfo.color,
-                                                                      boxShadow: `0 0 0 2px ${serviceInfo.color}33`,
-                                                                  }
+                                                                    borderColor: serviceInfo.color,
+                                                                    boxShadow: `0 0 0 2px ${serviceInfo.color}33`,
+                                                                }
                                                                 : {}
                                                         }
                                                         onClick={() => setFlavorRegion(opt.value)}
@@ -2998,12 +3002,12 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                                 {cookingMode
                                                     ? 'Số người ăn, tên món và khẩu vị đã chọn ở trên; phần ghi chú dùng cho dị ứng, nguyên liệu có sẵn hoặc yêu cầu riêng.'
                                                     : shoppingMode
-                                                      ? 'Ghi chi tiết danh sách mua, ngân sách, siêu thị/điểm mua ưu tiên và lưu ý hạn sử dụng ở phần ghi chú bên dưới.'
-                                                      : gardeningMode
-                                                        ? 'Ghi loại cây, mức độ cắt tỉa, khu vực ưu tiên và dụng cụ/phân bón gia đình có sẵn ở phần ghi chú bên dưới.'
-                                                        : paintRepairMode
-                                                          ? 'Ghi rõ từng hạng mục (vị trí, màu, diện tích ước lượng) ở phần ghi chú; số hạng mục đã chọn ở trên gửi lên backend làm workSize.'
-                                                          : 'Bạn có thể ghi rõ yêu cầu riêng (hóa chất, dụng cụ sẵn có) trong phần ghi chú bên dưới.'}
+                                                        ? 'Ghi chi tiết danh sách mua, ngân sách, siêu thị/điểm mua ưu tiên và lưu ý hạn sử dụng ở phần ghi chú bên dưới.'
+                                                        : gardeningMode
+                                                            ? 'Ghi loại cây, mức độ cắt tỉa, khu vực ưu tiên và dụng cụ/phân bón gia đình có sẵn ở phần ghi chú bên dưới.'
+                                                            : paintRepairMode
+                                                                ? 'Ghi rõ từng hạng mục (vị trí, màu, diện tích ước lượng) ở phần ghi chú; số hạng mục đã chọn ở trên gửi lên backend làm workSize.'
+                                                                : 'Bạn có thể ghi rõ yêu cầu riêng (hóa chất, dụng cụ sẵn có) trong phần ghi chú bên dưới.'}
                                             </p>
                                         </>
                                     ) : null}
@@ -3036,6 +3040,9 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                             {!officeCleaningMode ? (
                                 <div className="pj-form-group">
                                     <label className="pj-label">🔧 Dịch vụ con (tùy chọn)</label>
+                                    <p className="pj-cleaning-lead pj-cooking-hint">
+                                        Mục này cộng <strong>+1 giờ</strong> vào tổng thời lượng thợ làm việc; phí dịch vụ con tính riêng và không làm tăng tiền giờ phần chính — khớp quy tắc mới.
+                                    </p>
                                     <p className="pj-hint pj-sub-service-rule">
                                         Giờ phần chính (thẻ thời lượng) giữ nguyên khi bật/tắt dịch vụ con. Mỗi mục con cộng{' '}
                                         <strong>+{HOURS_PER_SUB_SERVICE} giờ</strong> vào <strong>tổng</strong> gửi hệ thống (tối đa{' '}
@@ -3071,10 +3078,10 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                             </>
                                         ) : null}
                                         {paintRepairMode &&
-                                        !cookingMode &&
-                                        !shoppingMode &&
-                                        !childcareMode &&
-                                        !gardeningMode ? (
+                                            !cookingMode &&
+                                            !shoppingMode &&
+                                            !childcareMode &&
+                                            !gardeningMode ? (
                                             <>
                                                 {' '}
                                                 Với <strong>sơn sửa</strong>, <strong>workSize</strong> là số hạng mục; tổng giờ được hệ
@@ -3130,7 +3137,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                                         checked={hasPets}
                                                         onChange={(e) => setHasPets(e.target.checked)}
                                                     />
-                                                    <span>Nhà có vật nuôi</span>
+                                                    <span>Nhà có vật nuôi (+30.000 đ)</span>
                                                 </label>
                                                 <label className="pj-switch-item">
                                                     <input
@@ -3138,7 +3145,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                                         checked={bringTools}
                                                         onChange={(e) => setBringTools(e.target.checked)}
                                                     />
-                                                    <span>Thợ mang theo dụng cụ vệ sinh</span>
+                                                    <span>Thợ mang theo dụng cụ vệ sinh (+30.000 đ)</span>
                                                 </label>
                                                 <label className="pj-switch-item">
                                                     <input
@@ -3191,12 +3198,12 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                         cookingMode
                                             ? 'Ví dụ: Nấu bữa tối 4 món, ưu thích món Việt...'
                                             : shoppingMode
-                                              ? 'Ví dụ: Đi chợ theo list rau củ, thịt cá, siêu thị gần nhà...'
-                                              : childcareMode
-                                                ? 'Ví dụ: Trông 2 bé (3 tuổi và 5 tuổi), giờ ngủ trưa, dị ứng...'
-                                                : gardeningMode
-                                                  ? 'Ví dụ: Cắt cỏ + tỉa hàng rào, vườn sau ~60 m²...'
-                                                  : 'Ví dụ: Dọn dẹp chung cư 2 phòng ngủ...'
+                                                ? 'Ví dụ: Đi chợ theo list rau củ, thịt cá, siêu thị gần nhà...'
+                                                : childcareMode
+                                                    ? 'Ví dụ: Trông 2 bé (3 tuổi và 5 tuổi), giờ ngủ trưa, dị ứng...'
+                                                    : gardeningMode
+                                                        ? 'Ví dụ: Cắt cỏ + tỉa hàng rào, vườn sau ~60 m²...'
+                                                        : 'Ví dụ: Dọn dẹp chung cư 2 phòng ngủ...'
                                     }
                                 />
                             </div>
@@ -3212,10 +3219,10 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                         shoppingMode
                                             ? 'Danh sách mua chi tiết, khối lượng, thương hiệu ưu tiên, ngân sách từng nhóm...'
                                             : childcareMode
-                                              ? 'Độ tuổi từng bé, giờ ăn/ngủ, dị ứng, số liên hệ phụ huynh, ghi chú an toàn...'
-                                              : gardeningMode
-                                                ? 'Loại cây, mức độ tỉa, khu vực ưu tiên, phân bón/thuốc gia đình có sẵn, lối vào vườn...'
-                                                : 'Nhập yêu cầu đặc biệt, hướng dẫn cụ thể cho người làm...'
+                                                ? 'Độ tuổi từng bé, giờ ăn/ngủ, dị ứng, số liên hệ phụ huynh, ghi chú an toàn...'
+                                                : gardeningMode
+                                                    ? 'Loại cây, mức độ tỉa, khu vực ưu tiên, phân bón/thuốc gia đình có sẵn, lối vào vườn...'
+                                                    : 'Nhập yêu cầu đặc biệt, hướng dẫn cụ thể cho người làm...'
                                     }
                                 />
                             </div>
@@ -3445,13 +3452,13 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                         <span className="pj-sidebar-label">Ứng tiền mua hàng</span>
                                         <span className="pj-sidebar-value">
                                             {Number(shoppingMoneyVnd) >= SHOPPING_MONEY_MIN_VND &&
-                                            Number(shoppingMoneyVnd) <= SHOPPING_MONEY_MAX_VND
+                                                Number(shoppingMoneyVnd) <= SHOPPING_MONEY_MAX_VND
                                                 ? 'Có'
                                                 : 'Chưa đủ điều kiện'}
                                         </span>
                                     </div>
                                     {Number(shoppingMoneyVnd) >= SHOPPING_MONEY_MIN_VND &&
-                                    Number(shoppingMoneyVnd) <= SHOPPING_MONEY_MAX_VND ? (
+                                        Number(shoppingMoneyVnd) <= SHOPPING_MONEY_MAX_VND ? (
                                         <>
                                             <div className="pj-sidebar-item">
                                                 <span className="pj-sidebar-label">Phí ứng tiền (dịch vụ)</span>
@@ -3546,8 +3553,8 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
     );
     const confirmHomeAreaMeta =
         confirmCleaning &&
-        isHomeCleaningCategoryId(jobData.categoryId) &&
-        jobData.durationHours != null
+            isHomeCleaningCategoryId(jobData.categoryId) &&
+            jobData.durationHours != null
             ? getCleaningAreaMeta(jobData.categoryId, confirmEffectiveBaseLaborHours)
             : null;
 
@@ -3870,7 +3877,7 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                                         <div className="pj-summary-label">Sản phẩm cần mua</div>
                                         <div className="pj-summary-value">
                                             {Array.isArray(jobData.additionalData?.shoppingItemNames) &&
-                                            jobData.additionalData.shoppingItemNames.length > 0 ? (
+                                                jobData.additionalData.shoppingItemNames.length > 0 ? (
                                                 <div className="pj-summary-subvalue">
                                                     {jobData.additionalData.shoppingItemNames.join(', ')}
                                                 </div>

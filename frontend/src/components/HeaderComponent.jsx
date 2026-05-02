@@ -28,7 +28,6 @@ const HeaderComponent = () => {
     });
     const [activeNotificationTab, setActiveNotificationTab] = useState('ALL');
     const [unreadCount, setUnreadCount] = useState(0);
-    const [helperStatus, setHelperStatus] = useState({ isOnline: false, kycStatus: null });
 
     // Reactive user info state
     const [userInfo, setUserInfo] = useState(() => {
@@ -65,18 +64,6 @@ const HeaderComponent = () => {
     // Fetch khi mount
     useEffect(() => {
         fetchUserProfile();
-        if (userInfo?.role === 'HELPER') {
-            ProfileService.getHelperProfessionalProfile()
-                .then(res => {
-                    if (res?.data) {
-                        setHelperStatus({
-                            isOnline: !!res.data.isOnline,
-                            kycStatus: res.data.kycStatus
-                        });
-                    }
-                })
-                .catch(err => console.error("Error fetching helper status:", err));
-        }
     }, [fetchUserProfile, userInfo?.role]);
 
     // Lắng nghe CustomEvent 'profile:updated' từ cùng tab (Profile page dispatch sau khi lưu)
@@ -167,53 +154,94 @@ const HeaderComponent = () => {
         const content = `${notif?.title ?? ''} ${notif?.content ?? ''}`;
         const type = String(notif?.type || '').toUpperCase();
 
-        // Ưu tiên nhận diện ngữ cảnh id từ nội dung thông báo.
-        const idMatch = content.match(/(đơn(?:\s+hàng)?|booking|job)\s*#\s*(\d+)/i);
-        const keyword = idMatch?.[1]?.toLowerCase() || '';
-        const id = idMatch?.[2] ? Number(idMatch[2]) : null;
+        // Mở rộng Regex để bắt mọi thứ trước dấu # (VD: "Đơn đặt #123", "Yêu cầu #123", "Job #DIR-40")
+        const idMatch = content.match(/.*?#\s*(?:DIR-)?(\d+)/i);
+        const id = idMatch?.[1] ? Number(idMatch[1]) : null;
 
         if (id == null) {
             return { targetPostId: null, targetBookingId: null };
         }
 
-        // Các thông báo vận hành booking cần mở theo bookingId.
+        // Với DIRECT_BOOKING, ta LUÔN trả về targetPostId để nó được load bên tab PENDING
+        if (type === 'DIRECT_BOOKING' || type === 'DIRECT_BOOKING_TIMEOUT' || type === 'DIRECT_BOOKING_REJECTED') {
+            return { targetPostId: id, targetBookingId: null };
+        }
+
+        // Các thông báo vận hành booking (Ca đang làm & Lịch sử) thì trút vào targetBookingId
         if (
-            keyword.includes('đơn') ||
-            keyword.includes('booking') ||
             type === 'ARRIVAL_CONFIRMED' ||
+            type.startsWith('WORK_') ||
             type.startsWith('BOOKING_') ||
-            type.startsWith('WORK_')
+            type === 'PAYMENT_RECEIVED'
         ) {
             return { targetPostId: null, targetBookingId: id };
         }
 
         // Mặc định là postId cho luồng việc mới.
         return { targetPostId: id, targetBookingId: null };
+    }, []); // ĐÃ FIX NGÀM ĐÓNG HÀM Ở ĐÂY
+
+    const extractJobInfoFromNotification = useCallback((notif) => {
+        const type = notif?.type || 'UNKNOWN';
+        const content = `${notif?.title ?? ''} ${notif?.content ?? ''}`;
+
+        let idRaw = null;
+        let isDirect = false;
+
+        let match = content.match(/#DIR-(\d+)/i);
+        if (match) {
+            idRaw = match[1];
+            isDirect = true;
+        } else {
+            match = content.match(/#(\d+)/);
+            if (match) {
+                idRaw = match[1];
+                if (type.startsWith('DIRECT_BOOKING')) {
+                    isDirect = true;
+                }
+            }
+        }
+
+        const id = idRaw ? (isDirect ? `DIR-${idRaw}` : Number(idRaw)) : null;
+        return { id, type, isDirect };
     }, []);
 
     const openJobFromNotification = useCallback(async (notif) => {
         setShowNotifications(false);
         setShowDropdown(false);
 
-        // Mark as read when user opens this notification
         if (notif?.notificationId != null) {
             await markNotificationAsRead(notif.notificationId);
         }
 
-        if (userInfo?.role !== 'HELPER') {
+        // ====== ĐÂY LÀ ĐOẠN GIỮ NGUYÊN CODE BẠN PULL ======
+        const { id, type, isDirect } = extractJobInfoFromNotification(notif);
+        const { targetPostId, targetBookingId } = extractTargetFromNotification(notif);
+
+        const rawIdForHelper = typeof id === 'string' && isDirect && id.startsWith('DIR-')
+            ? id.substring(4)
+            : id;
+
+        if (userInfo?.role === 'CUSTOMER') {
+            if (id) {
+                navigate(`/customer/manage-posts/${id}`);
+            } else {
+                navigate('/customer/manage-posts');
+            }
             return;
         }
 
-        const { targetPostId, targetBookingId } = extractTargetFromNotification(notif);
-        navigate('/helper/new-jobs', {
-            state: {
-                targetPostId,
-                targetBookingId,
+        if (userInfo?.role === 'HELPER') {
+            const navigationState = {
+                targetPostId: targetPostId || rawIdForHelper,
+                targetBookingId: targetBookingId,   // Bảo tồn chức năng targetBookingId của bạn
+                notificationType: type,
                 fromNotification: true,
                 notificationToken: `${notif?.notificationId ?? 'unknown'}-${Date.now()}`
-            }
-        });
-    }, [extractTargetFromNotification, userInfo?.role, markNotificationAsRead, navigate]);
+            };
+            navigate('/helper/new-jobs', { state: navigationState });
+        }
+    }, [extractJobInfoFromNotification, extractTargetFromNotification, userInfo?.role, markNotificationAsRead, navigate]);
 
     useEffect(() => {
         fetchNotifications(1, false);
@@ -285,20 +313,6 @@ const HeaderComponent = () => {
         setShowDropdown(false);
     };
 
-    const handleToggleOnline = async (checked) => {
-        try {
-            const res = await ProfileService.updateHelperOnlineStatus(checked);
-            if (res?.data) {
-                setHelperStatus(prev => ({ ...prev, isOnline: !!res.data.isOnline }));
-            }
-        } catch (error) {
-            console.error("Failed to update online status:", error);
-            // Fallback UI if needed, but the toggle won't change if API fails
-            const msg = error?.response?.data?.message || "Không thể cập nhật trạng thái online";
-            alert(msg);
-        }
-    };
-
     const displayName = userInfo?.fullName || userInfo?.name || userInfo?.username || userInfo?.email || 'Người dùng';
     const avatarUrl = userInfo?.avatarUrl || null;
     const avatarInitials = getInitials(displayName);
@@ -349,25 +363,6 @@ const HeaderComponent = () => {
                 </div>
 
                 <div className="header-user-actions">
-                    {/* Helper Online Toggle */}
-                    {userInfo?.role === 'HELPER' && (
-                        <div className="helper-status-toggle">
-                            <span className={`helper-status-label ${helperStatus?.isOnline ? 'online' : ''}`}>
-                                {helperStatus?.isOnline ? 'Đang bật' : 'Đang tắt'}
-                            </span>
-                            <label className={`toggle-switch ${helperStatus?.kycStatus !== 'VERIFIED' ? 'disabled' : ''}`}
-                                title={helperStatus?.kycStatus !== 'VERIFIED' ? "Cần xác minh KYC để bật Online" : "Bật/Tắt chế độ nhận việc"}>
-                                <input
-                                    type="checkbox"
-                                    checked={!!helperStatus?.isOnline}
-                                    onChange={(e) => handleToggleOnline(e.target.checked)}
-                                    disabled={helperStatus?.kycStatus !== 'VERIFIED'}
-                                />
-                                <span className="toggle-slider"></span>
-                            </label>
-                        </div>
-                    )}
-
                     {/* Notification Bell */}
                     <div className="notification-wrapper" ref={notificationRef}>
                         <div className="notification-icon" title="Thông báo" onClick={handleToggleNotifications}>

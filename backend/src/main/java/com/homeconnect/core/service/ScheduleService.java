@@ -518,7 +518,7 @@ public class ScheduleService {
         }
 
         Runnable rematchTask = () -> {
-            List<JobPost> activeJobs = jobPostRepository.findActiveJobPosts(LocalDate.now(), LocalDateTime.now()).stream()
+            List<JobPost> activeJobs = jobPostRepository.findActiveJobPosts(LocalDate.now(), LocalTime.now(), LocalDateTime.now()).stream()
                     .filter(job -> affectedDates.contains(job.getWorkDate()))
                     .toList();
 

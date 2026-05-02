@@ -289,13 +289,14 @@ public class WalletService {
      * [BE-Wallet-06] Hold tiền khi User đăng tin hoặc đặt booking
      * INTERNAL SERVICE - Không phải API public
      * 
-     * @param userId    User cần trừ tiền
-     * @param amount    Số tiền cần hold
-     * @param jobPostId ID của JobPost
+     * @param userId      User cần trừ tiền
+     * @param amount      Số tiền cần hold
+     * @param jobPostId   ID của JobPost (nếu có)
+     * @param referenceId ID tham chiếu khác (VD: Booking ID cho direct booking)
      */
     @Transactional
-    public void holdMoney(Long userId, BigDecimal amount, Long jobPostId) {
-        log.info("🔒 Hold tiền cho User ID: {}, Amount: {}, JobPost ID: {}", userId, amount, jobPostId);
+    public void holdMoney(Long userId, BigDecimal amount, Long jobPostId, Long referenceId) {
+        log.info("🔒 Hold tiền cho User ID: {}, Amount: {}, JobPost ID: {}, Ref ID: {}", userId, amount, jobPostId, referenceId);
 
         // 1. Lock row với Pessimistic Write để tránh race condition
         Wallet wallet = walletRepository.findByUserIdWithLock(userId)
@@ -322,9 +323,9 @@ public class WalletService {
                 .wallet(wallet)
                 .amount(amount)
                 .type(TransactionType.HOLD)
-                .referenceType(ReferenceType.JOB_POST)
-                .referenceId(jobPostId.intValue())
-                .description("Giữ tiền cho JobPost #" + jobPostId)
+                .referenceType(jobPostId != null ? ReferenceType.JOB_POST : ReferenceType.DIRECT_BOOKING)
+                .referenceId(jobPostId != null ? jobPostId.intValue() : (referenceId != null ? referenceId.intValue() : 0))
+                .description(jobPostId != null ? "Giữ tiền cho JobPost #" + jobPostId : "Giữ tiền cho đặt thợ trực tiếp #" + referenceId)
                 .build();
         transactionRepository.save(transaction);
     }

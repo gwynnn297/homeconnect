@@ -11,8 +11,8 @@ const extractPayload = (res) => (res && typeof res === 'object' && 'data' in res
 const PALETTE = ['#2F5D50', '#B56A00', '#2196F3', '#16A34A', '#E74C3C'];
 const STATUS_GROUPS = [
     { key: 'ALL', label: 'Tất cả', statuses: null },
-    { key: 'OPEN', label: 'Đang tìm helper', statuses: ['PENDING', 'PUBLISHED'] },
-    { key: 'ASSIGNED', label: 'Đã chốt helper', statuses: ['MATCHED', 'ASSIGNED', 'CONFIRMED'] },
+    { key: 'OPEN', label: 'Đang tìm thợ', statuses: ['PENDING', 'PUBLISHED', 'PENDING_ACCEPTANCE'] },
+    { key: 'ASSIGNED', label: 'Đã chốt thợ', statuses: ['MATCHED', 'ASSIGNED', 'CONFIRMED'] },
     { key: 'COMPLETED', label: 'Đã hoàn thành', statuses: ['COMPLETED'] },
     { key: 'EXPIRED', label: 'Đã hết hạn', statuses: ['EXPIRED'] },
     { key: 'CANCELLED', label: 'Đã hủy', statuses: ['CANCELLED'] },
@@ -70,13 +70,51 @@ const CustomerManagePostsPage = () => {
             let lastErr = null;
 
             try {
-                const res = await apiClient.get(JOB_LIST_ENDPOINT);
-                const list = extractPayload(res);
-                if (Array.isArray(list)) {
-                    fetched = list;
+                const [resJobs, resDirect] = await Promise.all([
+                    apiClient.get(JOB_LIST_ENDPOINT).catch(e => { lastErr = e; return { data: [] }; }),
+                    apiClient.get('/api/v1/bookings/customer-direct').catch(e => { console.error('Error fetching direct bookings', e); return { data: [] }; })
+                ]);
+
+                const listJobs = extractPayload(resJobs);
+                const listDirect = extractPayload(resDirect);
+
+                const combined = [];
+                if (Array.isArray(listJobs)) combined.push(...listJobs);
+                if (Array.isArray(listDirect)) {
+                    // Normalize Direct Booking Response into pseudo JobPost structure for UI compatibility
+                    const normalizedDirectBookings = listDirect.map(db => {
+                        // Build address text the same way as job posts
+                        const parts = [db.wardName, db.districtName, db.provinceName].filter(Boolean);
+                        const shortArea = parts.join(', ') || '';
+                        const fullAddr = db.address || shortArea || 'Chưa có địa chỉ';
+
+                        return {
+                            postId: `DIR-${db.bookingId}`,
+                            categoryId: db.categoryId,
+                            categoryName: db.serviceName,
+                            bookingId: db.bookingId,
+                            bookingStatus: db.status,
+                            customerArrivalConfirmed: db.customerArrivalConfirmed,
+                            arrivalProofImage: db.arrivalProofImage,
+                            title: db.description ? `Đặt trực tiếp: ${db.description.substring(0, 35)}` : 'Đặt thợ trực tiếp',
+                            description: db.description || 'Chưa cập nhật chi tiết',
+                            addressText: fullAddr,
+                            createdAt: db.createdAt,
+                            status: db.status,
+                            estimatedPrice: Number(db.finalPrice ?? db.totalPrice ?? 0),
+                            isDirect: true,
+                            cancelReason: db.cancelReason
+                        };
+                    });
+                    combined.push(...normalizedDirectBookings);
                 }
+
+                // Sort combined by createdAt descending
+                combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+                fetched = combined;
             } catch (err) {
-                lastErr = err;
+                if (!lastErr) lastErr = err;
             }
 
             if (!Array.isArray(fetched)) {
@@ -103,24 +141,35 @@ const CustomerManagePostsPage = () => {
                 const postId = post?.postId ?? post?.post_id ?? '';
                 const categoryId = Number(post?.categoryId ?? post?.service_id ?? 0);
                 const categoryName = post?.categoryName ?? post?.category_name ?? '';
-                const addressText = [post?.addressDetail, post?.wardName, post?.districtName, post?.provinceName]
-                    .filter(Boolean)
-                    .join(', ');
+
+                // For direct bookings, addressText is pre-built; for job posts build from parts
+                const addressText = post?.isDirect
+                    ? (post?.addressText || post?.addressDetail || 'Chưa có địa chỉ')
+                    : ([post?.addressDetail, post?.wardName, post?.districtName, post?.provinceName]
+                        .filter(Boolean)
+                        .join(', ') || post?.address_detail || 'Chưa có địa chỉ');
+
+                // estimatedPrice: direct bookings carry it as estimatedPrice; job posts use offerPrice
+                const estimatedPrice = Number(
+                    post?.estimatedPrice ?? post?.offerPrice ?? post?.estimated_price ?? 0
+                );
 
                 return {
                     postId,
                     categoryId,
                     categoryName,
+                    isDirect: Boolean(post?.isDirect),
                     bookingId: post?.bookingId ?? null,
                     bookingStatus: post?.bookingStatus ?? null,
                     customerArrivalConfirmed: Boolean(post?.customerArrivalConfirmed),
                     arrivalProofImage: post?.arrivalProofImage || null,
                     title: post?.title || `Bài đăng #${postId}`,
                     description: post?.description || 'Không có mô tả.',
-                    addressText: addressText || post?.address_detail || 'Chưa có địa chỉ',
+                    addressText,
                     createdAt: post?.createdAt ?? post?.created_at,
                     status: String(post?.bookingStatus).toUpperCase() === 'COMPLETED' ? 'COMPLETED' : (post?.status || 'PUBLISHED'),
-                    estimatedPrice: Number(post?.offerPrice ?? post?.estimated_price ?? 0),
+                    estimatedPrice,
+                    cancelReason: post?.cancelReason || null
                 };
             }),
         [posts]
@@ -137,7 +186,8 @@ const CustomerManagePostsPage = () => {
         switch (status) {
             case 'PENDING':
             case 'PUBLISHED':
-                return { label: 'Đang tìm người', color: '#B56A00', bg: '#FEF3C7' };
+            case 'PENDING_ACCEPTANCE':
+                return { label: status === 'PENDING_ACCEPTANCE' ? 'Đang Chờ thợ' : 'Đang tìm thợ', color: '#B56A00', bg: '#FEF3C7' };
             case 'MATCHED':
             case 'ASSIGNED':
             case 'CONFIRMED':
@@ -261,147 +311,160 @@ const CustomerManagePostsPage = () => {
                             ) : (
                                 <div className="cmp-post-grid">
                                     {visiblePosts.map(post => {
-                                const serviceColor = PALETTE[(Number(post.categoryId) || 0) % PALETTE.length];
-                                const service = {
-                                    name: post.categoryName || 'Dịch vụ',
-                                    icon: getCategoryEmoji(post.categoryName),
-                                    color: serviceColor
-                                };
-                                const statusConf = getStatusConfig(post.status);
-                                const isAssigned = isAssignedPost(post.status);
-                                const applicants = applicantsByPostId[post.postId] || [];
-                                const hasApplicants = ['PENDING', 'PUBLISHED'].includes(post.status) && applicants.length > 0;
-                                const previewApplicants = applicants.slice(0, 3);
-                                const canOpenBooking = Number(post?.bookingId) > 0;
-                                const shouldShowArrivalCta = canOpenBooking && ['CONFIRMED', 'ARRIVED', 'IN_PROGRESS'].includes(String(post?.bookingStatus || '').toUpperCase());
-                                const hasArrivalProof = Boolean(post?.arrivalProofImage);
+                                        const serviceColor = PALETTE[(Number(post.categoryId) || 0) % PALETTE.length];
+                                        const service = {
+                                            name: post.categoryName || 'Dịch vụ',
+                                            icon: getCategoryEmoji(post.categoryName),
+                                            color: serviceColor
+                                        };
+                                        const statusConf = getStatusConfig(post.status);
+                                        const isAssigned = isAssignedPost(post.status);
+                                        const applicants = applicantsByPostId[post.postId] || [];
+                                        const hasApplicants = ['PENDING', 'PUBLISHED'].includes(post.status) && applicants.length > 0;
+                                        const previewApplicants = applicants.slice(0, 3);
+                                        const canOpenBooking = Number(post?.bookingId) > 0;
+                                        const shouldShowArrivalCta = canOpenBooking && ['CONFIRMED', 'ARRIVED', 'IN_PROGRESS'].includes(String(post?.bookingStatus || '').toUpperCase());
+                                        const hasArrivalProof = Boolean(post?.arrivalProofImage);
 
-                                return (
-                                    <div
-                                        key={post.postId}
-                                        className={`cmp-post-card ${isAssigned ? 'cmp-post-card-assigned' : ''}`}
-                                    >
-                                        <div className="cmp-post-card-header" style={{ borderBottomColor: `${service.color}30` }}>
-                                            <div className="cmp-service-badge" style={{ color: service.color, backgroundColor: `${service.color}15` }}>
-                                                <span className="cmp-icon">{service.icon}</span>
-                                                {service.name}
-                                            </div>
-                                            <div className="cmp-status-badge" style={{ color: statusConf.color, backgroundColor: statusConf.bg }}>
-                                                {statusConf.label}
-                                            </div>
-                                        </div>
-
-                                        <div className="cmp-post-card-body">
-                                            {isAssigned ? (
-                                                <div className="cmp-assigned-banner">
-                                                    Bài đăng đã chốt helper. Theo dõi chi tiết để xem tiến độ làm việc.
-                                                </div>
-                                            ) : null}
-
-                                            <h3 className="cmp-post-title">{post.title}</h3>
-                                            <p className="cmp-post-desc">{post.description}</p>
-                                            
-                                            <div className="cmp-post-info-row">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                                                    <circle cx="12" cy="10" r="3" />
-                                                </svg>
-                                                <span>{post.addressText}</span>
-                                            </div>
-
-                                            <div className="cmp-post-info-row">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <circle cx="12" cy="12" r="10" />
-                                                    <polyline points="12 6 12 12 16 14" />
-                                                </svg>
-                                                <span>
-                                                    Ngày đăng:{' '}
-                                                    {post.createdAt
-                                                        ? new Date(post.createdAt).toLocaleDateString('vi-VN')
-                                                        : '---'}
-                                                </span>
-                                            </div>
-                                            <div className="cmp-post-price">
-                                                Giá dự kiến: <strong>{formatCurrency(post.estimatedPrice)}</strong>
-                                            </div>
-
-                                            {hasApplicants ? (
-                                                <div
-                                                    className="cmp-applicant-preview"
-                                                    onClick={() => navigate(`/customer/manage-posts/${post.postId}`)}
-                                                    role="button"
-                                                    tabIndex={0}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter' || e.key === ' ') {
-                                                            e.preventDefault();
-                                                            navigate(`/customer/manage-posts/${post.postId}`);
-                                                        }
-                                                    }}
-                                                >
-                                                    <div className="cmp-applicant-avatars">
-                                                        {previewApplicants.map((applicant, idx) => (
-                                                            applicant?.avatarUrl ? (
-                                                                <img
-                                                                    key={`${post.postId}-avatar-${applicant.applicationId || idx}`}
-                                                                    src={applicant.avatarUrl}
-                                                                    alt={applicant.fullName || 'Helper'}
-                                                                    className="cmp-applicant-avatar"
-                                                                    style={{ zIndex: previewApplicants.length - idx }}
-                                                                />
-                                                            ) : (
-                                                                <div
-                                                                    key={`${post.postId}-avatar-fallback-${applicant.applicationId || idx}`}
-                                                                    className="cmp-applicant-avatar cmp-applicant-avatar-fallback"
-                                                                    style={{ zIndex: previewApplicants.length - idx }}
-                                                                >
-                                                                    {getInitial(applicant?.fullName)}
-                                                                </div>
-                                                            )
-                                                        ))}
-                                                    </div>
-                                                    <p className="cmp-applicant-text">
-                                                        {applicants.length === 1
-                                                            ? 'Đã có 1 helper apply vào bài đăng này'
-                                                            : `Đã có ${applicants.length} helper apply vào bài đăng này`}
-                                                    </p>
-                                                </div>
-                                            ) : null}
-
-                                            {canOpenBooking && hasArrivalProof ? (
-                                                <div style={{ marginTop: 12 }}>
-                                                    <div className="cmp-assigned-banner" style={{ marginBottom: 0 }}>
-                                                        Đã có ảnh địa điểm helper gửi để xác minh đúng nhà.
-                                                    </div>
-                                                </div>
-                                            ) : null}
-                                        </div>
-
-                                        <div className="cmp-post-card-footer" style={{ display: 'flex', gap: '10px' }}>
-                                            <button
-                                                className="cmp-btn-outline"
-                                                style={{ borderColor: service.color, color: service.color, flex: 1, padding: '10px 4px' }}
-                                                type="button"
-                                                onClick={() => navigate(`/customer/manage-posts/${post.postId}`)}
+                                        return (
+                                            <div
+                                                key={post.postId}
+                                                className={`cmp-post-card ${isAssigned ? 'cmp-post-card-assigned' : ''}`}
                                             >
-                                                Xem chi tiết
-                                            </button>
-                                            {canOpenBooking && (
-                                                <button
-                                                    type="button"
-                                                    className="cmp-btn-outline cmp-btn-action"
-                                                    style={{ margin: 0, flex: 1, maxWidth: 'none', padding: '10px 4px' }}
-                                                    onClick={() => navigate(`/customer/bookings/${post.bookingId}`)}
-                                                >
-                                                    {shouldShowArrivalCta
-                                                        ? (post.customerArrivalConfirmed
-                                                            ? 'Xác nhận'
-                                                            : 'Chi tiết xác nhận')
-                                                        : 'Chi tiết booking'}
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
+                                                <div className="cmp-post-card-header" style={{ borderBottomColor: `${service.color}30` }}>
+                                                    <div className="cmp-service-badge" style={{ color: service.color, backgroundColor: `${service.color}15` }}>
+                                                        <span className="cmp-icon">{service.icon}</span>
+                                                        {service.name}
+                                                    </div>
+                                                    <div className="cmp-status-badge" style={{ color: statusConf.color, backgroundColor: statusConf.bg }}>
+                                                        {statusConf.label}
+                                                    </div>
+                                                </div>
+
+                                                <div className="cmp-post-card-body">
+                                                    {isAssigned ? (
+                                                        <div className="cmp-assigned-banner">
+                                                            {post.isDirect ? 'Đơn' : 'Bài đăng'} đã chốt thợ. Theo dõi chi tiết để xem tiến độ làm việc.
+                                                        </div>
+                                                    ) : null}
+
+                                                    {post.cancelReason && ['CANCELLED', 'EXPIRED'].includes(post.status) && (
+                                                        <div className="cmp-cancel-reason">
+                                                            <svg className="cmp-cancel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16 }}>
+                                                                <circle cx="12" cy="12" r="10" />
+                                                                <line x1="12" y1="16" x2="12" y2="12" />
+                                                                <line x1="12" y1="8" x2="12.01" y2="8" />
+                                                            </svg>
+                                                            {post.cancelReason}
+                                                        </div>
+                                                    )}
+
+                                                    <h3 className="cmp-post-title">{post.title}</h3>
+                                                    <p className="cmp-post-desc">{post.description}</p>
+
+                                                    <div className="cmp-post-info-row">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                                            <circle cx="12" cy="10" r="3" />
+                                                        </svg>
+                                                        <span>{post.addressText}</span>
+                                                    </div>
+
+                                                    <div className="cmp-post-info-row">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <circle cx="12" cy="12" r="10" />
+                                                            <polyline points="12 6 12 12 16 14" />
+                                                        </svg>
+                                                        <span>
+                                                            Ngày đăng:{' '}
+                                                            {post.createdAt
+                                                                ? new Date(post.createdAt).toLocaleDateString('vi-VN')
+                                                                : '---'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="cmp-post-price">
+                                                        Giá dự kiến: <strong>{formatCurrency(post.estimatedPrice)}</strong>
+                                                    </div>
+
+                                                    {hasApplicants ? (
+                                                        <div
+                                                            className="cmp-applicant-preview"
+                                                            onClick={() => navigate(`/customer/manage-posts/${post.postId}`)}
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                                    e.preventDefault();
+                                                                    navigate(`/customer/manage-posts/${post.postId}`);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <div className="cmp-applicant-avatars">
+                                                                {previewApplicants.map((applicant, idx) => (
+                                                                    applicant?.avatarUrl ? (
+                                                                        <img
+                                                                            key={`${post.postId}-avatar-${applicant.applicationId || idx}`}
+                                                                            src={applicant.avatarUrl}
+                                                                            alt={applicant.fullName || 'thợ'}
+                                                                            className="cmp-applicant-avatar"
+                                                                            style={{ zIndex: previewApplicants.length - idx }}
+                                                                        />
+                                                                    ) : (
+                                                                        <div
+                                                                            key={`${post.postId}-avatar-fallback-${applicant.applicationId || idx}`}
+                                                                            className="cmp-applicant-avatar cmp-applicant-avatar-fallback"
+                                                                            style={{ zIndex: previewApplicants.length - idx }}
+                                                                        >
+                                                                            {getInitial(applicant?.fullName)}
+                                                                        </div>
+                                                                    )
+                                                                ))}
+                                                            </div>
+                                                            <p className="cmp-applicant-text">
+                                                                {applicants.length === 1
+                                                                    ? 'Đã có 1 thợ ứng tuyển vào bài đăng này'
+                                                                    : `Đã có ${applicants.length} thợ ứng tuyển vào bài đăng này`}
+                                                            </p>
+                                                        </div>
+                                                    ) : null}
+
+                                                    {canOpenBooking && hasArrivalProof ? (
+                                                        <div style={{ marginTop: 12 }}>
+                                                            <div className="cmp-assigned-banner" style={{ marginBottom: 0 }}>
+                                                                Đã có ảnh địa điểm thợ gửi để xác minh đúng nhà.
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+
+                                                <div className="cmp-post-card-footer" style={{ display: 'flex', gap: '10px' }}>
+                                                    <button
+                                                        className="cmp-btn-outline"
+                                                        style={{ borderColor: service.color, color: service.color, flex: 1, padding: '10px 4px' }}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            navigate(`/customer/manage-posts/${post.postId}`);
+                                                        }}
+                                                    >
+                                                        Xem chi tiết
+                                                    </button>
+                                                    {canOpenBooking && post.status !== 'CANCELLED' && post.status !== 'EXPIRED' && (
+                                                        <button
+                                                            type="button"
+                                                            className="cmp-btn-outline cmp-btn-action"
+                                                            style={{ margin: 0, flex: 1, maxWidth: 'none', padding: '10px 4px' }}
+                                                            onClick={() => navigate(`/customer/bookings/${post.bookingId}`)}
+                                                        >
+                                                            {shouldShowArrivalCta
+                                                                ? (post.customerArrivalConfirmed
+                                                                    ? 'Xác nhận'
+                                                                    : 'Chi tiết xác nhận')
+                                                                : 'Chi tiết booking'}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
                                     })}
                                 </div>
                             )}

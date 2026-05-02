@@ -48,7 +48,7 @@ public class MatchingRematchTask {
         }
 
         try {
-            List<JobPost> activeJobs = jobPostRepository.findActiveJobPosts(LocalDate.now(), LocalDateTime.now());
+            List<JobPost> activeJobs = jobPostRepository.findActiveJobPosts(LocalDate.now(), java.time.LocalTime.now(), LocalDateTime.now());
 
             int triggered = 0;
             for (JobPost job : activeJobs) {

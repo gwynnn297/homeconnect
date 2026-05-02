@@ -50,6 +50,34 @@ const BookingService = {
     submitDisputeResponse: async (bookingId, payload) => {
         return apiClient.post(`${BOOKING_BASE_URL}/${bookingId}/dispute-response`, payload);
     },
+
+    /**
+     * Khách hàng đặt thợ trực tiếp (Direct Booking - PB-13).
+     * Backend: POST /api/v1/bookings/direct
+     */
+    createDirectBooking: async (payload) => {
+        return apiClient.post(`${BOOKING_BASE_URL}/direct`, payload);
+    },
+
+    /**
+     * Thợ lấy danh sách các đơn đặt trực tiếp (Direct Booking).
+     * Backend: GET /api/v1/bookings/my-direct
+     */
+    getMyDirectBookings: async () => {
+        return apiClient.get(`${BOOKING_BASE_URL}/my-direct`);
+    },
+
+    /**
+     * Thợ phản hồi đơn đặt trực tiếp: accept=true/false.
+     * Backend: PUT /api/v1/bookings/{bookingId}/respond?accept=...
+     */
+    respondToBooking: async (bookingId, accept) => {
+        return apiClient.put(`${BOOKING_BASE_URL}/${bookingId}/respond`, null, {
+            params: { accept }
+        });
+    },
 };
+
+
 
 export default BookingService;

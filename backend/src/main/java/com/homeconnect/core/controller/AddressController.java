@@ -110,4 +110,14 @@ public class AddressController {
                 .data(geocodingService.getPlaceDetail(placeId))
                 .build());
     }
+
+    @GetMapping("/detail-v2")
+    @Operation(summary = "Lấy chi tiết địa chỉ có cấu trúc (cho Direct Booking)")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAddressComponents(
+            @RequestParam @jakarta.validation.constraints.NotBlank(message = "placeId không được để trống") String placeId) {
+        return ResponseEntity.ok(ApiResponse.<Map<String, Object>>builder()
+                .message("Lấy chi tiết địa chỉ có cấu trúc thành công")
+                .data(geocodingService.getAddressComponents(placeId))
+                .build());
+    }
 }

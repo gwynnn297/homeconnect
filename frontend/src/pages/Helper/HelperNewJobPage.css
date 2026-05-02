@@ -369,6 +369,12 @@
     border-color: #99f6e4;
 }
 
+.hnj-state-pill--rejected {
+    color: #b91c1c;
+    background: #fee2e2;
+    border-color: #fecaca;
+}
+
 .hnj-info-row {
     display: flex;
     align-items: flex-start;

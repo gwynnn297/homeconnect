@@ -31,9 +31,9 @@ import java.util.List;
  * 2. Với mỗi booking:
  *    a. Tính commission = totalPrice * commissionRate
  *    b. Trừ hold_balance ví Khách (totalPrice)
- *    c. Cộng available_balance ví Helper (totalPrice - commission) 
+ *    c. Cộng available_balance ví thợ (totalPrice - commission) 
  *    d. Cập nhật paymentStatus = RELEASED
- *    e. Push Notification báo nhận lương cho Helper
+ *    e. Push Notification báo nhận lương cho thợ
  */
 @Slf4j
 @Component
@@ -83,7 +83,7 @@ public class WalletScheduler {
                 booking.setPaymentStatus(PaymentStatus.RELEASED);
                 bookingRepository.save(booking);
 
-                // 3. Push Notification cho Helper
+                // 3. Push Notification cho thợ
                 String helperName = booking.getHelper().getFullName();
                 String categoryName = booking.getCategory() != null
                         ? booking.getCategory().getName() : "Dịch vụ";

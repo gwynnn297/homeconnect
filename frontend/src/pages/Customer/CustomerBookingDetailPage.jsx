@@ -49,7 +49,7 @@ const getBookingStatusUI = (status) => {
         case 'CONFIRMED':
             return { label: 'Đã xác nhận', tone: 'success' };
         case 'ARRIVED':
-            return { label: 'Helper đã đến nhà', tone: 'success' };
+            return { label: 'Thợ đã đến nhà', tone: 'success' };
         case 'IN_PROGRESS':
             return { label: 'Đang thực hiện công việc', tone: 'success' };
         case 'COMPLETED':
@@ -437,7 +437,7 @@ const CustomerBookingDetailPage = () => {
     const canReportDispute = statusUpper === 'COMPLETED' && String(booking?.paymentStatus || '').toUpperCase() === 'HOLDING';
     const hasDisputeData = statusUpper === 'DISPUTED' || statusUpper === 'RESOLVED';
     const editableWindow = existingReview && canEditReviewByTime(existingReview);
-    const helperName = booking?.helperName || 'Helper';
+    const helperName = booking?.helperName || 'Thợ';
     const hasArrivalSignal = Boolean(booking?.arrivalProofImage) || Boolean(booking?.arrivedAt) || ['ARRIVED', 'IN_PROGRESS'].includes(normalizedStatus);
     const hasConfirmedFlag = Boolean(booking?.customerArrivalConfirmed);
     const isInconsistentArrivalState = hasConfirmedFlag && normalizedStatus === 'ARRIVED';
@@ -483,7 +483,7 @@ const CustomerBookingDetailPage = () => {
             const data = res?.data ?? res;
             setBooking(data || booking);
         } catch (err) {
-            setError(err?.message || 'Không thể xác nhận helper đã đến.');
+            setError(err?.message || 'Không thể xác nhận thợ đã đến.');
         } finally {
             setConfirmingArrival(false);
         }
@@ -545,7 +545,7 @@ const CustomerBookingDetailPage = () => {
                                     <strong className="cbd-action-banner__title">Thợ đã báo hoàn thành công việc</strong>
                                     <p className="cbd-action-banner__desc">
                                         Kiểm tra chất lượng công việc tại địa điểm. Khi hài lòng, hãy xác nhận để kết thúc đơn — sau đó bạn có thể{' '}
-                                        <strong>đánh giá helper</strong> (tối đa 7 ngày).
+                                        <strong>đánh giá thợ</strong> (tối đa 7 ngày).
                                     </p>
                                 </div>
                                 <button
@@ -653,10 +653,10 @@ const CustomerBookingDetailPage = () => {
 
                             {booking?.arrivalProofImage && (
                                 <div className="cbd-card">
-                                    <div className="cbd-section-title">Ảnh địa điểm helper đã gửi</div>
+                                    <div className="cbd-section-title">Ảnh địa điểm thợ đã gửi</div>
                                     <img
                                         src={booking.arrivalProofImage}
-                                        alt="Ảnh địa điểm helper gửi"
+                                        alt="Ảnh địa điểm thợ gửi"
                                         style={{ width: '100%', borderRadius: 12, border: '1px solid #e2e8f0' }}
                                     />
                                 </div>
@@ -669,7 +669,7 @@ const CustomerBookingDetailPage = () => {
                                     <div className="cbd-v">{booking?.customerName || '---'}</div>
                                 </div>
                                 <div className="cbd-kv">
-                                    <div className="cbd-k">Helper</div>
+                                    <div className="cbd-k">Thợ</div>
                                     <div className="cbd-v">{booking?.helperName || '---'}</div>
                                 </div>
                                 <div className="cbd-kv">
@@ -695,7 +695,7 @@ const CustomerBookingDetailPage = () => {
                             <div className="cbd-actions" style={{ marginTop: 8 }}>
                                 {isArrivalConfirmed ? (
                                     <button className="cbd-btn cbd-btn--primary" type="button" disabled>
-                                        Đã xác minh helper đến đúng nhà
+                                        Đã xác minh thợ đến đúng nhà
                                     </button>
                                 ) : (
                                     <button
@@ -709,14 +709,14 @@ const CustomerBookingDetailPage = () => {
                                             : canSubmitArrivalConfirm
                                                 ? (isInconsistentArrivalState
                                                     ? 'Đồng bộ trạng thái sang Đang thực hiện'
-                                                    : 'Xác nhận helper đã đến đúng nhà')
+                                                    : 'Xác nhận thợ đã đến đúng nhà')
                                                 : 'Chưa có ảnh địa điểm để xác nhận'}
                                     </button>
                                 )}
 
                                 {!isArrivalConfirmed && !canSubmitArrivalConfirm && (
                                     <div style={{ color: '#b45309', fontSize: 14 }}>
-                                        Nút xác nhận sẽ bật khi hệ thống đã nhận được ảnh địa điểm helper gửi.
+                                        Nút xác nhận sẽ bật khi hệ thống đã nhận được ảnh địa điểm thợ gửi.
                                     </div>
                                 )}
 
@@ -746,7 +746,7 @@ const CustomerBookingDetailPage = () => {
                                         </div>
                                         <div className="cbd-review-hero__text">
                                             <h2 id="cbd-review-heading" className="cbd-review-hero__title">
-                                                Đánh giá helper
+                                                Đánh giá thợ
                                             </h2>
                                             <p className="cbd-review-hero__sub">
                                                 Ý kiến của bạn giúp cộng đồng chọn thợ phù hợp hơn. Mỗi đơn <strong>một lần</strong> gửi, trong{' '}

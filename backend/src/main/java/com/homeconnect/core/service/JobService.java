@@ -67,7 +67,7 @@ public class JobService {
     /** Danh mục 1 — Dọn dẹp nhà: thời lượng job (tính phí) tối đa */
     private static final int MAX_CLEANING_DURATION_HOURS = 4;
     /**
-     * Mỗi dịch vụ con cộng thêm 1 giờ vào thời lượng làm việc (Helper cần thêm thời
+     * Mỗi dịch vụ con cộng thêm 1 giờ vào thời lượng làm việc (thợ cần thêm thời
      * gian)
      */
     private static final int HOURS_PER_SUB_SERVICE = 1;
@@ -151,6 +151,8 @@ public class JobService {
                 request.getIsPremium(),
                 request.getServiceIds(),
                 request.getWorkSize(),
+                request.getBringTools(),
+                request.getHasPets(),
                 request.getAdditionalData());
 
         log.info("Estimated price: {} VND (Base: {}, Fees: {})", finalEstimatedPrice, finalBasePrice,
@@ -210,9 +212,11 @@ public class JobService {
                 request.getIsPremium(),
                 request.getServiceIds(),
                 request.getWorkSize(),
+                request.getBringTools(),
+                request.getHasPets(),
                 request.getAdditionalData());
-        User customer = userRepository.findById(customerId)
-                .orElseThrow(() -> new ApiException("Khach hang khong ton tai", HttpStatus.NOT_FOUND));
+        userRepository.findById(customerId)
+                .orElseThrow(() -> new ApiException("Khách hàng không tồn tại", HttpStatus.NOT_FOUND));
         int monthlyCompletedCount = (int) loyaltyService.getMonthlyCompletedCount(customerId);
         CustomerTier customerTier = loyaltyService.resolveTierByCompletedCount(monthlyCompletedCount);
         BigDecimal discountRate = loyaltyService.resolveDiscountRate(customerTier);
@@ -279,7 +283,7 @@ public class JobService {
 
         // --- 4. Giữ tiền (nằm trong @Transactional, nếu lỗi sẽ tự rollback cả bước lưu
         // JobPost) ---
-        walletService.holdMoney(customerId, finalPrice, jobPost.getPostId());
+        walletService.holdMoney(customerId, finalPrice, jobPost.getPostId(), null);
 
         // --- 5. Publish event thông báo ---
         eventPublisher.publishEvent(new JobPostCreatedEvent(jobPost.getPostId()));
@@ -305,7 +309,7 @@ public class JobService {
         }
 
         List<JobPost> activeJobs = jobPostRepository
-                .findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalDateTime.now()).stream()
+                .findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalTime.now(), java.time.LocalDateTime.now()).stream()
                 .filter(jp -> jp.getCategory() != null && categoryIds.contains(jp.getCategory().getCategoryId()))
                 .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(),
                         helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
@@ -347,7 +351,7 @@ public class JobService {
         }
 
         // Lấy tất cả các việc đang OPEN (PUBLISHED) trong khu vực helper đã đăng ký.
-        return jobPostRepository.findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalDateTime.now()).stream()
+        return jobPostRepository.findActiveJobPosts(java.time.LocalDate.now(), java.time.LocalTime.now(), java.time.LocalDateTime.now()).stream()
                 .filter(jp -> !jobApplicationRepository.existsByPostIdAndHelperIdAndTypeAndStatusIn(jp.getPostId(),
                         helperId, "APPLIED", List.of("PENDING", "ACCEPTED", "ASSIGNED")))
                 .filter(jp -> isJobInRegisteredDistrict(jp, helperDistricts))
@@ -709,7 +713,7 @@ public class JobService {
             BigDecimal compensation = penaltyAmount.multiply(new BigDecimal("0.5"));
             walletService.compensateCustomer(jobPost.getCustomerId(), compensation, postId);
 
-            log.info("⚠ Đã phạt Helper {} số tiền {} VNĐ và bồi thường Khách {} số tiền {} VNĐ",
+            log.info("⚠ Đã phạt thợ {} số tiền {} VNĐ và bồi thường Khách {} số tiền {} VNĐ",
                     helperId, penaltyAmount, jobPost.getCustomerId(), compensation);
         }
 
@@ -899,7 +903,7 @@ public class JobService {
         // Nếu là danh mục PER_SERVICE, mặc định base là 1 giờ (trừ khi request chỉ định
         // khác)
         int baseDuration = jobPost.getDurationHours();
-        if ("PER_SERVICE".equals(jobPost.getCategory().getUnit()) && request.getDurationHours() == null) {
+        if (jobPost.getCategory().getUnit() != null && "PER_SERVICE".equals(jobPost.getCategory().getUnit().name()) && request.getDurationHours() == null) {
             baseDuration = 1;
         }
 
@@ -914,8 +918,8 @@ public class JobService {
         jobPost.setDurationHours(totalHours);
 
         BigDecimal newOriginalPrice = calculatePrice(jobPost);
-        User customer = userRepository.findById(customerId)
-                .orElseThrow(() -> new ApiException("Khach hang khong ton tai", HttpStatus.NOT_FOUND));
+        userRepository.findById(customerId)
+                  .orElseThrow(() -> new ApiException("Khách hàng không tồn tại", HttpStatus.NOT_FOUND));
         int monthlyCompletedCount = (int) loyaltyService.getMonthlyCompletedCount(customerId);
         CustomerTier customerTier = loyaltyService.resolveTierByCompletedCount(monthlyCompletedCount);
         BigDecimal discountRate = loyaltyService.resolveDiscountRate(customerTier);
@@ -934,7 +938,7 @@ public class JobService {
         if (newPrice.compareTo(oldPrice) != 0) {
             log.info("Giá thay đổi từ {} sang {}. Đang điều chỉnh tiền giữ trong ví.", oldPrice, newPrice);
             walletService.refundHold(customerId, oldPrice, jobId, "Cập nhật bài đăng (Hoàn tiền cũ)");
-            walletService.holdMoney(customerId, newPrice, jobId);
+            walletService.holdMoney(customerId, newPrice, jobId, null);
         }
 
         JobPost saved = jobPostRepository.save(jobPost);
@@ -1144,12 +1148,18 @@ public class JobService {
             }
         }
 
+        List<Integer> sIds = parseServiceIds(jobPost.getServiceId());
+        int baseLaborHours = Math.max(0, (jobPost.getDurationHours() != null ? jobPost.getDurationHours() : 0) 
+                - (sIds.size() * HOURS_PER_SUB_SERVICE));
+
         return calculatePriceInternal(
                 jobPost.getCategory(),
-                jobPost.getDurationHours(),
+                baseLaborHours,
                 jobPost.getIsPremium(),
-                parseServiceIds(jobPost.getServiceId()),
+                sIds,
                 workSize,
+                jobPost.getBringTools(),
+                jobPost.getHasPets(),
                 additionalData);
     }
 
@@ -1163,30 +1173,42 @@ public class JobService {
             Boolean isPremium,
             List<Integer> serviceIds,
             Double workSize,
+            Boolean bringTools,
+            Boolean hasPets,
             Map<String, Object> additionalData) {
 
         if (category == null)
             return BigDecimal.ZERO;
 
         // 1. Giá lao động cơ bản
-        // Lưu ý: Số giờ 'hours' truyền vào ở đây là số giờ GỐC người dùng chọn (chưa
-        // cộng dồn dịch vụ con)
         int baseLaborHours = (hours != null) ? hours : 0;
 
-        // 2. Tính giá lao động
+        // 2. Tính giá lao động (Dựa trên số giờ khách chọn)
         BigDecimal price;
+        int laborBaseHours = baseLaborHours;
+        
         if (com.homeconnect.core.enums.ServiceUnit.PER_SERVICE.equals(category.getUnit())) {
             price = category.getBasePrice();
         } else {
-            price = category.getBasePrice().multiply(BigDecimal.valueOf(baseLaborHours));
+            price = category.getBasePrice().multiply(BigDecimal.valueOf(laborBaseHours));
         }
 
-        // 3. Phí Premium (Dịch vụ cao cấp - không cộng thêm giờ)
+        // 3. Phí Premium (Dịch vụ cao cấp)
         if (Boolean.TRUE.equals(isPremium)) {
             price = price.add(BigDecimal.valueOf(50000));
         }
 
-        // 3. Cộng phí các dịch vụ con (extra services)
+        // 3b. Phí mang dụng cụ (+30k)
+        if (Boolean.TRUE.equals(bringTools)) {
+            price = price.add(BigDecimal.valueOf(30000));
+        }
+
+        // 3c. Phí nhà có thú cưng (+30k)
+        if (Boolean.TRUE.equals(hasPets)) {
+            price = price.add(BigDecimal.valueOf(30000));
+        }
+
+        // 4. Phí các dịch vụ con (extra services) - Cộng theo giá niêm yết của từng dịch vụ
         if (serviceIds != null && !serviceIds.isEmpty()) {
             for (Integer id : serviceIds) {
                 com.homeconnect.core.entity.Service service = serviceRepository.findById(id).orElse(null);
@@ -1406,8 +1428,9 @@ public class JobService {
     public void cleanupExpiredJobs() {
         LocalDate today = LocalDate.now();
         LocalTime now = LocalTime.now();
+        LocalDateTime nowDateTime = LocalDateTime.now();
 
-        List<JobPost> expiredPosts = jobPostRepository.findExpiredJobPosts(today, now);
+        List<JobPost> expiredPosts = jobPostRepository.findExpiredJobPosts(today, now, nowDateTime);
         if (expiredPosts.isEmpty()) {
             log.debug("[Auto-Expiry] Không có bài đăng nào hết hạn.");
             return;

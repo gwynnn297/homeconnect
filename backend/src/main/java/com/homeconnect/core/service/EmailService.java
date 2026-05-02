@@ -143,7 +143,7 @@ public class EmailService {
 
                                     <ul style="color: #666; padding-left: 20px;">
                                         <li style="margin-bottom: 8px;"> Đặt dịch vụ gia đình chất lượng cao</li>
-                                        <li style="margin-bottom: 8px;"> Tìm Helper uy tín trong khu vực</li>
+                                        <li style="margin-bottom: 8px;"> Tìm thợ uy tín trong khu vực</li>
                                         <li style="margin-bottom: 8px;"> Quản lý ví tiền và thanh toán an toàn</li>
                                         <li style="margin-bottom: 8px;"> Đánh giá và nhận phản hồi từ cộng đồng</li>
                                     </ul>

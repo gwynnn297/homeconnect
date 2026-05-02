@@ -14,11 +14,24 @@ import java.time.LocalTime;
 public class DirectBookingRequest {
     private Long helperId;
     private Integer categoryId;
+    private java.util.List<Integer> serviceIds;
     private LocalDate workDate;
     private LocalTime startTime;
     private Integer durationHours;
     private String description;
-    private String addressDetail;
+    private Integer addressId; // Nếu chọn từ danh sách
+    private String addressDetail; // Nếu tạo mới
+    private String provinceId;
+    private String districtId;
+    private String wardId;
+    private String provinceName;
+    private String districtName;
+    private String wardName;
     private Double latitude;
     private Double longitude;
+    private Double workSize;
+    private Boolean isPremium;
+    private Boolean bringTools;
+    private Boolean hasPets;
+    private java.util.Map<String, Object> additionalData;
 }

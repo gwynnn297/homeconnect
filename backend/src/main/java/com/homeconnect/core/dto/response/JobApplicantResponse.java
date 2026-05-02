@@ -17,5 +17,6 @@ public class JobApplicantResponse {
     private Integer reviewCount;
     private String bio;
     private String status;
+    private Boolean hasOverlap;
     private List<String> topReviews;
 }

@@ -22,9 +22,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+import java.util.Optional;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import org.springframework.data.domain.Page;
@@ -62,12 +66,14 @@ public class BookingService {
     private final HelperProfileRepository helperProfileRepository;
     private final ServiceCategoryRepository serviceCategoryRepository;
     private final HelperServiceRepository helperServiceRepository;
+    private final ServiceRepository serviceRepository;
     private final ReviewRepository reviewRepository;
     private final UserViolationRepository userViolationRepository;
     private final ConflictEngine conflictEngine;
     private final AdminAuditLogService adminAuditLogService;
     private final LoyaltyService loyaltyService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final DirectBookingRequestRepository directBookingRequestRepository;
 
     /**
      * Xác nhận đơn hàng và cập nhật lịch của Helper sang BUSY
@@ -118,7 +124,7 @@ public class BookingService {
                     busySlot,
                     ConflictEngine.TRAVEL_BUFFER_MINUTES)) {
                 throw new ApiException(
-                        "Không thể xác nhận đơn hàng: Helper cần ít nhất 30 phút di chuyển giữa các đơn.",
+                        "Không thể xác nhận đơn hàng: thợ cần ít nhất 30 phút di chuyển giữa các đơn.",
                         HttpStatus.CONFLICT);
             }
         }
@@ -137,12 +143,19 @@ public class BookingService {
      */
     @Transactional(readOnly = true)
     public List<JobApplicantResponse> getApplicants(Long jobId) {
+        JobPost jobPost = jobPostRepository.findById(jobId).orElse(null);
+        if (jobPost == null) return List.of();
+
+        LocalDateTime start = LocalDateTime.of(jobPost.getWorkDate(), jobPost.getStartTime());
+        LocalDateTime end = start.plusHours(jobPost.getDurationHours());
+
         List<JobApplication> applications = jobApplicationRepository.findByPostId(jobId);
         return applications.stream().map(app -> {
             User helper = userRepository.findById(app.getHelperId()).orElse(null);
-            // Sử dụng findByUser_Id thay vì findByUser và khai báo rõ kiểu để tránh lỗi
-            // infer Object
             HelperProfile profile = helperProfileRepository.findByUser_Id(app.getHelperId()).orElse(null);
+
+            long overlapCount = bookingRepository.countOverlappingBookingsExcludeJob(app.getHelperId(),
+                    ACTIVE_BOOKING_STATUSES, start, end, jobId);
 
             return JobApplicantResponse.builder()
                     .applicationId(app.getApplicationId())
@@ -155,6 +168,7 @@ public class BookingService {
                     .reviewCount(profile != null && profile.getTotalReviews() != null ? profile.getTotalReviews() : 0)
                     .bio(profile != null ? profile.getBio() : "")
                     .status(app.getStatus())
+                    .hasOverlap(overlapCount > 0)
                     .topReviews(reviewRepository.findByHelperIdAndIsVisibleTrueOrderByCreatedAtDesc(
                             app.getHelperId(), org.springframework.data.domain.PageRequest.of(0, 3))
                             .stream().map(Review::getComment).collect(Collectors.toList()))
@@ -258,12 +272,12 @@ public class BookingService {
 
         // 7. Thông báo cho các bên
         notificationService.createNotification(helper.getId(), "Chúc mừng! Bạn đã được chọn",
-                "Bạn đã được chọn cho công việc: " + jobPost.getTitle(), "BOOKING_ACCEPTED");
+                "Công việc #" + jobId + ": Bạn đã được chọn cho công việc: " + jobPost.getTitle(), "BOOKING_ACCEPTED");
 
         for (JobApplication other : others) {
             if (!other.getApplicationId().equals(applicationId)) {
                 notificationService.createNotification(other.getHelperId(), "Rất tiếc!",
-                        "Công việc " + jobPost.getTitle() + " đã có người khác nhận.", "BOOKING_REJECTED");
+                        "Công việc #" + jobId + " (" + jobPost.getTitle() + ") đã có người khác nhận.", "BOOKING_REJECTED");
             }
         }
 
@@ -292,9 +306,15 @@ public class BookingService {
             throw new ApiException("Thợ này không cung cấp dịch vụ bạn yêu cầu", HttpStatus.BAD_REQUEST);
         }
 
-        // 3. Kiểm tra lịch (AVAILABLE & No Conflict)
+        // Validate workSize & duration (PB-11)
+        validateDirectBookingWorkSize(request.getCategoryId(), request.getDurationHours(), request.getWorkSize());
+
+        // 3. Tính toán tổng thời gian (bao gồm giờ cộng thêm từ dịch vụ con)
+        int subServiceCount = (request.getServiceIds() != null) ? request.getServiceIds().size() : 0;
+        int totalHours = request.getDurationHours() + subServiceCount;
+
         LocalDateTime start = LocalDateTime.of(request.getWorkDate(), request.getStartTime());
-        LocalDateTime end = start.plusHours(request.getDurationHours());
+        LocalDateTime end = start.plusHours(totalHours);
         bookingRepository.findOverlappingBookingsForUpdate(request.getHelperId(), ACTIVE_BOOKING_STATUSES, start, end);
         long overlapCount = bookingRepository.countOverlappingBookings(request.getHelperId(), ACTIVE_BOOKING_STATUSES,
                 start, end);
@@ -317,16 +337,75 @@ public class BookingService {
             throw new ApiException("Thợ không có lịch rảnh vào khung giờ này", HttpStatus.CONFLICT);
         }
 
-        // 4. Resolve Address (Tạo mới địa chỉ cho khách)
-        Address bookingAddress = Address.builder()
-                .user(customer)
-                .addressDetail(request.getAddressDetail())
-                .latitude(java.math.BigDecimal.valueOf(request.getLatitude()))
-                .longitude(java.math.BigDecimal.valueOf(request.getLongitude()))
-                .type("OTHER")
+        // 4. Resolve Address (Tái sử dụng nếu có thể để tránh Duplicate)
+        Address bookingAddress = null;
+        if (request.getAddressId() != null) {
+            bookingAddress = addressRepository.findById(request.getAddressId())
+                    .orElseThrow(() -> new ApiException("Địa chỉ không tồn tại", HttpStatus.NOT_FOUND));
+            // Đảm bảo địa chỉ thuộc về customer
+            if (!bookingAddress.getUser().getId().equals(customer.getId())) {
+                throw new ApiException("Địa chỉ không hợp lệ cho người dùng này", HttpStatus.FORBIDDEN);
+            }
+        } else {
+            // Tìm địa chỉ cũ có thông tin trùng khớp (Chi tiết + Mã Phường/Quận/Tỉnh)
+            Optional<Address> existing = addressRepository.findFirstByUser_IdAndAddressDetailIgnoreCaseAndWardCodeAndDistrictCodeAndProvinceCode(
+                    customer.getId(),
+                    request.getAddressDetail(),
+                    request.getWardId(),
+                    request.getDistrictId(),
+                    request.getProvinceId()
+            );
+
+            if (existing.isPresent()) {
+                bookingAddress = existing.get();
+                log.info("♻️ Reusing existing address ID: {} for direct booking", bookingAddress.getAddressId());
+            } else {
+                bookingAddress = Address.builder()
+                        .user(customer)
+                        .provinceCode(request.getProvinceId())
+                        .districtCode(request.getDistrictId())
+                        .wardCode(request.getWardId())
+                        .provinceName(request.getProvinceName())
+                        .districtName(request.getDistrictName())
+                        .wardName(request.getWardName())
+                        .addressDetail(request.getAddressDetail())
+                        .latitude(java.math.BigDecimal.valueOf(request.getLatitude()))
+                        .longitude(java.math.BigDecimal.valueOf(request.getLongitude()))
+                        .type("OTHER")
+                        .build();
+                bookingAddress = addressRepository.save(bookingAddress);
+            }
+        }
+
+
+        String serviceIdsStr = null;
+        if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
+            serviceIdsStr = request.getServiceIds().stream()
+                    .map(String::valueOf)
+                    .collect(java.util.stream.Collectors.joining(","));
+        }
+
+        // 6. Persist DirectBookingRequestEntity (bảng riêng - đầy đủ chi tiết)
+        DirectBookingRequestEntity directReq = DirectBookingRequestEntity.builder()
+                .customer(customer)
+                .helper(helper)
+                .category(category)
+                .address(bookingAddress)
+                .workDate(request.getWorkDate())
+                .startTime(request.getStartTime())
+                .durationHours(totalHours)
+                .workSize(request.getWorkSize())
+                .isPremium(request.getIsPremium())
+                .hasPets(request.getHasPets())
+                .bringTools(request.getBringTools())
+                .description(request.getDescription())
+                .serviceIds(serviceIdsStr)
                 .build();
         bookingAddress = addressRepository.save(bookingAddress);
-        BigDecimal originalPrice = category.getBasePrice().multiply(java.math.BigDecimal.valueOf(request.getDurationHours()));
+        directReq = directBookingRequestRepository.save(directReq);
+
+        // 7. Loyalty Discount Calculation
+        BigDecimal originalPrice = calculateDirectBookingPrice(category, request);
         int monthlyCompletedCount = (int) loyaltyService.getMonthlyCompletedCount(customerId);
         CustomerTier tier = loyaltyService.resolveTierByCompletedCount(monthlyCompletedCount);
         BigDecimal discountRate = loyaltyService.resolveDiscountRate(tier);
@@ -349,20 +428,168 @@ public class BookingService {
                 .tierAtBooking(tier.name())
                 .status(BookingStatus.PENDING_ACCEPTANCE)
                 .paymentStatus(PaymentStatus.HOLDING)
+                .directBookingRequest(directReq)
+                .description(request.getDescription())
                 .timeoutAt(LocalDateTime.now().plusMinutes(15))
                 .build();
 
         booking = bookingRepository.save(booking);
+        
+        // 8b. Giữ tiền từ ví Khách hàng
+        walletService.holdMoney(customerId, finalPrice, null, booking.getId());
 
-        // 5. Tạm khóa lịch thợ
-        targetSchedule.setStatus(ScheduleStatus.PENDING_LOCK);
+        // 9. Khóa tạm lịch thợ
+        targetSchedule.setStatus(ScheduleStatus.BUSY);
         targetSchedule.setBooking(booking);
         helperScheduleRepository.save(targetSchedule);
 
         log.info("Direct booking {} created. Waiting for helper {} to respond.", booking.getId(), helper.getId());
 
-        // Trả về response với address đầy đủ (cho khách hàng - người vừa tạo)
+        String helperContent = String.format(
+                "Đơn đặt #%d: Khách %s muốn đặt bạn ngày %s lúc %s (%d giờ) - Dịch vụ: %s",
+                booking.getId(),
+                customer.getFullName(),
+                request.getWorkDate(),
+                String.format("%02d:%02d", request.getStartTime().getHour(), request.getStartTime().getMinute()),
+                request.getDurationHours(),
+                category.getName());
+        notificationService.createNotification(helper.getId(),
+                "📋 Yêu cầu đặt trực tiếp mới",
+                helperContent,
+                "DIRECT_BOOKING");
+
+        // 11. Thông báo realtime cho Customer (xác nhận đã gửi)
+        String customerContent = String.format(
+                "Yêu cầu #%d của bạn đã được gửi tới thợ %s - ngày %s lúc %s (%d giờ). Chờ thợ xác nhận!",
+                booking.getId(),
+                helper.getFullName(),
+                request.getWorkDate(),
+                String.format("%02d:%02d", request.getStartTime().getHour(), request.getStartTime().getMinute()),
+                request.getDurationHours());
+        notificationService.createNotification(customerId,
+                "✅ Đã gửi yêu cầu đặt thợ",
+                customerContent,
+                "DIRECT_BOOKING");
+
+        // Trả về response với address đầy đủ
         return mapToBookingResponse(booking, customerId);
+    }
+
+    /**
+     * Validate workSize &amp; duration cho direct booking — khớp JobService rules
+     */
+    private void validateDirectBookingWorkSize(Integer categoryId, Integer hours, Double workSize) {
+        if (workSize == null || workSize <= 0 || categoryId == null) return;
+        if (hours == null) return;
+
+        switch (categoryId) {
+            case 1: // Dọn dẹp nhà
+                if (hours > 4)
+                    throw new ApiException("Dịch vụ dọn dẹp nhà chỉ được đặt tối đa 4 giờ.", HttpStatus.BAD_REQUEST);
+                if (workSize > 100 && hours < 4)
+                    throw new ApiException("Diện tích trên 100m2 cần tối thiểu 4 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 80 && hours < 3)
+                    throw new ApiException("Diện tích trên 80m2 cần tối thiểu 3 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 60 && hours < 2)
+                    throw new ApiException("Diện tích trên 60m2 cần tối thiểu 2 giờ", HttpStatus.BAD_REQUEST);
+                break;
+            case 2: // Nấu ăn
+                if (workSize > 8) throw new ApiException("Số người ăn tối đa là 8 người", HttpStatus.BAD_REQUEST);
+                break;
+            case 4: // VP
+                if (workSize > 150 && hours < 4)
+                    throw new ApiException("Diện tích trên 150m2 cần tối thiểu 4 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 100 && hours < 3)
+                    throw new ApiException("Diện tích trên 100m2 cần tối thiểu 3 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 60 && hours < 2)
+                    throw new ApiException("Diện tích trên 60m2 cần tối thiểu 2 giờ", HttpStatus.BAD_REQUEST);
+                break;
+            case 6: // Làm vườn
+                if (workSize > 80 && hours < 4)
+                    throw new ApiException("Diện tích trên 80m2 cần tối thiểu 4 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 50 && hours < 3)
+                    throw new ApiException("Diện tích trên 50m2 cần tối thiểu 3 giờ", HttpStatus.BAD_REQUEST);
+                break;
+            case 7: // Sơn sửa
+                if (workSize > 4 && hours < 4)
+                    throw new ApiException("Trên 4 hạng mục cần tối thiểu 4 giờ", HttpStatus.BAD_REQUEST);
+                if (workSize > 2 && hours < 3)
+                    throw new ApiException("Trên 2 hạng mục cần tối thiểu 3 giờ", HttpStatus.BAD_REQUEST);
+                break;
+        }
+        if (hours > 12) throw new ApiException("Thời lượng làm việc tối đa là 12 giờ", HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Tính giá direct booking — copy logic calculatePriceInternal từ JobService
+     */
+    private BigDecimal calculateDirectBookingPrice(ServiceCategory category, DirectBookingRequest req) {
+        int hours = req.getDurationHours() != null ? req.getDurationHours() : 0;
+        BigDecimal price;
+        if (com.homeconnect.core.enums.ServiceUnit.PER_SERVICE.equals(category.getUnit())) {
+            price = category.getBasePrice();
+        } else {
+            price = category.getBasePrice().multiply(BigDecimal.valueOf(hours));
+        }
+
+        // Premium
+        if (Boolean.TRUE.equals(req.getIsPremium())) {
+            price = price.add(BigDecimal.valueOf(50000));
+        }
+
+        // Sub-services
+        // Quy tắc mới: Mỗi dịch vụ con tính phí cố định 40k (tương ứng 1 giờ làm thêm)
+        // và cộng thêm basePrice của chính dịch vụ đó (nếu có)
+        if (req.getServiceIds() != null && !req.getServiceIds().isEmpty()) {
+            for (Integer sId : req.getServiceIds()) {
+                // com.homeconnect.core.entity.Service svc = serviceRepository.findById(sId).orElse(null);
+
+                com.homeconnect.core.entity.Service svc = serviceRepository.findById(sId).orElse(null);
+                if (svc != null && svc.getBasePrice() != null) {
+                    price = price.add(svc.getBasePrice());
+                }
+            }
+        }
+
+        int catId = category.getCategoryId();
+
+        if (Boolean.TRUE.equals(req.getBringTools())) {
+            price = price.add(BigDecimal.valueOf(30000));
+        }
+
+        // Nhà có thú cưng (+30k)
+        if (Boolean.TRUE.equals(req.getHasPets())) {
+            price = price.add(BigDecimal.valueOf(30000));
+        }
+
+        java.util.Map<String, Object> extra = req.getAdditionalData();
+
+        // Cat 2: Nấu ăn
+        if (catId == 2 && extra != null && Boolean.TRUE.equals(extra.get("isTaskerShopping"))) {
+            price = price.add(BigDecimal.valueOf(50000));
+        }
+        // Cat 3: Đi chợ
+        if (catId == 3 && extra != null && Boolean.TRUE.equals(extra.get("isTaskerAdvance"))) {
+            price = price.add(BigDecimal.valueOf(30000));
+            Object amt = extra.get("shoppingAmount");
+            if (amt != null) {
+                try { price = price.add(new BigDecimal(amt.toString())); } catch (Exception ignored) {}
+            }
+        }
+        // Cat 5: Trông trẻ
+        if (catId == 5 && req.getWorkSize() != null && req.getWorkSize() > 1) {
+            BigDecimal extraChild = BigDecimal.valueOf(req.getWorkSize() - 1)
+                    .multiply(BigDecimal.valueOf(hours))
+                    .multiply(BigDecimal.valueOf(30000));
+            price = price.add(extraChild);
+        }
+        // Cat 7: Sơn sửa
+        if (catId == 7 && req.getWorkSize() != null && req.getWorkSize() > 1) {
+            BigDecimal extraItem = BigDecimal.valueOf(req.getWorkSize() - 1).multiply(BigDecimal.valueOf(50000));
+            price = price.add(extraItem);
+        }
+
+        return price;
     }
 
     /**
@@ -381,7 +608,7 @@ public class BookingService {
             throw new ApiException("Đơn hàng này không còn ở trạng thái chờ xác nhận", HttpStatus.BAD_REQUEST);
         }
 
-        // Tìm lịch đang PENDING_LOCK
+        // Tìm lịch đang được gắn với booking direct này (trạng thái BUSY)
         HelperSchedule schedule = helperScheduleRepository.findByBooking(booking)
                 .stream().findFirst()
                 .orElseThrow(() -> new ApiException("Không tìm thấy lịch tương ứng", HttpStatus.NOT_FOUND));
@@ -391,18 +618,74 @@ public class BookingService {
             booking.setTimeoutAt(null);
             schedule.setStatus(ScheduleStatus.BUSY);
             log.info("Helper {} accepted booking {}.", helperId, bookingId);
+            
+            // Notify Customer
+            notificationService.createNotification(
+                    booking.getCustomer().getId(),
+                    "Thợ đã nhận công việc!",
+                    "Đơn đặt #" + booking.getId() + ": Thợ " + booking.getHelper().getFullName() + " đã đồng ý nhận yêu cầu trực tiếp của bạn.",
+                    "DIRECT_BOOKING_ACCEPTED"
+            );
         } else {
             booking.setStatus(BookingStatus.CANCELLED);
             booking.setCancelSource("HELPER");
-            booking.setCancelReason("Helper từ chối đơn direct booking");
+            booking.setCancelReason("thợ từ chối đơn đặt trực tiếp");
             booking.setCancelledAt(LocalDateTime.now());
             schedule.setStatus(ScheduleStatus.AVAILABLE);
             schedule.setBooking(null);
             log.info("Helper {} rejected booking {}.", helperId, bookingId);
+            
+            // Notify Customer
+            notificationService.createNotification(
+                    booking.getCustomer().getId(),
+                    "Thợ đã từ chối công việc",
+                    String.format("Rất tiếc! Đơn đặt #%d: Thợ %s đã từ chối yêu cầu của bạn. Tiền đặt cọc sẽ được hoàn lại.", booking.getId(), booking.getHelper().getFullName()),
+                    "DIRECT_BOOKING_REJECTED"
+            );
+        }
+
+        if (!accept) {
+            // Hoàn tiền cho khách hàng khi thợ từ chối
+            walletService.refundHold(booking.getCustomer().getId(), booking.getFinalPrice(), booking.getId(), "Thợ từ chối yêu cầu đặt thợ trực tiếp");
+            booking.setPaymentStatus(com.homeconnect.core.enums.PaymentStatus.REFUNDED);
         }
 
         bookingRepository.save(booking);
         helperScheduleRepository.save(schedule);
+    }
+
+    /**
+     * Lấy danh sách đặt trực tiếp của thợ (PB-13)
+     * Chỉ bao gồm booking KHÔNG có jobPostId (không từ tin đăng marketplace).
+     */
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getHelperDirectBookings(Long helperId) {
+        List<BookingStatus> visibleStatuses = List.of(
+                BookingStatus.PENDING_ACCEPTANCE,
+                BookingStatus.CONFIRMED,
+                BookingStatus.ARRIVED,
+                BookingStatus.IN_PROGRESS,
+                BookingStatus.PENDING_COMPLETION,
+                BookingStatus.COMPLETED,
+                BookingStatus.CANCELLED);
+
+        return bookingRepository
+                .findByHelper_IdAndJobPostIdIsNullAndStatusInOrderByCreatedAtDesc(helperId, visibleStatuses)
+                .stream()
+                .map(b -> mapToBookingResponse(b, helperId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Lấy danh sách đặt trực tiếp của khách hàng (PB-13)
+     */
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getCustomerDirectBookings(Long customerId) {
+        return bookingRepository
+                .findByCustomer_IdAndJobPostIdIsNullOrderByCreatedAtDesc(customerId)
+                .stream()
+                .map(b -> mapToBookingResponse(b, customerId))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -552,7 +835,32 @@ public class BookingService {
             }
         }
 
+        String serviceIds = b.getJobPost() != null ? b.getJobPost().getServiceId() : 
+                           (b.getDirectBookingRequest() != null ? b.getDirectBookingRequest().getServiceIds() : null);
+        String subServiceNames = "";
+        if (serviceIds != null && !serviceIds.isEmpty()) {
+            try {
+                List<Integer> ids = java.util.Arrays.stream(serviceIds.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(Integer::parseInt)
+                        .collect(java.util.stream.Collectors.toList());
+                if (!ids.isEmpty()) {
+                    subServiceNames = serviceRepository.findAllById(ids).stream()
+                            .map(com.homeconnect.core.entity.Service::getName)
+                            .collect(java.util.stream.Collectors.joining(", "));
+                }
+            } catch (Exception e) {
+                log.warn("Error resolving sub-services names for IDs: {}", serviceIds, e);
+            }
+        }
+
         String arrivalProofImage = resolveArrivalProofImage(b);
+        LocalDate workDate = (b.getScheduledStartTime() != null) ? b.getScheduledStartTime().toLocalDate() : null;
+        LocalTime startTime = (b.getScheduledStartTime() != null) ? b.getScheduledStartTime().toLocalTime() : null;
+        Integer durationHours = (b.getScheduledStartTime() != null && b.getScheduledEndTime() != null)
+                ? (int) java.time.Duration.between(b.getScheduledStartTime(), b.getScheduledEndTime()).toHours()
+                : null;
 
         return BookingResponse.builder()
                 .bookingId(b.getId())
@@ -560,9 +868,13 @@ public class BookingService {
                 .customerName(b.getCustomer().getFullName())
                 .helperId(b.getHelper().getId())
                 .helperName(b.getHelper().getFullName())
+                .categoryId(b.getCategory() != null ? b.getCategory().getCategoryId() : null)
                 .serviceName(b.getCategory() != null ? b.getCategory().getName() : "Dịch vụ")
                 .scheduledStartTime(b.getScheduledStartTime())
                 .scheduledEndTime(b.getScheduledEndTime())
+                .workDate(workDate)
+                .startTime(startTime)
+                .durationHours(durationHours)
                 .arrivedAt(b.getArrivedAt())
                 .arrivalProofImage(arrivalProofImage)
                 .customerArrivalConfirmed(Boolean.TRUE.equals(b.getCustomerArrivalConfirmed()))
@@ -581,24 +893,48 @@ public class BookingService {
                 .finalPrice(b.getFinalPrice())
                 .tierAtBooking(b.getTierAtBooking())
                 .address(fullAddress)
+                .wardName(b.getAddress() != null ? b.getAddress().getWardName() : null)
+                .districtName(b.getAddress() != null ? b.getAddress().getDistrictName() : null)
+                .provinceName(b.getAddress() != null ? b.getAddress().getProvinceName() : null)
                 .paymentStatus(b.getPaymentStatus())
                 .disputeReason(b.getDisputeReason())
                 .evidenceUrl(b.getEvidenceUrl())
                 .disputedAt(b.getDisputedAt())
                 .disputeResolvedAt(b.getDisputeResolvedAt())
                 .disputeResolutionAction(b.getDisputeResolutionAction())
+                .createdAt(b.getCreatedAt())
+                .workSize(b.getJobPost() != null ? b.getJobPost().getWorkSize() : 
+                         (b.getDirectBookingRequest() != null ? b.getDirectBookingRequest().getWorkSize() : null))
+                .description(b.getJobPost() != null ? b.getJobPost().getDescription() : b.getDescription())
+                .serviceIds(serviceIds)
+                .subServiceNames(subServiceNames)
+                .isPremium(b.getJobPost() != null ? b.getJobPost().getIsPremium() : 
+                           (b.getDirectBookingRequest() != null ? b.getDirectBookingRequest().getIsPremium() : false))
+                .isVipCustomer("GOLD".equalsIgnoreCase(b.getTierAtBooking()) || "PLATINUM".equalsIgnoreCase(b.getTierAtBooking()))
+                .hasPets(b.getJobPost() != null ? b.getJobPost().getHasPets() : 
+                        (b.getDirectBookingRequest() != null ? b.getDirectBookingRequest().getHasPets() : false))
+                .bringTools(b.getJobPost() != null ? b.getJobPost().getBringTools() : 
+                           (b.getDirectBookingRequest() != null ? b.getDirectBookingRequest().getBringTools() : false))
+                .canCheckin(b.getStatus() == BookingStatus.CONFIRMED)
+                .arrivalProofImage(arrivalProofImage)
+                .cancelReason(b.getCancelReason())
+                .cancelSource(b.getCancelSource())
                 .build();
     }
 
-    private Map<String, Object> parseAdditionalData(JobPost jobPost) {
-        if (jobPost == null || jobPost.getAdditionalData() == null || jobPost.getAdditionalData().isBlank()) {
+    private Map<String, Object> parseAdditionalData(String json) {
+        if (json == null || json.isBlank()) {
             return java.util.Collections.emptyMap();
         }
         try {
-            return objectMapper.readValue(jobPost.getAdditionalData(), new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            return objectMapper.readValue(json, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             return java.util.Collections.emptyMap();
         }
+    }
+
+    private Map<String, Object> parseAdditionalData(JobPost jobPost) {
+        return parseAdditionalData(jobPost != null ? jobPost.getAdditionalData() : null);
     }
 
     private BigDecimal resolveOriginalPriceFromJobPost(JobPost jobPost) {

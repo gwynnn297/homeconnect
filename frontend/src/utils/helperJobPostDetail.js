@@ -25,14 +25,12 @@ const formatVnd = (value) => {
 };
 
 const resolveHelperCompensation = (job) => {
-    const rawOriginalPrice = job?.originalPrice ?? job?.offerPrice;
-    const originalPrice = Number(rawOriginalPrice);
+    // Hiển thị thù lao thực nhận = giá gốc trừ phí hoa hồng 5%
+    const rawPrice = job?.originalPrice ?? job?.offerPrice;
+    const originalPrice = Number(rawPrice);
     if (!Number.isFinite(originalPrice)) return formatVnd(job?.offerPrice);
 
-    const rawCommissionRate = job?.commissionRate ?? job?.additionalData?.commissionRate ?? 0.15;
-    const parsedRate = Number(rawCommissionRate);
-    const commissionRate = Number.isFinite(parsedRate) ? Math.max(0, Math.min(1, parsedRate)) : 0.15;
-
+    const commissionRate = 0.05; // 5% phí nền tảng
     const helperCompensation = originalPrice * (1 - commissionRate);
     return formatVnd(helperCompensation);
 };
@@ -68,6 +66,10 @@ function collectWorkScope(job) {
     const add = getAdditional(job);
     const bullets = [];
     const lists = [];
+
+    if (job?.serviceNames) {
+        bullets.push(`Dịch vụ thêm: ${job.serviceNames}`);
+    }
 
     if (cat === HOME_CLEANING_CATEGORY_ID) {
         if (ws != null && Number.isFinite(ws)) bullets.push(`Diện tích ước lượng khoảng ${ws} m²`);

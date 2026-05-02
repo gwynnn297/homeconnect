@@ -250,6 +250,16 @@ public class MatchingService {
                         helperId);
             }
 
+            // ===== BƯỚC 7: Thông báo cho Khách hàng khi có thợ phù hợp =====
+            if (notifyCount > 0) {
+                notificationService.createNotification(
+                        jobPost.getCustomerId(),
+                        "Đã tìm thấy " + notifyCount + " thợ phù hợp",
+                        String.format("Có %d thợ gần khu vực %s đang sẵn sàng nhận việc '%s' của bạn.", 
+                                notifyCount, jobDistrict, jobPost.getTitle()),
+                        "MATCHING_FOUND");
+            }
+
             log.info(
                     "[Matching] Job #{}: Hoàn tất. Đã gửi {} thông báo (email + in-app), thợ ứng tuyển chủ động trên feed.",
                     postId, notifyCount);
@@ -413,12 +423,12 @@ public class MatchingService {
 
                 Vui lòng mở ứng dụng, xem việc trong danh sách và ứng tuyển nếu bạn muốn nhận việc.
 
-                Hãy nhanh chóng - các helper khác cũng có thể nhận việc này!
+                Hãy nhanh chóng - các thợ khác cũng có thể nhận việc này!
 
                 Trân trọng,
                 HomeConnect Team
                 """,
-                helperName != null ? helperName : "Helper",
+                helperName != null ? helperName : "thợ",
                 serviceDetails.toString(),
                 jobPost.getWorkDate(),
                 jobPost.getStartTime(),

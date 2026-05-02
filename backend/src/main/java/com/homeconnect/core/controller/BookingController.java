@@ -76,6 +76,30 @@ public class BookingController {
                                 .build());
         }
 
+        @Operation(summary = "Thợ xem danh sách đặt trực tiếp (PB-13)", description = "Trả về các booking không có job post (đặt trực tiếp), bao gồm cả PENDING_ACCEPTANCE")
+        @GetMapping("/my-direct")
+        @PreAuthorize("hasRole('HELPER')")
+        public ResponseEntity<ApiResponse<List<BookingResponse>>> getMyDirectBookings(Authentication authentication) {
+                Long helperId = securityUtil.getCurrentUserId(authentication);
+                List<BookingResponse> result = bookingService.getHelperDirectBookings(helperId);
+                return ResponseEntity.ok(ApiResponse.<List<BookingResponse>>builder()
+                                .message("Lấy danh sách đặt trực tiếp thành công")
+                                .data(result)
+                                .build());
+        }
+
+        @Operation(summary = "Khách hàng xem danh sách đặt trực tiếp (PB-13)", description = "Trả về các booking không có job post (đặt trực tiếp)")
+        @GetMapping("/customer-direct")
+        @PreAuthorize("hasRole('CUSTOMER')")
+        public ResponseEntity<ApiResponse<List<BookingResponse>>> getCustomerDirectBookings(Authentication authentication) {
+                Long customerId = securityUtil.getCurrentUserId(authentication);
+                List<BookingResponse> result = bookingService.getCustomerDirectBookings(customerId);
+                return ResponseEntity.ok(ApiResponse.<List<BookingResponse>>builder()
+                                .message("Lấy danh sách đặt trực tiếp thành công")
+                                .data(result)
+                                .build());
+        }
+
         @Operation(summary = "Thợ phản hồi đơn đặt trực tiếp", description = "Thợ bấm Đồng ý hoặc Từ chối yêu cầu đặt việc từ khách hàng")
         @PutMapping("/{bookingId}/respond")
         @PreAuthorize("hasRole('HELPER')")

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import ProfileService from '../../services/ProfileService';
+import DirectBookingModal from '../../components/DirectBookingModal';
+import HelperProfileModal from '../../components/HelperProfileModal';
 import './SearchHelperPage.css';
 
 const SearchHelperPage = () => {
@@ -9,8 +12,11 @@ const SearchHelperPage = () => {
     const [categories, setCategories] = useState([]);
     const [provinces, setProvinces] = useState([]);
     const [districts, setDistricts] = useState([]);
+    const [showProfileHelper, setShowProfileHelper] = useState(null);
     const [showDrawer, setShowDrawer] = useState(false);
     const [sortBy, setSortBy] = useState('rating'); // rating, experience
+    const [selectedHelperForBooking, setSelectedHelperForBooking] = useState(null);
+    const navigate = useNavigate();
 
     const [filters, setFilters] = useState({
         serviceId: '',
@@ -216,7 +222,7 @@ const SearchHelperPage = () => {
                 <header className="search-helper-header">
                     <div className="header-content-wrapper">
                         <div className="header-title-section">
-                            <h1>Tìm kiếm Người giúp việc</h1>
+                            <h1>Tìm kiếm Thợ</h1>
                             <p>Lọc thợ đang Online và có phản hồi tốt nhất</p>
                         </div>
                         <div className="header-actions">
@@ -289,8 +295,11 @@ const SearchHelperPage = () => {
                                         </div>
 
                                         <div className="helper-card-footer">
-                                            <button className="view-profile-btn" onClick={() => window.location.href = `/helpers/${helper.id}`}>
+                                            <button className="view-profile-btn" onClick={() => setShowProfileHelper(helper)}>
                                                 Xem hồ sơ
+                                            </button>
+                                            <button className="book-now-btn" onClick={() => setSelectedHelperForBooking(helper)}>
+                                                Đặt thợ này
                                             </button>
                                         </div>
                                     </div>
@@ -306,6 +315,22 @@ const SearchHelperPage = () => {
                         )}
                     </div>
                 </div>
+
+                {showProfileHelper && (
+                    <HelperProfileModal
+                        helper={showProfileHelper}
+                        onClose={() => setShowProfileHelper(null)}
+                        onBookNow={(h) => setSelectedHelperForBooking(h)}
+                    />
+                )}
+
+                {selectedHelperForBooking && (
+                    <DirectBookingModal
+                        helper={selectedHelperForBooking}
+                        onClose={() => setSelectedHelperForBooking(null)}
+                        onSuccess={() => {/* Toast handles success message */ }}
+                    />
+                )}
             </div>
         </CustomerLayout>
     );

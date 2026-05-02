@@ -59,6 +59,17 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
                      @Param("startTime") java.time.LocalDateTime startTime,
                      @Param("endTime") java.time.LocalDateTime endTime);
 
+       @Query("SELECT COUNT(b) FROM Booking b " +
+                     "WHERE b.helper.id = :helperId " +
+                     "AND b.status IN :statuses " +
+                     "AND (b.scheduledStartTime < :endTime AND b.scheduledEndTime > :startTime) " +
+                     "AND (b.jobPostId IS NULL OR b.jobPostId != :excludeJobId)")
+       long countOverlappingBookingsExcludeJob(@Param("helperId") Long helperId,
+                     @Param("statuses") java.util.Collection<com.homeconnect.core.enums.BookingStatus> statuses,
+                     @Param("startTime") java.time.LocalDateTime startTime,
+                     @Param("endTime") java.time.LocalDateTime endTime,
+                     @Param("excludeJobId") Long excludeJobId);
+
        @Lock(LockModeType.PESSIMISTIC_WRITE)
        @Query("SELECT b FROM Booking b " +
                      "WHERE b.helper.id = :helperId " +
@@ -70,6 +81,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
                      @Param("endTime") LocalDateTime endTime);
 
        List<com.homeconnect.core.entity.Booking> findByStatusAndCreatedAtBefore(
+                     com.homeconnect.core.enums.BookingStatus status, java.time.LocalDateTime dateTime);
+
+       List<com.homeconnect.core.entity.Booking> findByStatusAndScheduledStartTimeBefore(
                      com.homeconnect.core.enums.BookingStatus status, java.time.LocalDateTime dateTime);
 
        List<com.homeconnect.core.entity.Booking> findByStatusAndCheckedOutAtBefore(
@@ -111,4 +125,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
                      @Param("to") LocalDateTime to);
 
        Page<Booking> findByStatusOrderByDisputedAtDesc(BookingStatus status, Pageable pageable);
+
+       /** Đặt trực tiếp của thợ - jobPostId IS NULL */
+       List<Booking> findByHelper_IdAndJobPostIdIsNullAndStatusInOrderByCreatedAtDesc(
+                     Long helperId, Collection<BookingStatus> statuses);
+
+       /** Đặt trực tiếp của khách hàng - jobPostId IS NULL */
+       List<Booking> findByCustomer_IdAndJobPostIdIsNullOrderByCreatedAtDesc(Long customerId);
 }
+

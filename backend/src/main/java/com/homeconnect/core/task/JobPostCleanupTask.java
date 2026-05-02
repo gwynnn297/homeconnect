@@ -31,7 +31,7 @@ public class JobPostCleanupTask {
         log.info("Bắt đầu quét các bài đăng việc làm hết hạn...");
         
         LocalDate today = LocalDate.now();
-        List<JobPost> expiredJobs = jobPostRepository.findExpiredJobPosts(today, java.time.LocalTime.now());
+        List<JobPost> expiredJobs = jobPostRepository.findExpiredJobPosts(today, java.time.LocalTime.now(), java.time.LocalDateTime.now());
 
         if (expiredJobs.isEmpty()) {
             log.info("Không có bài đăng nào hết hạn.");

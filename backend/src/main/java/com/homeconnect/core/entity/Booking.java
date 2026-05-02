@@ -104,6 +104,16 @@ public class Booking {
     @Builder.Default
     private PaymentStatus paymentStatus = PaymentStatus.HOLDING;
 
+    /** FK sang direct_booking_requests (null nếu booking từ marketplace) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "direct_booking_request_id")
+    private DirectBookingRequestEntity directBookingRequest;
+
+    /** Mô tả từ khách (copy từ direct_booking_requests.description để truy cập nhanh) */
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+
     @Column(name = "cancel_source", length = 30)
     private String cancelSource;
 

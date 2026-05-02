@@ -27,4 +27,7 @@ public interface AddressRepository extends JpaRepository<Address, Integer> {
 
     boolean existsByUser_IdAndAddressDetailIgnoreCaseAndWardNameAndDistrictNameAndProvinceNameAndAddressIdNot(
             Long userId, String addressDetail, String wardName, String districtName, String provinceName, Integer addressId);
+
+    Optional<Address> findFirstByUser_IdAndAddressDetailIgnoreCaseAndWardCodeAndDistrictCodeAndProvinceCode(
+            Long userId, String addressDetail, String wardCode, String districtCode, String provinceCode);
 }

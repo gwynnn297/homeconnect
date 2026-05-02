@@ -107,9 +107,44 @@ const CustomerPostDetailPage = () => {
             setLoading(true);
             setError('');
             try {
-                const res = await apiClient.get(`/api/v1/jobs/${postId}`);
-                const job = extractPayload(res);
-                setData(job || null);
+                let res;
+                if (postId.startsWith('DIR-')) {
+                    const bookingId = postId.replace('DIR-', '');
+                    res = await apiClient.get(`/api/v1/bookings/${bookingId}`);
+                    const booking = extractPayload(res);
+                    // Map Booking data to pseudo-Job structure
+                    const pseudoJob = {
+                        postId: postId,
+                        title: booking.description ? `Đặt trực tiếp: ${booking.description.substring(0, 35)}` : 'Đặt thợ trực tiếp',
+                        categoryName: booking.serviceName,
+                        serviceNames: booking.subServiceNames || '',
+                        description: booking.description,
+                        status: booking.status,
+                        createdAt: booking.createdAt,
+                        workDate: booking.workDate,
+                        startTime: booking.startTime,
+                        durationHours: booking.durationHours,
+                        offerPrice: booking.totalPrice || booking.finalPrice,
+                        addressDetail: booking.address,
+                        wardName: booking.wardName,
+                        districtName: booking.districtName,
+                        provinceName: booking.provinceName,
+                        isPremium: booking.isPremium,
+                        hasPets: booking.hasPets,
+                        bringTools: booking.bringTools,
+                        workSize: booking.workSize,
+                        bookingId: booking.bookingId,
+                        bookingStatus: booking.status,
+                        customerArrivalConfirmed: booking.customerArrivalConfirmed,
+                        arrivalProofImage: booking.arrivalProofImage,
+                        isDirect: true
+                    };
+                    setData(pseudoJob);
+                } else {
+                    res = await apiClient.get(`/api/v1/jobs/${postId}`);
+                    const job = extractPayload(res);
+                    setData(job || null);
+                }
             } catch (err) {
                 setData(null);
                 setError(err?.message || 'Không thể tải chi tiết bài đăng.');
@@ -128,7 +163,7 @@ const CustomerPostDetailPage = () => {
 
     useEffect(() => {
         const loadApplicants = async () => {
-            if (!postId) return;
+            if (!postId || postId.startsWith('DIR-')) return;
             setLoadingApplicants(true);
             setApplicantsError('');
             try {
@@ -172,7 +207,8 @@ const CustomerPostDetailPage = () => {
             isPremium: Boolean(job?.isPremium),
             hasPets: Boolean(job?.hasPets),
             bringTools: Boolean(job?.bringTools),
-            workSize: job?.workSize
+            workSize: job?.workSize,
+            isDirect: Boolean(job?.isDirect)
         };
     }, [data]);
 
@@ -209,14 +245,14 @@ const CustomerPostDetailPage = () => {
         setActionMessage('');
         try {
             const res = await BookingService.selectApplicant(postId, applicationId);
-            setActionMessage(res?.message || 'Chọn helper thành công.');
+            setActionMessage(res?.message || 'Chọn thợ thành công.');
             const bookingId = res?.data?.bookingId ?? null;
             await Promise.all([reloadJobDetail(), reloadApplicants()]);
             if (bookingId) {
                 navigate(`/customer/bookings/${bookingId}`);
             }
         } catch (err) {
-            setActionMessage(err?.message || 'Không thể chọn helper. Vui lòng thử lại.');
+            setActionMessage(err?.message || 'Không thể chọn thợ. Vui lòng thử lại.');
         } finally {
             setSelectingApplicationId(null);
         }
@@ -251,7 +287,7 @@ const CustomerPostDetailPage = () => {
             setHelperProfile(extractPayload(profRes.value) || null);
         } else {
             setHelperProfile(null);
-            setHelperProfileError(profRes.reason?.message || 'Không thể tải hồ sơ helper.');
+            setHelperProfileError(profRes.reason?.message || 'Không thể tải hồ sơ thợ.');
         }
         if (statRes.status === 'fulfilled') {
             setHelperReviewStats(extractPayload(statRes.value) || null);
@@ -381,86 +417,96 @@ const CustomerPostDetailPage = () => {
 
                         {viewModel.arrivalProofImage ? (
                             <div className="cpd-card" style={{ marginTop: 12 }}>
-                                <h3 style={{ marginTop: 0 }}>Ảnh địa điểm helper đã gửi</h3>
+                                <h3 style={{ marginTop: 0 }}>Ảnh địa điểm thợ đã gửi</h3>
                                 <img
                                     src={viewModel.arrivalProofImage}
                                     alt="Ảnh địa điểm helper gửi"
                                     style={{ width: '100%', borderRadius: 12, border: '1px solid #e2e8f0' }}
                                 />
                                 <p style={{ marginTop: 8, color: '#475569' }}>
-                                    Chủ nhà có thể vào chi tiết booking để xác nhận helper đã đến đúng địa chỉ.
+                                    Chủ nhà có thể vào chi tiết booking để xác nhận thợ đã đến đúng địa chỉ.
                                 </p>
                             </div>
                         ) : null}
 
-                        <div className="cpd-card cpd-applicants-card">
-                            <div className="cpd-applicants-header">
-                                <h3>Danh sách người đã apply</h3>
-                                <span>{applicants.length} ứng viên</span>
-                            </div>
-
-                            {actionMessage ? <p className="cpd-action-message">{actionMessage}</p> : null}
-
-                            {loadingApplicants ? (
-                                <p className="cpd-applicants-loading">Đang tải danh sách ứng viên...</p>
-                            ) : applicantsError ? (
-                                <p className="cpd-applicants-error">{applicantsError}</p>
-                            ) : applicants.length === 0 ? (
-                                <p className="cpd-applicants-empty">Chưa có helper nào ứng tuyển vào bài đăng này.</p>
-                            ) : (
-                                <div className="cpd-applicants-list">
-                                    {applicants.map((applicant) => (
-                                        <div key={applicant.applicationId} className="cpd-applicant-item">
-                                            <div className="cpd-applicant-main">
-                                                <div className="cpd-applicant-avatar">
-                                                    {applicant?.fullName?.charAt(0)?.toUpperCase() || 'H'}
-                                                </div>
-                                                <div className="cpd-applicant-info">
-                                                    <div className="cpd-applicant-title-row">
-                                                        <p className="cpd-applicant-name">{applicant.fullName || 'Helper'}</p>
-                                                        <span className={getApplicantStatusConfig(applicant.status).className}>
-                                                            {getApplicantStatusConfig(applicant.status).label}
-                                                        </span>
-                                                    </div>
-                                                    <p className="cpd-applicant-meta">
-                                                        ⭐ {Number(applicant.rating || 0).toFixed(1)} ({applicant.reviewCount || 0} đánh giá)
-                                                    </p>
-                                                    <p className="cpd-applicant-bio">
-                                                        {applicant.bio || 'Chưa có phần giới thiệu.'}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="cpd-applicant-actions">
-                                                <button
-                                                    type="button"
-                                                    className="cpd-secondary"
-                                                    onClick={() => handleOpenHelperProfile(applicant)}
-                                                >
-                                                    Xem hồ sơ
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="cpd-primary"
-                                                    disabled={
-                                                        !canSelectApplicant ||
-                                                        selectingApplicationId === applicant.applicationId ||
-                                                        applicant.status !== 'PENDING'
-                                                    }
-                                                    onClick={() => handleSelectApplicant(applicant.applicationId)}
-                                                >
-                                                    {!canSelectApplicant
-                                                        ? 'Đã chốt helper'
-                                                        : selectingApplicationId === applicant.applicationId
-                                                            ? 'Đang chọn...'
-                                                            : 'Chọn helper này'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
+                        {!viewModel.isDirect && (
+                            <div className="cpd-card cpd-applicants-card">
+                                <div className="cpd-applicants-header">
+                                    <h3>Danh sách người đã apply</h3>
+                                    <span>{applicants.length} ứng viên</span>
                                 </div>
-                            )}
-                        </div>
+
+                                {actionMessage ? <p className="cpd-action-message">{actionMessage}</p> : null}
+
+                                {loadingApplicants ? (
+                                    <p className="cpd-applicants-loading">Đang tải danh sách ứng viên...</p>
+                                ) : applicantsError ? (
+                                    <p className="cpd-applicants-error">{applicantsError}</p>
+                                ) : applicants.length === 0 ? (
+                                    <p className="cpd-applicants-empty">Chưa có helper nào ứng tuyển vào bài đăng này.</p>
+                                ) : (
+                                    <div className="cpd-applicants-list">
+                                        {applicants.map((applicant) => (
+                                            <div key={applicant.applicationId} className="cpd-applicant-item">
+                                                <div className="cpd-applicant-main">
+                                                    <div className="cpd-applicant-avatar">
+                                                        {(applicant?.fullName || 'H').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="cpd-applicant-info">
+                                                        {applicant.hasOverlap && (
+                                                            <div className="cpd-overlap-badge" title="Thợ này đã có đơn hàng khác trong khung giờ này">
+                                                                Trùng lịch làm việc
+                                                            </div>
+                                                        )}
+                                                        <div className="cpd-applicant-title-row">
+                                                            <p className="cpd-applicant-name">{applicant.fullName || 'thợ'}</p>
+                                                            <span className={getApplicantStatusConfig(applicant.status).className}>
+                                                                {getApplicantStatusConfig(applicant.status).label}
+                                                            </span>
+                                                        </div>
+                                                        <p className="cpd-applicant-meta">
+                                                            ⭐ {Number(applicant.rating || 0).toFixed(1)} ({applicant.reviewCount || 0} đánh giá)
+                                                        </p>
+                                                        <p className="cpd-applicant-bio">
+                                                            {applicant.bio || 'Chưa có phần giới thiệu.'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="cpd-applicant-actions">
+                                                    <button
+                                                        type="button"
+                                                        className="cpd-secondary"
+                                                        onClick={() => handleOpenHelperProfile(applicant)}
+                                                    >
+                                                        Xem hồ sơ
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="cpd-primary"
+                                                        disabled={
+                                                            !canSelectApplicant ||
+                                                            selectingApplicationId === applicant.applicationId ||
+                                                            applicant.status !== 'PENDING' ||
+                                                            applicant.hasOverlap
+                                                        }
+                                                        onClick={() => handleSelectApplicant(applicant.applicationId)}
+                                                    >
+                                                        {!canSelectApplicant
+                                                            ? 'Đã chốt thợ'
+                                                            : applicant.hasOverlap
+                                                                ? 'Trùng lịch'
+                                                                : selectingApplicationId === applicant.applicationId
+                                                                    ? 'Đang chọn...'
+                                                                    : 'Chọn thợ này'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </>
                 )}
             </div>
@@ -469,14 +515,14 @@ const CustomerPostDetailPage = () => {
                 <div className="cpd-helper-modal-overlay" onClick={closeHelperModal}>
                     <div className="cpd-helper-modal cpd-helper-modal--wide" onClick={(e) => e.stopPropagation()}>
                         <div className="cpd-helper-modal-header">
-                            <h3>Hồ sơ helper</h3>
+                            <h3>Hồ sơ thợ</h3>
                             <button type="button" className="cpd-back" onClick={closeHelperModal}>
                                 Đóng
                             </button>
                         </div>
 
                         {helperProfileLoading ? (
-                            <p className="cpd-applicants-loading">Đang tải hồ sơ helper...</p>
+                            <p className="cpd-applicants-loading">Đang tải hồ sơ thợ...</p>
                         ) : (
                             <div className="cpd-helper-profile-content">
                                 {helperProfileError ? (
@@ -496,20 +542,20 @@ const CustomerPostDetailPage = () => {
                                                 />
                                             ) : (
                                                 <div className="cpd-helper-avatar-fallback">
-                                                    {(selectedApplicant?.fullName || 'H').charAt(0).toUpperCase()}
+                                                    {(selectedApplicant?.fullName || 'T').charAt(0).toUpperCase()}
                                                 </div>
                                             )}
                                         </div>
                                         <div className="cpd-helper-headline">
-                                            <h4>{selectedApplicant?.fullName || 'Helper'}</h4>
+                                            <h4>{selectedApplicant?.fullName || 'thợ'}</h4>
                                             <div className="cpd-helper-badges">
                                                 <span className="cpd-helper-badge">
                                                     ⭐{' '}
                                                     {Number(
                                                         helperReviewStats?.averageRating ??
-                                                            helperProfile?.ratingAverage ??
-                                                            selectedApplicant?.rating ??
-                                                            0
+                                                        helperProfile?.ratingAverage ??
+                                                        selectedApplicant?.rating ??
+                                                        0
                                                     ).toFixed(1)}{' '}
                                                     (
                                                     {helperReviewStats?.totalReviews ??
@@ -634,13 +680,14 @@ const CustomerPostDetailPage = () => {
                                         </ul>
                                     )}
                                 </div>
-
-                                {helperProfile ? (
-                                    <div className="cpd-helper-section">
-                                        <h5>Giới thiệu</h5>
-                                        <p className="cpd-helper-bio-text">{helperProfile?.bio || 'Helper chưa cập nhật phần giới thiệu.'}</p>
-                                    </div>
-                                ) : null}
+                                <div className="cpd-helper-section">
+                                    {helperProfile ? (
+                                        <>
+                                            <h5>Giới thiệu</h5>
+                                            <p className="cpd-helper-bio-text">{helperProfile?.bio || 'thợ chưa cập nhật phần giới thiệu.'}</p>
+                                        </>
+                                    ) : null}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -651,4 +698,3 @@ const CustomerPostDetailPage = () => {
 };
 
 export default CustomerPostDetailPage;
-

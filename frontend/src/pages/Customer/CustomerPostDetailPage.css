@@ -304,6 +304,20 @@
     border-color: #e5e7eb;
 }
 
+.cpd-overlap-badge {
+    background-color: #fff1f2;
+    color: #be123c;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid #fecdd3;
+    display: inline-block;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 .cpd-applicant-meta {
     margin: 3px 0 0 0;
     color: var(--muted);
@@ -660,4 +674,3 @@
         grid-template-columns: 1fr;
     }
 }
-

@@ -128,7 +128,10 @@ const ProfileService = {
     getProvinces,
     getDistricts,
     getWards,
-    getActiveCategories
+    getActiveCategories,
+    getHelperReviews: (helperId) => {
+        return apiClient.get(`/api/v1/reviews/helper/${helperId}?size=3&sort=createdAt,desc`);
+    }
 };
 
 export default ProfileService;

@@ -80,8 +80,17 @@ const isCompletedJob = (job) => String(job?.status || '').toUpperCase() === 'COM
 
 const getTabMeta = (tabId) => TAB_UI[tabId] || TAB_UI.NEW;
 
-const getDisplayStatus = (tabId, jobStatus) => {
+const getDisplayStatus = (tabId, jobStatus, isDirect = false) => {
     const fallback = getTabMeta(tabId);
+
+    if (isDirect && String(jobStatus).toUpperCase() === 'PENDING_ACCEPTANCE') {
+        return {
+            ...fallback,
+            badgeLabel: 'Yêu cầu trực tiếp',
+            badgeClass: 'new', // Màu xanh lá cho nổi bật
+            icon: 'briefcase'
+        };
+    }
 
     if (tabId === 'NEW') return fallback;
     if (tabId === 'PENDING') return fallback;
@@ -98,6 +107,14 @@ const getDisplayStatus = (tabId, jobStatus) => {
     }
 
     if (tabId === 'COMPLETED') {
+        if (String(jobStatus).toUpperCase() === 'CANCELLED') {
+            return {
+                ...fallback,
+                badgeLabel: 'Đã từ chối',
+                badgeClass: 'rejected',
+                icon: 'clock'
+            };
+        }
         return fallback;
     }
 
@@ -143,7 +160,7 @@ const getCheckinBadgeMeta = (tabId, job) => {
         };
     }
 
-    return getDisplayStatus(tabId, job?.status);
+    return getDisplayStatus(tabId, job?.status, job?.isDirect);
 };
 
 const StatusIcon = ({ type }) => {
@@ -195,8 +212,11 @@ const HelperNewJobPage = () => {
     const [loadingJobs, setLoadingJobs] = useState(false);
     const [jobsError, setJobsError] = useState('');
     const [hasLoadedJobsOnce, setHasLoadedJobsOnce] = useState(false);
+    const [loadedJobsTab, setLoadedJobsTab] = useState(activeTab);
     const [tabCounts, setTabCounts] = useState({ NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 });
     const handledNotificationTokenRef = useRef(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const refreshForTokenRef = useRef(null);
     const [showDisputeModal, setShowDisputeModal] = useState(false);
     const [disputeMessage, setDisputeMessage] = useState('');
     const [disputeEvidenceUrl, setDisputeEvidenceUrl] = useState('');
@@ -218,6 +238,31 @@ const HelperNewJobPage = () => {
     const handleCloseModal = () => {
         if (!loadingApply) {
             setSelectedJob(null);
+        }
+    };
+
+    const isPendingDirect = (job) => {
+        return job?.isDirect && String(job?.status || '').toUpperCase() === 'PENDING_ACCEPTANCE';
+    };
+
+    const handleRespondDirect = async (e, bookingId, accept) => {
+        e.stopPropagation();
+        if (!bookingId) return;
+        setLoadingJobs(true);
+        try {
+            await BookingService.respondToBooking(bookingId, accept);
+            setToast({
+                type: 'success',
+                message: accept ? 'Đã chấp nhận đơn đặt trực tiếp!' : 'Đã từ chối đơn đặt trực tiếp.'
+            });
+            // Tải lại trang để update danh sách & counts
+            window.location.reload();
+        } catch (err) {
+            setToast({
+                type: 'error',
+                message: err?.message || 'Thao tác thất bại.'
+            });
+            setLoadingJobs(false);
         }
     };
 
@@ -412,16 +457,13 @@ const HelperNewJobPage = () => {
             setLoadingJobs(true);
             try {
                 const apiTabs = ['NEW', 'PENDING', 'CONFIRMED'];
-                const results = await Promise.all(
-                    apiTabs.map(async (tId) => {
+                // 1. Lấy jobs từ marketplaces (theo job_applications) và direct bookings
+                const [jobResults, directRes] = await Promise.all([
+                    Promise.all(apiTabs.map(async (tId) => {
                         try {
                             const res = await HelperJobService.getJobsByTab(tId);
                             const data = extractPayload(res);
-                            return {
-                                tab: tId,
-                                ok: true,
-                                list: Array.isArray(data) ? data : []
-                            };
+                            return { tab: tId, ok: true, list: Array.isArray(data) ? data : [] };
                         } catch (e) {
                             const statusCode = e?.status || e?.code || e?.response?.status;
                             if ((tId === 'PENDING' || tId === 'CONFIRMED') && (statusCode === 403 || statusCode === 404)) {
@@ -429,45 +471,72 @@ const HelperNewJobPage = () => {
                             }
                             return { tab: tId, ok: false, error: e };
                         }
-                    })
-                );
+                    })),
+                    BookingService.getMyDirectBookings().catch(() => ({ data: [] }))
+                ]);
 
                 if (cancelled) return;
 
+                const directList = extractPayload(directRes) || [];
                 const nextCounts = { NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 };
                 const listByTab = { NEW: [], PENDING: [], CONFIRMED: [], COMPLETED: [] };
                 let err = '';
 
-                for (const r of results) {
+                // Phân loại marketplace jobs
+                for (const r of jobResults) {
                     if (r.ok) {
                         if (r.tab === 'CONFIRMED') {
-                            listByTab.CONFIRMED = r.list.filter(job => !isCompletedJob(job));
-                            listByTab.COMPLETED = r.list.filter(job => isCompletedJob(job));
-                            nextCounts.CONFIRMED = listByTab.CONFIRMED.length;
-                            nextCounts.COMPLETED = listByTab.COMPLETED.length;
+                            listByTab.CONFIRMED.push(...r.list.filter(job => !isCompletedJob(job)));
+                            listByTab.COMPLETED.push(...r.list.filter(job => isCompletedJob(job)));
                         } else {
-                            listByTab[r.tab] = r.list;
-                            nextCounts[r.tab] = r.list.length;
+                            listByTab[r.tab].push(...r.list);
                         }
-                    } else {
-                        if (r.tab === 'CONFIRMED') {
-                            listByTab.CONFIRMED = [];
-                            listByTab.COMPLETED = [];
-                        } else {
-                            listByTab[r.tab] = [];
-                        }
-
-                        if (r.tab === activeTab || (r.tab === 'CONFIRMED' && activeTab === 'COMPLETED')) {
-                            const e = r.error;
-                            const statusCode = e?.status || e?.code || e?.response?.status;
-                            err =
-                                statusCode === 403
-                                    ? 'Phiên đăng nhập không có quyền HELPER hoặc đã hết hạn. Vui lòng đăng nhập lại bằng tài khoản Helper.'
-                                    : (e?.message || e?.error || e?.msg || 'Không thể tải danh sách việc.');
-                            err = typeof err === 'string' ? err : 'Không thể tải danh sách việc.';
-                        }
+                    } else if (r.tab === activeTab || (r.tab === 'CONFIRMED' && activeTab === 'COMPLETED')) {
+                        const e = r.error;
+                        const statusCode = e?.status || e?.code || e?.response?.status;
+                        err = statusCode === 403
+                            ? 'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.'
+                            : (e?.message || 'Không thể tải danh sách việc.');
                     }
                 }
+
+                // Phân loại direct bookings (không có job_post)
+                directList.forEach(db => {
+                    const status = String(db.status || '').toUpperCase();
+                    // Map data để khớp với JobPostResponse structure mà UI đang dùng
+                    const jobWrap = {
+                        ...db,
+                        postId: `D-${db.bookingId}`, // Use a shorter synthetic ID
+                        isDirect: true,
+                        bookingId: db.bookingId,
+                        offerPrice: db.totalPrice != null ? Math.round(Number(db.totalPrice) * 0.95) : null,
+                        title: `Yêu cầu từ ${db.customerName || 'Khách hàng'}`,
+                        categoryId: db.categoryId,
+                        categoryName: db.serviceName || 'Dịch vụ',
+                        workDate: db.workDate,
+                        startTime: db.startTime,
+                        durationHours: db.durationHours,
+                        fullAddress: db.address,
+                        workSize: db.workSize,
+                        description: db.description,
+                        serviceIds: db.serviceIds,
+                        serviceNames: db.subServiceNames || '',
+                        createdAt: db.createdAt || new Date()
+                    };
+
+                    if (status === 'PENDING_ACCEPTANCE') {
+                        listByTab.PENDING.push(jobWrap);
+                    } else if (status === 'COMPLETED' || status === 'CANCELLED') {
+                        listByTab.COMPLETED.push(jobWrap);
+                    } else if (['CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'PENDING_COMPLETION', 'DISPUTED', 'RESOLVED'].includes(status)) {
+                        listByTab.CONFIRMED.push(jobWrap);
+                    }
+                });
+
+                // Cập nhật counts
+                Object.keys(listByTab).forEach(k => {
+                    nextCounts[k] = listByTab[k].length;
+                });
 
                 setTabCounts(nextCounts);
                 setJobs(listByTab[activeTab] || []);
@@ -483,30 +552,56 @@ const HelperNewJobPage = () => {
                 if (!cancelled) {
                     setLoadingJobs(false);
                     setHasLoadedJobsOnce(true);
+                    setLoadedJobsTab(activeTab);
                 }
             }
         };
 
         loadJobs();
         return () => { cancelled = true; };
-    }, [activeTab]);
+    }, [activeTab, refreshTrigger]);
 
     useEffect(() => {
         const targetPostId = location?.state?.targetPostId;
         const targetBookingId = location?.state?.targetBookingId;
+        const targetId = location?.state?.targetPostId;
+        const type = location?.state?.notificationType;
         const cameFromNotification = Boolean(location?.state?.fromNotification);
         const notificationToken = location?.state?.notificationToken ?? null;
-        if (!cameFromNotification) return;
-        if (notificationToken && handledNotificationTokenRef.current === notificationToken) return;
-        if (!hasLoadedJobsOnce) return;
-        if (loadingJobs || jobsError) return;
 
-        const desiredTab = targetBookingId != null ? 'CONFIRMED' : 'NEW';
-        if (activeTab !== desiredTab) {
-            setActiveTab(desiredTab);
-            return;
+        if (!cameFromNotification || !hasLoadedJobsOnce || loadingJobs || jobsError) return;
+        if (notificationToken && handledNotificationTokenRef.current === notificationToken) return;
+
+        // VẤN ĐỀ LAG Ở ĐÂY: Bạn từng để logic ép tab thành 'NEW' phía trên, rồi phía dưới lại đổi về 'PENDING'
+        // Làm React lặp vô tận (Infinite Loop). Giờ gom hết việc chuyển Tab về DƯỚI ĐÂY nhé!
+
+        let targetTab = null;
+        if (type === 'DIRECT_BOOKING' || type === 'DIRECT_BOOKING_TIMEOUT') {
+            targetTab = 'PENDING';
+        } else if (type === 'BOOKING_ACCEPTED' || type === 'DIRECT_BOOKING_ACCEPTED' || type === 'WORK_STARTED' || type === 'WORK_DONE_BY_HELPER') {
+            targetTab = 'CONFIRMED';
+        } else if (type === 'MARKETPLACE_MATCH' || type === 'NEW_JOB_AVAILABLE') {
+            targetTab = 'NEW';
+        } else if (type === 'BOOKING_REJECTED' || type === 'DIRECT_BOOKING_REJECTED') {
+            targetTab = 'COMPLETED';
         }
 
+        // Nếu thông báo là targetBookingId mà không thuộc các loại trên (hoặc không xác định), ép vô CONFIRMED
+        if (targetBookingId != null && !targetTab) {
+            targetTab = 'CONFIRMED';
+        }
+
+        // Đảm bảo tab phải tự reset nếu chưa đến đúng chỗ
+        if (targetTab && activeTab !== targetTab) {
+            setActiveTab(targetTab);
+            return; // Chờ đổi tab xong Component sẽ Render lại và chạy tiếp dòng bên dưới
+        }
+
+        if (targetTab && loadedJobsTab !== targetTab) {
+            return; // Chờ API load xong list Jobs cho tab vừa đổi
+        }
+
+        // Bắt đầu đi tìm id trong list:
         if (targetBookingId == null && targetPostId == null) {
             setToast({
                 message: 'Không xác định được bài đăng từ thông báo.',
@@ -523,28 +618,45 @@ const HelperNewJobPage = () => {
                 });
             }
         } else {
-            const matchedJob = jobs.find((job) => Number(job?.postId) === Number(targetPostId));
-            if (matchedJob) {
-                setSelectedJob(matchedJob);
-            } else {
-                setToast({
-                    message: `Không tìm thấy công việc #${targetPostId} (có thể đã hết hạn hoặc không còn hiển thị).`,
-                    type: 'error'
-                });
+            if (targetId != null) {
+                const matchedJob = jobs.find((job) =>
+                    Number(job?.postId) === Number(targetId) ||
+                    job?.postId === `D-${targetId}` ||
+                    (job?.isDirect && Number(job?.bookingId) === Number(targetId))
+                );
+
+                if (matchedJob) {
+                    setSelectedJob(matchedJob);
+                } else if (activeTab === targetTab || !targetTab) {
+                    if (refreshForTokenRef.current !== notificationToken) {
+                        refreshForTokenRef.current = notificationToken;
+                        setRefreshTrigger(prev => prev + 1);
+                        return;
+                    } else {
+                        setToast({
+                            message: `Không tìm thấy công việc #${targetId} trong danh mục này (có thể đã bị hủy hoặc đã được người khác nhận).`,
+                            type: 'error'
+                        });
+                    }
+                }
             }
+
+            handledNotificationTokenRef.current = notificationToken;
+            navigate(location.pathname, { replace: true, state: null });
         }
 
-        handledNotificationTokenRef.current = notificationToken;
-        navigate(location.pathname, { replace: true, state: null });
     }, [
         location,
         navigate,
         jobs,
         hasLoadedJobsOnce,
         loadingJobs,
+        loadedJobsTab,
         jobsError,
-        activeTab
+        activeTab,
+        refreshTrigger
     ]);
+
 
     return (
         <HelperLayout>
@@ -610,11 +722,20 @@ const HelperNewJobPage = () => {
                         <div key={job.postId} className={`hnj-card hnj-card--${getCheckinBadgeMeta(activeTab, job).badgeClass}`} onClick={() => handleViewJob(job)}>
                             <div className="hnj-card-top">
                                 <div className="hnj-customer-info">
-                                    <div className="hnj-avatar" aria-hidden="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', color: '#0f172a', fontWeight: 700 }}>
+                                    <div className="hnj-avatar" aria-hidden="true" style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                                        color: '#334155',
+                                        fontWeight: 800,
+                                        fontSize: job.postId?.length > 4 ? '11px' : '14px',
+                                        border: '1px solid #cbd5e1'
+                                    }}>
                                         #{job.postId}
                                     </div>
                                     <div className="hnj-customer-details">
-                                        <h3 className="hnj-customer-name">{job.title || `Job #${job.postId}`}</h3>
+                                        <h3 className="hnj-customer-name" style={{ fontSize: '15px' }}>{job.title || `Job #${job.postId}`}</h3>
                                         <span className="hnj-posted-time">
                                             {job.createdAt ? new Date(job.createdAt).toLocaleString('vi-VN') : ''}
                                         </span>
@@ -631,6 +752,11 @@ const HelperNewJobPage = () => {
                                     <span className="hnj-state-pill hnj-state-pill--verified">
                                         <StatusIcon type="check" />
                                         VIP
+                                    </span>
+                                )}
+                                {job?.isPremium && (
+                                    <span className="hnj-state-pill hnj-state-pill--premium" style={{ background: '#fffbeb', color: '#92400e', borderColor: '#fef3c7' }}>
+                                        ⭐ Premium
                                     </span>
                                 )}
                             </div>
@@ -690,7 +816,8 @@ const HelperNewJobPage = () => {
                                             Checkout
                                         </button>
                                     )}
-                                <button className="hnj-view-btn">
+
+                                <button className="hnj-view-btn" onClick={() => handleViewJob(job)}>
                                     Xem chi tiết
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
                                         <path d="M5 12h14"></path>
@@ -883,9 +1010,84 @@ const HelperNewJobPage = () => {
                             </div>
 
                             <div className="hnj-modal-footer">
-                                <button className="hnj-btn-cancel" onClick={handleCloseModal} disabled={loadingApply}>
-                                    Đóng
-                                </button>
+                                {!isPendingDirect(selectedJob) && (
+                                    <button className="hnj-btn-cancel" onClick={handleCloseModal} disabled={loadingApply}>
+                                        Đóng
+                                    </button>
+                                )}
+
+                                {isPendingDirect(selectedJob) && activeTab === 'PENDING' && (
+                                    <div style={{
+                                        display: 'flex',
+                                        gap: '16px',
+                                        width: '100%',
+                                        marginTop: '12px',
+                                        padding: '4px 0'
+                                    }}>
+                                        <button
+                                            className="hnj-btn-cancel"
+                                            style={{
+                                                flex: 1,
+                                                height: '48px',
+                                                borderRadius: '12px',
+                                                fontSize: '15px',
+                                                fontWeight: '600',
+                                                border: '2px solid #e2e8f0',
+                                                color: '#64748b',
+                                                background: '#f8fafc',
+                                                transition: 'all 0.2s ease'
+                                            }}
+                                            onMouseOver={(e) => {
+                                                e.currentTarget.style.background = '#fff1f1';
+                                                e.currentTarget.style.borderColor = '#fee2e2';
+                                                e.currentTarget.style.color = '#ef4444';
+                                            }}
+                                            onMouseOut={(e) => {
+                                                e.currentTarget.style.background = '#f8fafc';
+                                                e.currentTarget.style.borderColor = '#e2e8f0';
+                                                e.currentTarget.style.color = '#64748b';
+                                            }}
+                                            onClick={(e) => {
+                                                handleRespondDirect(e, selectedJob.bookingId, false);
+                                                handleCloseModal();
+                                            }}
+                                        >
+                                            Từ chối đơn
+                                        </button>
+                                        <button
+                                            className="hnj-btn-apply"
+                                            style={{
+                                                flex: 1.2,
+                                                height: '48px',
+                                                borderRadius: '12px',
+                                                fontSize: '15px',
+                                                fontWeight: '700',
+                                                background: '#2F5D50',
+                                                borderColor: '#2F5D50',
+                                                color: '#fff',
+                                                boxShadow: '0 4px 6px -1px rgba(47, 93, 80, 0.2)',
+                                                transition: 'all 0.2s ease'
+                                            }}
+                                            onMouseOver={(e) => {
+                                                e.currentTarget.style.background = '#254a40';
+                                                e.currentTarget.style.transform = 'translateY(-1px)';
+                                                e.currentTarget.style.boxShadow = '0 6px 12px -2px rgba(47, 93, 80, 0.3)';
+                                            }}
+                                            onMouseOut={(e) => {
+                                                e.currentTarget.style.background = '#2F5D50';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(47, 93, 80, 0.2)';
+                                            }}
+                                            onClick={(e) => {
+                                                handleRespondDirect(e, selectedJob.bookingId, true);
+                                                handleCloseModal();
+                                            }}
+                                        >
+                                            Chấp nhận &amp; Làm ngay
+                                        </button>
+                                    </div>
+                                )}
+
                                 {activeTab === 'NEW' && (
                                     <button className="hnj-btn-apply" onClick={handleApplyJob} disabled={loadingApply}>
                                         {loadingApply ? (
@@ -1093,7 +1295,7 @@ const HelperNewJobPage = () => {
                     }}
                 />
             </div>
-        </HelperLayout>
+        </HelperLayout >
     );
 };
 

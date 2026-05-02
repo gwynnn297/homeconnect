@@ -28,8 +28,6 @@ public class EstimatePriceRequest {
     private Integer categoryId;
 
 
-
-
     @NotNull(message = "Số giờ không được để trống")
     @Min(value = 1, message = "Số giờ tối thiểu là 1")
     @Max(value = 12, message = "Số giờ tối đa là 12")
@@ -40,6 +38,12 @@ public class EstimatePriceRequest {
 
     @Schema(description = "Số lượng/Diện tích (m2, số bé, số máy...)", example = "60.5")
     private Double workSize;
+
+    @Schema(description = "Thợ mang theo dụng cụ", example = "false")
+    private Boolean bringTools;
+
+    @Schema(description = "Nhà có thú cưng", example = "false")
+    private Boolean hasPets;
 
     @Schema(description = "Dữ liệu bổ sung — phải giống body khi POST /api/v1/jobs để giá khớp (đi chợ, nấu ăn, …)")
     private java.util.Map<String, Object> additionalData;

@@ -28,7 +28,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Bao gồm:
  * - Lấy danh sách thông báo gần nhất
  * - Đăng ký nhận thông báo realtime qua SSE
- * - Tạo thông báo matching và push realtime cho helper
+ * - Tạo thông báo matching và push realtime cho thợ
  */
 @Slf4j
 @Service
@@ -87,8 +87,8 @@ public class NotificationService {
     }
 
     /**
-     * Tạo thông báo MATCHING khi helper được mời vào job,
-     * sau đó đẩy ngay notification realtime nếu helper đang online trên web.
+     * Tạo thông báo MATCHING khi thợ được mời vào job,
+     * sau đó đẩy ngay notification realtime nếu thợ đang online trên web.
      */
 @Transactional
     public NotificationResponse createMatchingNotification(Long helperId, Long postId, JobPost jobPost) {
