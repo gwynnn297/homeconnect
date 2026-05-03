@@ -133,17 +133,20 @@ public class WalletScheduler {
                 booking.setStatus(BookingStatus.COMPLETED);
                 booking.setConfirmedDoneAt(LocalDateTime.now());
                 
-                // [BE-Wallet-03b] Giải ngân luôn khi hệ thống tự động hoàn thành
-                try {
-                    BigDecimal released = walletService.releaseSalary(booking);
-                    booking.setPaymentStatus(PaymentStatus.RELEASED);
-                    log.info("[AutoConfirm] Released {} VNĐ for Booking #{}", released, booking.getId());
-                } catch (Exception e) {
-                    log.error("[AutoConfirm] Lỗi giải ngân tự động cho Booking #{}: {}", booking.getId(), e.getMessage());
-                }
 
                 bookingRepository.save(booking);
                 loyaltyService.onBookingCompleted(booking.getId());
+
+                notificationService.createNotification(booking.getCustomer().getId(),
+                "Đơn hàng đã tự động hoàn thành",
+                "Vì bạn không phản hồi trong 24h, đơn hàng #" + booking.getId() + " đã được tự động hoàn thành.",
+                "AUTO_COMPLETED");
+
+        notificationService.createNotification(booking.getHelper().getId(),
+                "Đơn hàng đã được duyệt tự động",
+                "Khách im lặng 24h, đơn hàng #" + booking.getId() + " đã tự động COMPLETED. Lương sẽ sớm được giải ngân.",
+                "AUTO_COMPLETED");
+
 
                 log.info("[AutoConfirm] Booking #{} → COMPLETED (auto).", booking.getId());
             } catch (Exception e) {
