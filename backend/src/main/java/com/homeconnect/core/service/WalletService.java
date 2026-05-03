@@ -51,8 +51,8 @@ public class WalletService {
     @Value("${wallet.bank.name:NGUYEN VAN A}")
     private String bankAccountName;
 
-    @Value("${wallet.commission.rate:0.15}")
-    private BigDecimal commissionRate; // Tỷ lệ hoa hồng sàn (mặc định 15%)
+    @Value("${wallet.commission.rate:0.05}")
+    private BigDecimal commissionRate; // Tỷ lệ hoa hồng sàn (mặc định 5%)
 
     /**
      * Tạo ví mới cho user vừa đăng ký
@@ -509,15 +509,15 @@ public class WalletService {
         }
 
         if (releaseAmount.compareTo(BigDecimal.ZERO) > 0) {
-                WalletTransaction commissionTx = WalletTransaction.builder()
+                WalletTransaction paymentTx = WalletTransaction.builder()
                     .wallet(customerWallet)
                     .amount(commission)
-                    .type(TransactionType.COMMISSION)
+                    .type(TransactionType.PAYMENT)
                     .referenceType(ReferenceType.BOOKING)
                     .referenceId(bookingId.intValue())
-                    .description(String.format("Thanh toán Booking #%d (Hoa hồng: %s VNĐ)", bookingId, commission))
+                    .description(String.format("Thanh toán Booking #%d", bookingId))
                     .build();
-            transactionRepository.save(commissionTx);
+            transactionRepository.save(paymentTx);
 
             Wallet helperWallet = walletRepository.findByUserIdWithLock(helperId)
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của helper ID: " + helperId));
@@ -531,7 +531,7 @@ public class WalletService {
                     .type(TransactionType.RELEASE)
                     .referenceType(ReferenceType.BOOKING)
                     .referenceId(bookingId.intValue())
-                    .description("Giải ngân tranh chấp cho booking #" + bookingId)
+                    .description(String.format("Booking #%d (Giải ngân khiếu nại)", bookingId))
                     .build();
             transactionRepository.save(releaseTx);
         }
@@ -592,16 +592,16 @@ public class WalletService {
         customerWallet.setHoldBalance(customerWallet.getHoldBalance().subtract(customerFinalPrice));
         walletRepository.save(customerWallet);
 
-        // Ghi transaction COMMISSION cho ví Khách
-        WalletTransaction commissionTx = WalletTransaction.builder()
+        // Ghi transaction PAYMENT cho ví Khách
+        WalletTransaction paymentTx = WalletTransaction.builder()
                 .wallet(customerWallet)
                 .amount(customerFinalPrice)
-                .type(TransactionType.COMMISSION)
+                .type(TransactionType.PAYMENT)
                 .referenceType(ReferenceType.BOOKING)
                 .referenceId(bookingId.intValue())
-                .description(String.format("Thanh toán Booking #%d (Hoa hồng sàn: %s VNĐ, subsidy loyalty: %s VNĐ)", bookingId, commission, discountAmount))
+                .description(String.format("Thanh toán Booking #%d", bookingId))
                 .build();
-        transactionRepository.save(commissionTx);
+        transactionRepository.save(paymentTx);
 
         // 3. Cộng available_balance ví Helper
         Wallet helperWallet = walletRepository.findByUserIdWithLock(helperId)
@@ -618,9 +618,20 @@ public class WalletService {
                 .referenceType(ReferenceType.BOOKING)
                 .referenceId(bookingId.intValue())
                 .description(String.format("Nhận lương Booking #%d (Sau hoa hồng %s%%)", 
-                        bookingId, commissionRate.multiply(BigDecimal.valueOf(100))))
+                 bookingId, commissionRate.multiply(BigDecimal.valueOf(100))))
                 .build();
         transactionRepository.save(releaseTx);
+
+        // [BE-Wallet-03c] Gửi thông báo giao dịch cho Helper
+        try {
+            notificationService.createNotification(helperId,
+                    "Bạn đã nhận được thù lao! ",
+                    String.format("Bạn vừa nhận được thù lao cho Booking #%d. Tổng: %,.0f VNĐ (Đã trừ %,.0f VNĐ phí hệ thống %.0f%%).",
+                            bookingId, originalPrice.doubleValue(), commission.doubleValue(), commissionRate.multiply(BigDecimal.valueOf(100)).doubleValue()),
+                    "WALLET_RELEASE");
+        } catch (Exception e) {
+            log.error("Lỗi gửi thông báo giải ngân cho Helper {}: {}", helperId, e.getMessage());
+        }
 
         if (discountAmount.compareTo(BigDecimal.ZERO) > 0) {
             WalletTransaction subsidyTx = WalletTransaction.builder()

@@ -509,7 +509,7 @@ const HelperNewJobPage = () => {
                         postId: `D-${db.bookingId}`, // Use a shorter synthetic ID
                         isDirect: true,
                         bookingId: db.bookingId,
-                        offerPrice: db.totalPrice != null ? Math.round(Number(db.totalPrice) * 0.95) : null,
+                        offerPrice: db.totalPrice != null ? Math.round(Number(db.totalPrice)) : null,
                         title: `Yêu cầu từ ${db.customerName || 'Khách hàng'}`,
                         categoryId: db.categoryId,
                         categoryName: db.serviceName || 'Dịch vụ',
@@ -521,6 +521,9 @@ const HelperNewJobPage = () => {
                         description: db.description,
                         serviceIds: db.serviceIds,
                         serviceNames: db.subServiceNames || '',
+                        bookingStatus: status, // Essential for progress buttons (Arrival/Checkout)
+                        canCheckin: db.canCheckin,
+                        customerArrivalConfirmed: db.customerArrivalConfirmed,
                         createdAt: db.createdAt || new Date()
                     };
 

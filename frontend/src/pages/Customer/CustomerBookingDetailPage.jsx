@@ -434,7 +434,8 @@ const CustomerBookingDetailPage = () => {
     const statusUpper = normalizedStatus;
     const showConfirmBanner = statusUpper === 'PENDING_COMPLETION';
     const showReviewSection = statusUpper === 'COMPLETED';
-    const canReportDispute = statusUpper === 'COMPLETED' && String(booking?.paymentStatus || '').toUpperCase() === 'HOLDING';
+    const REPORTABLE_STATUSES = ['CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'PENDING_COMPLETION', 'COMPLETED', 'DISPUTED'];
+    const canReportDispute = REPORTABLE_STATUSES.includes(statusUpper) && String(booking?.paymentStatus || '').toUpperCase() === 'HOLDING';
     const hasDisputeData = statusUpper === 'DISPUTED' || statusUpper === 'RESOLVED';
     const editableWindow = existingReview && canEditReviewByTime(existingReview);
     const helperName = booking?.helperName || 'Thợ';
@@ -555,6 +556,17 @@ const CustomerBookingDetailPage = () => {
                                     onClick={handleConfirmComplete}
                                 >
                                     {confirming ? 'Đang xử lý…' : 'Xác nhận hoàn thành'}
+                                </button>
+                                <button
+                                    className="cbd-btn cbd-btn--danger-ghost cbd-btn--lg"
+                                    type="button"
+                                    style={{ marginLeft: '12px' }}
+                                    onClick={() => {
+                                        clearFeedback();
+                                        setShowReportModal(true);
+                                    }}
+                                >
+                                    Khiếu nại đơn
                                 </button>
                             </div>
                         ) : null}
@@ -1002,8 +1014,8 @@ const CustomerBookingDetailPage = () => {
                                     Khiếu nại đơn hàng
                                 </button>
                             ) : null}
-                            <button className="cbd-btn cbd-btn--rounded" type="button" onClick={() => navigate('/customer/manage-posts')}>
-                                Danh sách bài đăng
+                            <button className="cbd-btn cbd-btn--rounded" type="button" onClick={() => navigate(booking?.jobPostId ? '/customer/manage-posts' : '/customer/dashboard')}>
+                                {booking?.jobPostId ? 'Danh sách bài đăng' : 'Danh sách đơn đặt'}
                             </button>
                             <button className="cbd-btn cbd-btn--primary cbd-btn--rounded" type="button" onClick={() => navigate('/customer-dashboard')}>
                                 Về tổng quan

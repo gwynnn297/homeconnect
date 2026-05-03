@@ -1701,7 +1701,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                 const res = await apiClient.post('/api/v1/jobs/estimate', {
                     categoryId: initialData.categoryId,
                     serviceIds: selectedSubServiceIds.map((id) => Math.round(Number(id))).filter((id) => Number.isFinite(id)),
-                    durationHours: Math.round(Number(durationHours)),
+                    durationHours: Math.round(Number(baseDurationHours)),
                     isPremium: Boolean(isPremium),
                     hasPets: Boolean(hasPets),
                     bringTools: Boolean(bringTools),
@@ -1812,7 +1812,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                 serviceIds: serviceIdsInt,
                 workDate,
                 startTime,
-                durationHours: durationHoursInt,
+                durationHours: Number(baseDurationHours),
                 title,
                 description,
                 hasPets,
