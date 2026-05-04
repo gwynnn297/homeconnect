@@ -279,7 +279,7 @@ const RegisterPage = () => {
 
                         <div className="form-group">
                             <label>Mật khẩu</label>
-                            <div className="input-with-icon">
+                            <div className="input-with-icon input-with-icon--password">
                                 <svg className="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
@@ -292,7 +292,7 @@ const RegisterPage = () => {
                                     placeholder="••••••••"
                                     className="form-input"
                                 />
-                                {/* <div className="password-toggle" onClick={togglePasswordVisibility}>
+                                <button type="button" className="password-toggle" onClick={togglePasswordVisibility} aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}>
                                     {showPassword ? (
                                         <svg className="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
@@ -304,13 +304,13 @@ const RegisterPage = () => {
                                             <circle cx="12" cy="12" r="3"></circle>
                                         </svg>
                                     )}
-                                </div> */}
+                                </button>
                             </div>
                         </div>
 
                         <div className="form-group">
                             <label>Xác nhận mật khẩu</label>
-                            <div className="input-with-icon">
+                            <div className="input-with-icon input-with-icon--password">
                                 <svg className="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
@@ -323,7 +323,7 @@ const RegisterPage = () => {
                                     placeholder="••••••••"
                                     className="form-input"
                                 />
-                                {/* <div className="password-toggle" onClick={toggleConfirmPasswordVisibility}>
+                                <button type="button" className="password-toggle" onClick={toggleConfirmPasswordVisibility} aria-label={showConfirmPassword ? 'Ẩn xác nhận mật khẩu' : 'Hiện xác nhận mật khẩu'}>
                                     {showConfirmPassword ? (
                                         <svg className="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
@@ -335,7 +335,7 @@ const RegisterPage = () => {
                                             <circle cx="12" cy="12" r="3"></circle>
                                         </svg>
                                     )}
-                                </div> */}
+                                </button>
                             </div>
                         </div>
 

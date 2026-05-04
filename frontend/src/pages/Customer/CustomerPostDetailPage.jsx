@@ -101,6 +101,8 @@ const CustomerPostDetailPage = () => {
     const [selectedApplicant, setSelectedApplicant] = useState(null);
     const [helperReviewStats, setHelperReviewStats] = useState(null);
     const [helperReviewsList, setHelperReviewsList] = useState([]);
+    const [brokenApplicantAvatars, setBrokenApplicantAvatars] = useState({});
+    const [isSelectedApplicantAvatarBroken, setIsSelectedApplicantAvatarBroken] = useState(false);
 
     useEffect(() => {
         const load = async () => {
@@ -263,6 +265,7 @@ const CustomerPostDetailPage = () => {
         setHelperProfile(null);
         setHelperProfileError('');
         setSelectedApplicant(null);
+        setIsSelectedApplicantAvatarBroken(false);
         setHelperReviewStats(null);
         setHelperReviewsList([]);
     };
@@ -271,6 +274,7 @@ const CustomerPostDetailPage = () => {
         const helperId = applicant?.helperId;
         if (!helperId) return;
         setSelectedApplicant(applicant || null);
+        setIsSelectedApplicantAvatarBroken(false);
         setHelperProfileOpen(true);
         setHelperProfileLoading(true);
         setHelperProfileError('');
@@ -450,7 +454,21 @@ const CustomerPostDetailPage = () => {
                                             <div key={applicant.applicationId} className="cpd-applicant-item">
                                                 <div className="cpd-applicant-main">
                                                     <div className="cpd-applicant-avatar">
-                                                        {(applicant?.fullName || 'H').charAt(0).toUpperCase()}
+                                                        {applicant?.avatarUrl && !brokenApplicantAvatars[applicant.applicationId] ? (
+                                                            <img
+                                                                className="cpd-helper-avatar-img"
+                                                                src={applicant.avatarUrl}
+                                                                alt={applicant.fullName || 'thợ'}
+                                                                onError={() =>
+                                                                    setBrokenApplicantAvatars((prev) => ({
+                                                                        ...prev,
+                                                                        [applicant.applicationId]: true,
+                                                                    }))
+                                                                }
+                                                            />
+                                                        ) : (
+                                                            (applicant?.fullName || 'H').charAt(0).toUpperCase()
+                                                        )}
                                                     </div>
                                                     <div className="cpd-applicant-info">
                                                         {applicant.hasOverlap && (
@@ -534,11 +552,12 @@ const CustomerPostDetailPage = () => {
                                 {selectedApplicant ? (
                                     <div className="cpd-helper-hero">
                                         <div className="cpd-helper-avatar-wrap">
-                                            {selectedApplicant?.avatarUrl ? (
+                                            {selectedApplicant?.avatarUrl && !isSelectedApplicantAvatarBroken ? (
                                                 <img
                                                     className="cpd-helper-avatar-img"
                                                     src={selectedApplicant.avatarUrl}
                                                     alt={selectedApplicant?.fullName || 'Helper'}
+                                                    onError={() => setIsSelectedApplicantAvatarBroken(true)}
                                                 />
                                             ) : (
                                                 <div className="cpd-helper-avatar-fallback">

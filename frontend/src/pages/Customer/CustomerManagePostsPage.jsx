@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import apiClient from '../../services/apiClient';
@@ -60,80 +60,147 @@ const CustomerManagePostsPage = () => {
     const [error, setError] = useState('');
     const [activeGroup, setActiveGroup] = useState('ALL');
     const [applicantsByPostId, setApplicantsByPostId] = useState({});
+    const [cancellingTargetKey, setCancellingTargetKey] = useState('');
+    const [pendingCancelJobPost, setPendingCancelJobPost] = useState(null);
+    const [pendingCancelDirectPost, setPendingCancelDirectPost] = useState(null);
+    const [cancelDirectReason, setCancelDirectReason] = useState('');
+    const [cancelDirectError, setCancelDirectError] = useState('');
+
+    const loadPosts = useCallback(async () => {
+        setLoading(true);
+        setError('');
+
+        let fetched = null;
+        let lastErr = null;
+
+        try {
+            const [resJobs, resDirect] = await Promise.all([
+                apiClient.get(JOB_LIST_ENDPOINT).catch((e) => {
+                    lastErr = e;
+                    return { data: [] };
+                }),
+                apiClient.get('/api/v1/bookings/customer-direct').catch((e) => {
+                    console.error('Error fetching direct bookings', e);
+                    return { data: [] };
+                }),
+            ]);
+
+            const listJobs = extractPayload(resJobs);
+            const listDirect = extractPayload(resDirect);
+
+            const combined = [];
+            if (Array.isArray(listJobs)) combined.push(...listJobs);
+            if (Array.isArray(listDirect)) {
+                // Normalize Direct Booking Response into pseudo JobPost structure for UI compatibility
+                const normalizedDirectBookings = listDirect.map((db) => {
+                    // Build address text the same way as job posts
+                    const parts = [db.wardName, db.districtName, db.provinceName].filter(Boolean);
+                    const shortArea = parts.join(', ') || '';
+                    const fullAddr = db.address || shortArea || 'Chưa có địa chỉ';
+
+                    return {
+                        postId: `DIR-${db.bookingId}`,
+                        categoryId: db.categoryId,
+                        categoryName: db.serviceName,
+                        bookingId: db.bookingId,
+                        bookingStatus: db.status,
+                        customerArrivalConfirmed: db.customerArrivalConfirmed,
+                        arrivalProofImage: db.arrivalProofImage,
+                        title: db.description ? `Đặt trực tiếp: ${db.description.substring(0, 35)}` : 'Đặt thợ trực tiếp',
+                        description: db.description || 'Chưa cập nhật chi tiết',
+                        addressText: fullAddr,
+                        createdAt: db.createdAt,
+                        status: db.status,
+                        estimatedPrice: Number(db.finalPrice ?? db.totalPrice ?? 0),
+                        isDirect: true,
+                        cancelReason: db.cancelReason,
+                    };
+                });
+                combined.push(...normalizedDirectBookings);
+            }
+
+            // Sort combined by createdAt descending
+            combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            fetched = combined;
+        } catch (err) {
+            if (!lastErr) lastErr = err;
+        }
+
+        if (!Array.isArray(fetched)) {
+            setPosts([]);
+            const rawMsg = String(lastErr?.message || '');
+            const friendlyMsg = rawMsg.includes('Unable to find com.homeconnect.core.entity.Address with id')
+                ? 'Không thể tải bài đăng do có dữ liệu địa chỉ cũ đã bị xóa khỏi hệ thống. Vui lòng liên hệ quản trị để đồng bộ lại dữ liệu địa chỉ cho các bài đăng trước đây.'
+                : rawMsg || 'Không thể tải danh sách bài đăng từ hệ thống.';
+            setError(friendlyMsg);
+            setLoading(false);
+            return;
+        }
+
+        setPosts(fetched);
+        setLoading(false);
+    }, []);
 
     useEffect(() => {
-        const fetchPosts = async () => {
-            setLoading(true);
-            setError('');
+        loadPosts();
+    }, [loadPosts]);
 
-            let fetched = null;
-            let lastErr = null;
+    const handleCancelPost = async (post) => {
+        const bid = post?.bookingId;
+        const targetKey = `${post?.isDirect ? 'DIR' : 'JOB'}-${post?.postId}`;
+        if (!targetKey) return;
 
-            try {
-                const [resJobs, resDirect] = await Promise.all([
-                    apiClient.get(JOB_LIST_ENDPOINT).catch(e => { lastErr = e; return { data: [] }; }),
-                    apiClient.get('/api/v1/bookings/customer-direct').catch(e => { console.error('Error fetching direct bookings', e); return { data: [] }; })
-                ]);
+        if (post?.isDirect) {
+            const st = String(post?.bookingStatus || post?.status || '').toUpperCase();
+            if (st !== 'PENDING_ACCEPTANCE' || !bid) return;
+            setPendingCancelDirectPost(post);
+            setCancelDirectReason('');
+            setCancelDirectError('');
+            return;
+        }
 
-                const listJobs = extractPayload(resJobs);
-                const listDirect = extractPayload(resDirect);
+        setPendingCancelJobPost(post);
+    };
 
-                const combined = [];
-                if (Array.isArray(listJobs)) combined.push(...listJobs);
-                if (Array.isArray(listDirect)) {
-                    // Normalize Direct Booking Response into pseudo JobPost structure for UI compatibility
-                    const normalizedDirectBookings = listDirect.map(db => {
-                        // Build address text the same way as job posts
-                        const parts = [db.wardName, db.districtName, db.provinceName].filter(Boolean);
-                        const shortArea = parts.join(', ') || '';
-                        const fullAddr = db.address || shortArea || 'Chưa có địa chỉ';
+    const handleConfirmCancelJobPost = async () => {
+        if (!pendingCancelJobPost?.postId) return;
+        const targetKey = `JOB-${pendingCancelJobPost.postId}`;
 
-                        return {
-                            postId: `DIR-${db.bookingId}`,
-                            categoryId: db.categoryId,
-                            categoryName: db.serviceName,
-                            bookingId: db.bookingId,
-                            bookingStatus: db.status,
-                            customerArrivalConfirmed: db.customerArrivalConfirmed,
-                            arrivalProofImage: db.arrivalProofImage,
-                            title: db.description ? `Đặt trực tiếp: ${db.description.substring(0, 35)}` : 'Đặt thợ trực tiếp',
-                            description: db.description || 'Chưa cập nhật chi tiết',
-                            addressText: fullAddr,
-                            createdAt: db.createdAt,
-                            status: db.status,
-                            estimatedPrice: Number(db.finalPrice ?? db.totalPrice ?? 0),
-                            isDirect: true,
-                            cancelReason: db.cancelReason
-                        };
-                    });
-                    combined.push(...normalizedDirectBookings);
-                }
+        setCancellingTargetKey(targetKey);
+        try {
+            await apiClient.delete(`${JOB_LIST_ENDPOINT}/${pendingCancelJobPost.postId}`);
+            await loadPosts();
+            setPendingCancelJobPost(null);
+        } catch (err) {
+            window.alert(err?.message || 'Không thể hủy bài đăng. Vui lòng thử lại.');
+        } finally {
+            setCancellingTargetKey('');
+        }
+    };
 
-                // Sort combined by createdAt descending
-                combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const handleConfirmCancelDirectPost = async () => {
+        if (!pendingCancelDirectPost?.bookingId) return;
+        const reason = String(cancelDirectReason || '').trim();
+        if (reason.length < 5) {
+            setCancelDirectError('Lý do hủy cần tối thiểu 5 ký tự.');
+            return;
+        }
 
-                fetched = combined;
-            } catch (err) {
-                if (!lastErr) lastErr = err;
-            }
-
-            if (!Array.isArray(fetched)) {
-                setPosts([]);
-                const rawMsg = String(lastErr?.message || '');
-                const friendlyMsg = rawMsg.includes('Unable to find com.homeconnect.core.entity.Address with id')
-                    ? 'Không thể tải bài đăng do có dữ liệu địa chỉ cũ đã bị xóa khỏi hệ thống. Vui lòng liên hệ quản trị để đồng bộ lại dữ liệu địa chỉ cho các bài đăng trước đây.'
-                    : (rawMsg || 'Không thể tải danh sách bài đăng từ hệ thống.');
-                setError(friendlyMsg);
-                setLoading(false);
-                return;
-            }
-
-            setPosts(fetched);
-            setLoading(false);
-        };
-
-        fetchPosts();
-    }, []);
+        const targetKey = `DIR-${pendingCancelDirectPost.postId}`;
+        setCancellingTargetKey(targetKey);
+        setCancelDirectError('');
+        try {
+            await BookingService.cancelBooking(pendingCancelDirectPost.bookingId, reason);
+            await loadPosts();
+            setPendingCancelDirectPost(null);
+            setCancelDirectReason('');
+        } catch (err) {
+            setCancelDirectError(err?.message || 'Không thể hủy đơn. Vui lòng thử lại.');
+        } finally {
+            setCancellingTargetKey('');
+        }
+    };
 
     const normalizedPosts = useMemo(
         () =>
@@ -260,11 +327,6 @@ const CustomerManagePostsPage = () => {
     return (
         <CustomerLayout>
             <div className="cmp-container slide-up">
-                <div className="cmp-header">
-                    <h1 className="cmp-title">Quản lý bài đăng</h1>
-                    <p className="cmp-subtitle">Xem và theo dõi trạng thái các yêu cầu dịch vụ bạn đã đăng.</p>
-                </div>
-
                 <div className="cmp-content">
                     {loading ? (
                         <div className="cmp-loading-wrapper">
@@ -325,6 +387,16 @@ const CustomerManagePostsPage = () => {
                                         const canOpenBooking = Number(post?.bookingId) > 0;
                                         const shouldShowArrivalCta = canOpenBooking && ['CONFIRMED', 'ARRIVED', 'IN_PROGRESS'].includes(String(post?.bookingStatus || '').toUpperCase());
                                         const hasArrivalProof = Boolean(post?.arrivalProofImage);
+                                        const bookingSt = String(post?.bookingStatus || post?.status || '').toUpperCase();
+                                        const canCustomerCancelDirect =
+                                            post.isDirect &&
+                                            canOpenBooking &&
+                                            bookingSt === 'PENDING_ACCEPTANCE' &&
+                                            !['CANCELLED', 'EXPIRED'].includes(String(post.status || '').toUpperCase());
+                                        const canCancelJobPost = !post.isDirect &&
+                                            ['PENDING', 'PUBLISHED', 'PENDING_ACCEPTANCE'].includes(String(post.status || '').toUpperCase());
+                                        const canCancelAny = canCustomerCancelDirect || canCancelJobPost;
+                                        const targetKey = `${post.isDirect ? 'DIR' : 'JOB'}-${post.postId}`;
 
                                         return (
                                             <div
@@ -437,22 +509,43 @@ const CustomerManagePostsPage = () => {
                                                     ) : null}
                                                 </div>
 
-                                                <div className="cmp-post-card-footer" style={{ display: 'flex', gap: '10px' }}>
-                                                    <button
-                                                        className="cmp-btn-outline"
-                                                        style={{ borderColor: service.color, color: service.color, flex: 1, padding: '10px 4px' }}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            navigate(`/customer/manage-posts/${post.postId}`);
-                                                        }}
-                                                    >
-                                                        Xem chi tiết
-                                                    </button>
+                                                <div className="cmp-post-card-footer" style={{ display: 'flex', gap: '10px', flexWrap: 'nowrap' }}>
+                                                    {canCancelAny ? (
+                                                        <button
+                                                            type="button"
+                                                            className="cmp-btn-outline"
+                                                            disabled={cancellingTargetKey === targetKey}
+                                                            style={{
+                                                                margin: 0,
+                                                                flex: 1,
+                                                                minWidth: 0,
+                                                                padding: '10px 4px',
+                                                                borderColor: '#b91c1c',
+                                                                color: '#b91c1c',
+                                                            }}
+                                                            onClick={() => handleCancelPost(post)}
+                                                        >
+                                                            {cancellingTargetKey === targetKey
+                                                                ? 'Đang hủy…'
+                                                                : (post.isDirect ? 'Hủy yêu cầu' : 'Hủy bài đăng')}
+                                                        </button>
+                                                    ) : null}
+                                                    
+                                                        <button
+                                                            className="cmp-btn-outline"
+                                                            style={{ borderColor: service.color, color: service.color, flex: 1, minWidth: 0, padding: '10px 4px' }}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                navigate(`/customer/manage-posts/${post.postId}`);
+                                                            }}
+                                                        >
+                                                            Xem chi tiết
+                                                        </button>
                                                     {canOpenBooking && post.status !== 'CANCELLED' && post.status !== 'EXPIRED' && (
                                                         <button
                                                             type="button"
                                                             className="cmp-btn-outline cmp-btn-action"
-                                                            style={{ margin: 0, flex: 1, maxWidth: 'none', padding: '10px 4px' }}
+                                                            style={{ margin: 0, flex: 1, minWidth: 0, maxWidth: 'none', padding: '10px 4px' }}
                                                             onClick={() => navigate(`/customer/bookings/${post.bookingId}`)}
                                                         >
                                                             {shouldShowArrivalCta
@@ -472,6 +565,90 @@ const CustomerManagePostsPage = () => {
                     )}
                 </div>
             </div>
+            {pendingCancelJobPost ? (
+                <div className="cmp-modal-overlay" onClick={() => setPendingCancelJobPost(null)}>
+                    <div className="cmp-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+                        <h3>Bạn chắc chắn muốn hủy bài đăng này?</h3>
+                        <p>
+                            Bài đăng <strong>{pendingCancelJobPost.title || `#${pendingCancelJobPost.postId}`}</strong> sẽ được hủy và không còn hiển thị cho thợ.
+                        </p>
+                        <div className="cmp-modal-actions">
+                            <button
+                                type="button"
+                                className="cmp-btn-outline"
+                                onClick={() => setPendingCancelJobPost(null)}
+                                disabled={cancellingTargetKey === `JOB-${pendingCancelJobPost.postId}`}
+                            >
+                                Đóng
+                            </button>
+                            <button
+                                type="button"
+                                className="cmp-btn-outline cmp-btn-danger"
+                                onClick={handleConfirmCancelJobPost}
+                                disabled={cancellingTargetKey === `JOB-${pendingCancelJobPost.postId}`}
+                            >
+                                {cancellingTargetKey === `JOB-${pendingCancelJobPost.postId}` ? 'Đang hủy…' : 'Xác nhận hủy'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+            {pendingCancelDirectPost ? (
+                <div
+                    className="cmp-modal-overlay"
+                    onClick={() => {
+                        if (cancellingTargetKey !== `DIR-${pendingCancelDirectPost.postId}`) {
+                            setPendingCancelDirectPost(null);
+                            setCancelDirectError('');
+                        }
+                    }}
+                >
+                    <div className="cmp-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+                        <h3>Hủy yêu cầu đặt trực tiếp</h3>
+                        <p>
+                            Bạn chắc chắn muốn hủy yêu cầu <strong>{pendingCancelDirectPost.title || `#${pendingCancelDirectPost.bookingId}`}</strong>?
+                            Nếu hủy sát giờ (dưới 2 giờ), hệ thống có thể trừ 30% tiền giữ và hoàn 70% về ví.
+                        </p>
+                        <label className="cmp-modal-label" htmlFor="cmp-cancel-direct-reason">
+                            Nhập lý do hủy (tối thiểu 5 ký tự):
+                        </label>
+                        <textarea
+                            id="cmp-cancel-direct-reason"
+                            className="cmp-modal-textarea"
+                            rows={3}
+                            value={cancelDirectReason}
+                            onChange={(e) => {
+                                setCancelDirectReason(e.target.value);
+                                if (cancelDirectError) setCancelDirectError('');
+                            }}
+                            placeholder="Ví dụ: Thay đổi kế hoạch nên chưa cần dịch vụ lúc này..."
+                            disabled={cancellingTargetKey === `DIR-${pendingCancelDirectPost.postId}`}
+                        />
+                        {cancelDirectError ? <div className="cmp-modal-error">{cancelDirectError}</div> : null}
+                        <div className="cmp-modal-actions">
+                            <button
+                                type="button"
+                                className="cmp-btn-outline"
+                                onClick={() => {
+                                    setPendingCancelDirectPost(null);
+                                    setCancelDirectError('');
+                                }}
+                                disabled={cancellingTargetKey === `DIR-${pendingCancelDirectPost.postId}`}
+                            >
+                                Đóng
+                            </button>
+                            <button
+                                type="button"
+                                className="cmp-btn-outline cmp-btn-danger"
+                                onClick={handleConfirmCancelDirectPost}
+                                disabled={cancellingTargetKey === `DIR-${pendingCancelDirectPost.postId}`}
+                            >
+                                {cancellingTargetKey === `DIR-${pendingCancelDirectPost.postId}` ? 'Đang hủy…' : 'Xác nhận hủy'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
         </CustomerLayout>
     );
 };

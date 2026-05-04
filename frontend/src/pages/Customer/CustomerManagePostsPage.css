@@ -1,5 +1,5 @@
 .cmp-container {
-    padding: 30px;
+    padding: 5px 30px 30px;
     background-color: var(--bg-main);
     min-height: calc(100vh - 70px);
 }
@@ -343,6 +343,85 @@
     max-width: 240px;
     border-color: var(--primary) !important;
     color: var(--primary) !important;
+}
+
+.cmp-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+    padding: 16px;
+}
+
+.cmp-modal {
+    width: min(520px, 100%);
+    background: var(--card);
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+    padding: 20px;
+}
+
+.cmp-modal h3 {
+    margin: 0 0 8px 0;
+    color: var(--text-main);
+    font-size: 20px;
+    text-align: center;
+}
+
+.cmp-modal p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.cmp-modal-label {
+    display: block;
+    margin-top: 14px;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.cmp-modal-textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 88px;
+    background: #fff;
+    color: var(--text-main);
+}
+
+.cmp-modal-textarea:focus {
+    outline: none;
+    border-color: #2f5d50;
+    box-shadow: 0 0 0 3px rgba(47, 93, 80, 0.15);
+}
+
+.cmp-modal-error {
+    margin-top: 8px;
+    color: #b91c1c;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.cmp-modal-actions {
+    margin-top: 18px;
+    display: flex;
+    gap: 10px;
+}
+
+.cmp-btn-danger {
+    border-color: #b91c1c !important;
+    color: #b91c1c !important;
 }
 
 @keyframes spin {

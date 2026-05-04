@@ -201,6 +201,10 @@ body {
     align-items: center;
 }
 
+.input-with-icon--password {
+    position: relative;
+}
+
 .input-icon {
     margin-right: 0.75rem;
     flex-shrink: 0;
@@ -218,6 +222,40 @@ body {
     background-color: var(--input-bg);
     color: #333;
     transition: all 0.2s;
+}
+
+.input-with-icon--password .form-input {
+    padding-right: 2.8rem;
+}
+
+.input-with-icon--password .form-input::-ms-reveal,
+.input-with-icon--password .form-input::-ms-clear {
+    display: none;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.password-toggle:hover {
+    color: var(--primary-color);
+}
+
+.eye-icon {
+    width: 20px;
+    height: 20px;
 }
 
 .form-input:focus {

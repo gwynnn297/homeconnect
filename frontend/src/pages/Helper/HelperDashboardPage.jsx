@@ -63,14 +63,14 @@ const HelperDashboardPage = () => {
     const [newJobs, setNewJobs] = useState([]);
     const [completedJobs, setCompletedJobs] = useState([]);
     const [monthlyEarning, setMonthlyEarning] = useState(0);
+    const [totalEarning, setTotalEarning] = useState(0);
     const hasReloadedAfterApprove = useRef(false);
 
     const [stats, setStats] = useState({
         jobsThisMonth: 0,
         jobsThisMonthTrend: 0,
         averageRating: '0.0',
-        totalReviews: 0,
-        completionRate: 100
+        totalReviews: 0
     });
 
     const syncUserToLocalStorage = useCallback((basicProfile, helperProfile) => {
@@ -99,7 +99,7 @@ const HelperDashboardPage = () => {
 
             setKycStatus(latestStatus);
             setHelperName(latestName.split(' ').slice(-2).join(' '));
-            
+
             setStats(prev => ({
                 ...prev,
                 averageRating: Number(helper.ratingAverage || 0).toFixed(1),
@@ -220,22 +220,27 @@ const HelperDashboardPage = () => {
                 const now = new Date();
                 const currentMonth = now.getMonth();
                 const currentYear = now.getFullYear();
-                const monthIncome = allTransactions
-                    .filter((tx) => String(tx?.type || '').toUpperCase() === 'RELEASE')
+                const releaseTxs = allTransactions.filter(
+                    (tx) => String(tx?.type || '').toUpperCase() === 'RELEASE'
+                );
+                const monthIncome = releaseTxs
                     .filter((tx) => {
                         const d = tx?.createdAt ? new Date(tx.createdAt) : null;
                         return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
                     })
                     .reduce((sum, tx) => sum + Number(tx?.amount || 0), 0);
+                const lifetimeRelease = releaseTxs.reduce((sum, tx) => sum + Number(tx?.amount || 0), 0);
 
                 if (!cancelled) {
                     setMonthlyEarning(monthIncome);
+                    setTotalEarning(lifetimeRelease);
                 }
             } catch (err) {
                 if (isAccountBlockedError(err)) return;
                 console.error('[HelperDashboardPage] loadMonthlyEarning failed:', err);
                 if (!cancelled) {
                     setMonthlyEarning(0);
+                    setTotalEarning(0);
                 }
             }
         };
@@ -255,7 +260,7 @@ const HelperDashboardPage = () => {
                 const res = await HelperJobService.getJobsByTab('CONFIRMED');
                 const data = extractPayload(res);
                 const jobs = Array.isArray(data) ? data : [];
-                
+
                 const now = new Date();
                 const currentMonth = now.getMonth();
                 const currentYear = now.getFullYear();
@@ -271,7 +276,7 @@ const HelperDashboardPage = () => {
                 let completedPrevMonthCount = 0;
 
                 const completedJobsList = jobs.filter(isCompletedJob);
-                
+
                 completedJobsList.forEach(job => {
                     const d = new Date(job.updatedAt || job.completedAt || job.workDate || job.createdAt || 0);
                     if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
@@ -285,8 +290,7 @@ const HelperDashboardPage = () => {
                     setStats(prev => ({
                         ...prev,
                         jobsThisMonth: completedThisMonthCount,
-                        jobsThisMonthTrend: completedThisMonthCount - completedPrevMonthCount,
-                        completionRate: 100 // Tạm thời 100% khi chưa có API tính số đơn huỷ
+                        jobsThisMonthTrend: completedThisMonthCount - completedPrevMonthCount
                     }));
                 }
 
@@ -409,7 +413,7 @@ const HelperDashboardPage = () => {
             {/* Welcome banner */}
             <div className="hdb-welcome-banner">
                 <div className="hdb-welcome-left">
-                   
+
                     <h1 className="hdb-welcome-title">Chào mừng trở lại, {helperName}!</h1>
                     <p className="hdb-welcome-sub">Hôm nay bạn có <strong>{newJobs.length} công việc mới</strong> đang chờ nhận.</p>
                     <button className="hdb-welcome-btn" onClick={() => navigate('/helper/new-jobs')}>Xem việc làm mới &rsaquo;</button>
@@ -430,33 +434,33 @@ const HelperDashboardPage = () => {
 
             {/* Stats row */}
             <div className="hdb-stats-grid">
-                <StatCard 
-                    label="Công việc tháng này" 
-                    value={stats.jobsThisMonth.toString()} 
-                    unit="việc" 
-                    trend={stats.jobsThisMonthTrend > 0 ? `+${stats.jobsThisMonthTrend} so với tháng trước` : (stats.jobsThisMonthTrend < 0 ? `${stats.jobsThisMonthTrend} so với tháng trước` : `Bằng tháng trước`)} 
-                    trendUp={stats.jobsThisMonthTrend >= 0} 
+                <StatCard
+                    label="Công việc tháng này"
+                    value={stats.jobsThisMonth.toString()}
+                    unit="việc"
+                    trend={stats.jobsThisMonthTrend > 0 ? `+${stats.jobsThisMonthTrend} so với tháng trước` : (stats.jobsThisMonthTrend < 0 ? `${stats.jobsThisMonthTrend} so với tháng trước` : `Bằng tháng trước`)}
+                    trendUp={stats.jobsThisMonthTrend >= 0}
                 />
-                <StatCard 
-                    label="Thu nhập tháng này" 
-                    value={formatCurrencyVnd(monthlyEarning).replace('đ', '')} 
-                    unit="đ" 
-                    trend="Cập nhật tự động" 
-                    trendUp={true} 
+                <StatCard
+                    label="Thu nhập tháng này"
+                    value={formatCurrencyVnd(monthlyEarning).replace('đ', '')}
+                    unit="đ"
+                    trend="Cập nhật tự động"
+                    trendUp={true}
                 />
-                <StatCard 
-                    label="Đánh giá trung bình" 
-                    value={stats.averageRating.toString()} 
-                    unit="/ 5" 
-                    trend={stats.totalReviews > 0 ? `Dựa trên ${stats.totalReviews} đánh giá` : `Chưa có đánh giá`} 
-                    trendUp={true} 
+                <StatCard
+                    label="Tổng thu nhập"
+                    value={formatCurrencyVnd(totalEarning).replace('đ', '')}
+                    unit="đ"
+                    trend={totalEarning > 0 ? 'Từ giao dịch đã nhận' : 'Chưa có giao dịch'}
+                    trendUp={totalEarning > 0}
                 />
-                <StatCard 
-                    label="Tỉ lệ hoàn thành" 
-                    value={stats.completionRate.toString()} 
-                    unit="%" 
-                    trend="Rất xuất sắc" 
-                    trendUp={true} 
+                <StatCard
+                    label="Đánh giá trung bình"
+                    value={stats.averageRating.toString()}
+                    unit="/ 5"
+                    trend={stats.totalReviews > 0 ? `Dựa trên ${stats.totalReviews} đánh giá` : `Chưa có đánh giá`}
+                    trendUp={true}
                 />
             </div>
 
@@ -510,8 +514,8 @@ const HelperDashboardPage = () => {
                                             {job.startTime || 'N/A'}
                                         </span>
                                     </div>
-                                    <button 
-                                        className="hdb-accept-btn" 
+                                    <button
+                                        className="hdb-accept-btn"
                                         onClick={() => navigate('/helper/new-jobs', { state: { fromNotification: true, targetPostId: job.postId } })}
                                     >
                                         Nhận việc
@@ -531,7 +535,7 @@ const HelperDashboardPage = () => {
                 <section className="hdb-section">
                     <div className="hdb-section-header">
                         <h2 className="hdb-section-title">Việc đã hoàn thành</h2>
-                        <a className="hdb-section-link" href="/helper/my-jobs">Xem tất cả &rsaquo;</a>
+                        <a className="hdb-section-link" href="/helper/new-jobs">Xem tất cả &rsaquo;</a>
                     </div>
                     <div className="hdb-recent-list">
                         {completedJobs.map(job => (

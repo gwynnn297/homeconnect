@@ -130,6 +130,13 @@ const CustomerWalletPage = () => {
         }
     };
 
+    const formatTxDescription = (description) => {
+        const raw = String(description || '');
+        return raw
+            .replace(/subsidy loyalty:/gi, 'Trợ giá :')
+            .replace(/loyalty subsidy:/gi, 'Trợ giá :');
+    };
+
     // ===== COUNTDOWN / POLLING =====
     const stopPolling = () => {
         if (pollingIntervalRef.current) { clearInterval(pollingIntervalRef.current); pollingIntervalRef.current = null; }
@@ -398,7 +405,7 @@ const CustomerWalletPage = () => {
                                                         }
                                                     </div>
                                                     <div className="vw-tx-content">
-                                                        <div className="vw-tx-title">{tx.description}</div>
+                                                        <div className="vw-tx-title">{formatTxDescription(tx.description)}</div>
                                                         <div className="vw-tx-meta">
                                                             <span className={`vw-tx-type vw-text-${typeInfo.cls}`}>{typeInfo.label}</span>
                                                             <span className="vw-tx-dot">&bull;</span>

@@ -29,6 +29,15 @@ const BookingService = {
     },
 
     /**
+     * Khách hàng hủy booking.
+     * Backend: POST /api/v1/bookings/{bookingId}/cancel
+     * Body: { reason }
+     */
+    cancelBooking: async (bookingId, reason) => {
+        return apiClient.post(`${BOOKING_BASE_URL}/${bookingId}/cancel`, { reason });
+    },
+
+    /**
      * Khách hàng xác nhận helper đã đến đúng địa điểm.
      * Backend: POST /api/v1/bookings/{bookingId}/arrival/confirm
      */

@@ -72,7 +72,6 @@ const AdminHelperDetailPage = () => {
         <AdminLayout>
             <div className="admin-helper-detail-main">
                 <div className="error-message">{error}</div>
-                <button onClick={() => navigate('/admin/helpers')} className="btn-back">← Quay lại</button>
             </div>
         </AdminLayout>
     );
@@ -115,7 +114,6 @@ const AdminHelperDetailPage = () => {
         <AdminLayout>
             <div className="admin-helper-detail-main">
                 <div className="detail-header">
-                    <button onClick={() => navigate('/admin/helpers')} className="btn-back">← Quay lại</button>
                     <h1>Chi tiết Helper #{helper.helperId}</h1>
                 </div>
 

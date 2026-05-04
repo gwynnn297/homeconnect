@@ -244,6 +244,10 @@ body {
     align-items: center;
 }
 
+.input-with-icon--password .form-input {
+    padding-right: 2.8rem;
+}
+
 .input-icon {
     margin-right: 0.75rem;
     flex-shrink: 0;
@@ -276,6 +280,10 @@ body {
 .password-toggle {
     position: absolute;
     right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
     cursor: pointer;
     color: #94a3b8;
     display: flex;

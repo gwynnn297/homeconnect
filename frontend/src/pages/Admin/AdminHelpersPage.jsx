@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../layouts/AdminLayout';
 import NotificationModal from '../../components/NotificationModal';
 import AdminService from '../../services/AdminService';
@@ -7,14 +7,12 @@ import './AdminHelpersPage.css';
 
 const AdminHelpersPage = () => {
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
     const [helpers, setHelpers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
     
     // Filter & Pagination
-    const initialStatus = searchParams.get('status') || '';
-    const [status, setStatus] = useState(initialStatus);
+    const [status, setStatus] = useState('');
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
     const [sortBy, setSortBy] = useState('user.createdAt');
@@ -55,13 +53,6 @@ const AdminHelpersPage = () => {
     useEffect(() => {
         fetchHelpers();
     }, [page, size, status, sortBy, sortDir]);
-
-    // Sync filter from query string (ex: /admin/helpers?status=WAITING_APPROVAL)
-    useEffect(() => {
-        const nextStatus = searchParams.get('status') || '';
-        setStatus(nextStatus);
-        setPage(0);
-    }, [searchParams]);
 
     const handleViewDetail = (helperId) => {
         navigate(`/admin/helpers/${helperId}`);

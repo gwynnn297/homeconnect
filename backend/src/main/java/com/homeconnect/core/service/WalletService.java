@@ -640,7 +640,7 @@ public class WalletService {
                     .type(TransactionType.REFUND)
                     .referenceType(ReferenceType.BOOKING)
                     .referenceId(bookingId.intValue())
-                    .description(String.format("Loyalty subsidy Booking #%d (tru vao commission he thong)", bookingId))
+                    .description(String.format("Trợ giá Booking #%d", bookingId))
                     .build();
             transactionRepository.save(subsidyTx);
         }

@@ -54,6 +54,8 @@ public class BookingService {
     private static final List<BookingStatus> ADMIN_NO_SHOW_ALLOWED_STATUSES = List.of(
             BookingStatus.CONFIRMED,
             BookingStatus.ARRIVED);
+    private static final List<BookingStatus> CUSTOMER_CANCEL_ALLOWED_STATUSES = List.of(
+            BookingStatus.PENDING_ACCEPTANCE);
 
     private final BookingRepository bookingRepository;
     private final AddressRepository addressRepository;
@@ -1056,24 +1058,36 @@ public class BookingService {
     }
 
     @Transactional
-    public void cancelBooking(Long bookingId, Long customerId) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng"));
+    public void cancelBooking(Long bookingId, Long customerId, String reason) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
 
         if (!booking.getCustomer().getId().equals(customerId)) {
-            throw new RuntimeException("Bạn không có quyền hủy đơn hàng này");
+            throw new ApiException("Bạn không có quyền hủy đơn hàng này", HttpStatus.FORBIDDEN);
+        }
+
+        String normalizedReason = reason != null ? reason.trim() : "";
+        if (normalizedReason.length() < 5) {
+            throw new ApiException("Lý do hủy từ 5 ký tự trở lên", HttpStatus.BAD_REQUEST);
         }
 
         if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED
             || booking.getStatus() == BookingStatus.DISPUTED || booking.getStatus() == BookingStatus.RESOLVED) {
-            throw new RuntimeException("Đơn hàng đã hoàn thành hoặc đã bị hủy trước đó");
+            throw new ApiException("Đơn hàng đã hoàn thành hoặc đã bị hủy trước đó", HttpStatus.BAD_REQUEST);
+        }
+
+        if (!CUSTOMER_CANCEL_ALLOWED_STATUSES.contains(booking.getStatus())) {
+            throw new ApiException(
+                    "Khách hàng chỉ có thể hủy booking ở trạng thái PENDING_ACCEPTANCE",
+                    HttpStatus.BAD_REQUEST);
         }
 
         applyWalletRefundOnCancel(booking);
+        releaseHelperScheduleForBooking(booking);
 
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setCancelSource("CUSTOMER");
-        booking.setCancelReason("Khách hàng chủ động hủy đơn");
+        booking.setCancelReason(normalizedReason);
         booking.setCancelledAt(LocalDateTime.now());
         bookingRepository.save(booking);
 
@@ -1112,11 +1126,22 @@ public class BookingService {
                 walletService.deductPenalty(customerId, penalty, bookingId, "Hủy đơn sát giờ (< 2h)");
                 walletService.compensateCustomer(booking.getHelper().getId(), penalty, bookingId);
                 walletService.refundHold(customerId, refund, bookingId, "Hoàn lại 70% sau phí hủy đơn");
+                booking.setPaymentStatus(PaymentStatus.RELEASED);
             } else {
                 booking.setPenaltyAmount(BigDecimal.ZERO);
                 booking.setRefundAmount(booking.getTotalPrice());
                 walletService.refundHold(customerId, booking.getTotalPrice(), bookingId, "Hủy đơn sớm (> 2h)");
+                booking.setPaymentStatus(PaymentStatus.REFUNDED);
             }
+        }
+    }
+
+    private void releaseHelperScheduleForBooking(Booking booking) {
+        List<HelperSchedule> schedules = helperScheduleRepository.findByBooking(booking);
+        for (HelperSchedule schedule : schedules) {
+            schedule.setStatus(ScheduleStatus.AVAILABLE);
+            schedule.setBooking(null);
+            helperScheduleRepository.save(schedule);
         }
     }
 
@@ -1129,6 +1154,10 @@ public class BookingService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
         Long adminUserId = adminAuditLogService.resolveActorIdByEmail(adminEmail);
+        String normalizedReason = reason != null ? reason.trim() : "";
+        if (normalizedReason.length() < 5) {
+            throw new ApiException("Lý do hủy từ 5 ký tự trở lên", HttpStatus.BAD_REQUEST);
+        }
 
         if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED
             || booking.getStatus() == BookingStatus.DISPUTED || booking.getStatus() == BookingStatus.RESOLVED) {
@@ -1151,15 +1180,16 @@ public class BookingService {
         }
 
         applyWalletRefundOnCancel(booking);
+        releaseHelperScheduleForBooking(booking);
 
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setCancelSource("ADMIN");
-        booking.setCancelReason(reason);
+        booking.setCancelReason(normalizedReason);
         booking.setCancelledAt(LocalDateTime.now());
         booking.setCancelledByAdminId(adminUserId);
         bookingRepository.save(booking);
 
-        String msg = "Đơn #" + bookingId + " đã bị hủy bởi quản trị viên. Lý do: " + reason;
+        String msg = "Đơn #" + bookingId + " đã bị hủy bởi quản trị viên. Lý do: " + normalizedReason;
         notificationService.createNotification(booking.getCustomer().getId(), "Đơn hàng bị hủy (Admin)", msg,
                 "BOOKING_ADMIN_CANCEL");
         notificationService.createNotification(booking.getHelper().getId(), "Đơn hàng bị hủy (Admin)", msg,
@@ -1173,7 +1203,7 @@ public class BookingService {
                 "BOOKING",
                 bookingId,
                 "SUCCESS",
-                reason,
+                normalizedReason,
                 "{\"status\":\"CANCELLED\"}");
     }
 

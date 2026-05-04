@@ -1014,7 +1014,7 @@ const CustomerBookingDetailPage = () => {
                                     Khiếu nại đơn hàng
                                 </button>
                             ) : null}
-                            <button className="cbd-btn cbd-btn--rounded" type="button" onClick={() => navigate(booking?.jobPostId ? '/customer/manage-posts' : '/customer/dashboard')}>
+                            <button className="cbd-btn cbd-btn--rounded" type="button" onClick={() => navigate('/customer/manage-posts')}>
                                 {booking?.jobPostId ? 'Danh sách bài đăng' : 'Danh sách đơn đặt'}
                             </button>
                             <button className="cbd-btn cbd-btn--primary cbd-btn--rounded" type="button" onClick={() => navigate('/customer-dashboard')}>

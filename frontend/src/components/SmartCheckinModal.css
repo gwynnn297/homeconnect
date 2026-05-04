@@ -3,16 +3,21 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding: clamp(10px, 3vh, 24px) 12px;
+  overflow-y: auto;
   z-index: 9999;
 }
 
 .scm-modal {
   width: min(92vw, 760px);
+  max-height: calc(100vh - clamp(20px, 6vh, 48px));
   background: #fff;
   border-radius: 14px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .scm-header {
@@ -32,6 +37,7 @@
 
 .scm-body {
   padding: 16px;
+  overflow-y: auto;
 }
 
 .scm-video-wrap {

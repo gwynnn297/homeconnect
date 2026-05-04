@@ -320,6 +320,10 @@
 
 .hnj-card-status-row {
     margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .hnj-state-pill {

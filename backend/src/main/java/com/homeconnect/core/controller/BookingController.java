@@ -2,6 +2,7 @@ package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.DirectBookingRequest;
 import com.homeconnect.core.dto.request.BookingReportRequest;
+import com.homeconnect.core.dto.request.CancelBookingRequest;
 import com.homeconnect.core.dto.request.HelperDisputeResponseRequest;
 import com.homeconnect.core.dto.request.SelectApplicantRequest;
 import com.homeconnect.core.dto.response.ApiResponse;
@@ -195,22 +196,23 @@ public class BookingController {
                                 .message("Đã xác nhận hoàn thành! Cảm ơn bạn đã sử dụng dịch vụ.")
                                 .build());
         }
-        @Operation(summary = "Hủy đơn hàng (PB-31)", description = "Khách hàng hủy đơn. Nếu hủy sát giờ (< 2h) sẽ bị phạt 30% tiền ví Hold.")
+        @Operation(summary = "Hủy đơn hàng", description = "Khách hàng chỉ được hủy khi đơn ở trạng thái PENDING_ACCEPTANCE, bắt buộc nhập lý do. Nếu hủy sát giờ (< 2h) sẽ bị phạt 30% tiền ví Hold.")
         @PostMapping("/{bookingId}/cancel")
         @PreAuthorize("hasRole('CUSTOMER')")
         public ResponseEntity<ApiResponse<Void>> cancelBooking(
                         @PathVariable Long bookingId,
+                        @Valid @RequestBody CancelBookingRequest request,
                         Authentication authentication) {
 
                 Long customerId = securityUtil.getCurrentUserId(authentication);
-                bookingService.cancelBooking(bookingId, customerId);
+                bookingService.cancelBooking(bookingId, customerId, request.getReason());
 
                 return ResponseEntity.ok(ApiResponse.<Void>builder()
                                 .message("Hủy đơn hàng thành công!")
                                 .build());
         }
 
-        @Operation(summary = "Khiếu nại đơn hàng (PB-30)", description = "Khách report booking COMPLETED. Đơn sẽ chuyển DISPUTED để admin xử lý dòng tiền.")
+        @Operation(summary = "Khiếu nại đơn hàng", description = "Khách report booking COMPLETED. Đơn sẽ chuyển DISPUTED để admin xử lý dòng tiền.")
         @PostMapping("/{bookingId}/report")
         @PreAuthorize("hasRole('CUSTOMER')")
         public ResponseEntity<ApiResponse<BookingResponse>> reportBooking(
