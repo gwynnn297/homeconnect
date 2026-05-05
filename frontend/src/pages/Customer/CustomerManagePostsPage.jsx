@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import apiClient from '../../services/apiClient';
 import BookingService from '../../services/BookingService';
+import NotificationModal from '../../components/NotificationModal';
 import './CustomerManagePostsPage.css';
 
 const JOB_LIST_ENDPOINT = '/api/v1/jobs';
@@ -53,6 +54,16 @@ const getInitial = (name = '') => {
     return trimmed ? trimmed.charAt(0).toUpperCase() : 'H';
 };
 
+const resolveUnifiedStatus = (post) => {
+    const bookingStatus = String(post?.bookingStatus || '').toUpperCase();
+    const rawStatus = String(post?.status || 'PUBLISHED').toUpperCase();
+    if (['CANCELLED', 'EXPIRED'].includes(bookingStatus)) return bookingStatus;
+    if (['COMPLETED', 'DISPUTED', 'RESOLVED'].includes(bookingStatus)) return 'COMPLETED';
+    if (['CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'PENDING_COMPLETION'].includes(bookingStatus)) return 'CONFIRMED';
+    if (bookingStatus === 'PENDING_ACCEPTANCE') return 'PENDING_ACCEPTANCE';
+    return rawStatus;
+};
+
 const CustomerManagePostsPage = () => {
     const navigate = useNavigate();
     const [posts, setPosts] = useState([]);
@@ -65,6 +76,7 @@ const CustomerManagePostsPage = () => {
     const [pendingCancelDirectPost, setPendingCancelDirectPost] = useState(null);
     const [cancelDirectReason, setCancelDirectReason] = useState('');
     const [cancelDirectError, setCancelDirectError] = useState('');
+    const [toast, setToast] = useState(null);
 
     const loadPosts = useCallback(async () => {
         setLoading(true);
@@ -114,6 +126,7 @@ const CustomerManagePostsPage = () => {
                         estimatedPrice: Number(db.finalPrice ?? db.totalPrice ?? 0),
                         isDirect: true,
                         cancelReason: db.cancelReason,
+                        cancelSource: db.cancelSource || null,
                     };
                 });
                 combined.push(...normalizedDirectBookings);
@@ -173,7 +186,10 @@ const CustomerManagePostsPage = () => {
             await loadPosts();
             setPendingCancelJobPost(null);
         } catch (err) {
-            window.alert(err?.message || 'Không thể hủy bài đăng. Vui lòng thử lại.');
+            setToast({
+                type: 'error',
+                message: err?.message || 'Không thể hủy bài đăng. Vui lòng thử lại.'
+            });
         } finally {
             setCancellingTargetKey('');
         }
@@ -234,9 +250,10 @@ const CustomerManagePostsPage = () => {
                     description: post?.description || 'Không có mô tả.',
                     addressText,
                     createdAt: post?.createdAt ?? post?.created_at,
-                    status: String(post?.bookingStatus).toUpperCase() === 'COMPLETED' ? 'COMPLETED' : (post?.status || 'PUBLISHED'),
+                    status: resolveUnifiedStatus(post),
                     estimatedPrice,
-                    cancelReason: post?.cancelReason || null
+                    cancelReason: post?.cancelReason || null,
+                    cancelSource: post?.cancelSource || null
                 };
             }),
         [posts]
@@ -247,7 +264,7 @@ const CustomerManagePostsPage = () => {
         return val.toLocaleString('vi-VN') + ' ₫';
     };
 
-    const isAssignedPost = (status) => ['MATCHED', 'ASSIGNED', 'CONFIRMED'].includes(status);
+    const isAssignedPost = (status) => ['MATCHED', 'ASSIGNED', 'CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'PENDING_COMPLETION'].includes(status);
 
     const getStatusConfig = (status) => {
         switch (status) {
@@ -328,6 +345,13 @@ const CustomerManagePostsPage = () => {
         <CustomerLayout>
             <div className="cmp-container slide-up">
                 <div className="cmp-content">
+                    {toast ? (
+                        <NotificationModal
+                            message={toast.message}
+                            type={toast.type}
+                            onClose={() => setToast(null)}
+                        />
+                    ) : null}
                     {loading ? (
                         <div className="cmp-loading-wrapper">
                             <div className="cmp-spinner"></div>
@@ -428,6 +452,15 @@ const CustomerManagePostsPage = () => {
                                                                 <line x1="12" y1="8" x2="12.01" y2="8" />
                                                             </svg>
                                                             {post.cancelReason}
+                                                        </div>
+                                                    )}
+                                                    {post.cancelSource && ['CANCELLED', 'EXPIRED'].includes(post.status) && (
+                                                        <div className="cmp-cancel-reason" style={{ marginTop: 8 }}>
+                                                            Nguồn hủy: {String(post.cancelSource).toUpperCase() === 'HELPER'
+                                                                ? 'Thợ'
+                                                                : (String(post.cancelSource).toUpperCase() === 'CUSTOMER'
+                                                                    ? 'Khách hàng'
+                                                                    : (String(post.cancelSource).toUpperCase() === 'ADMIN' ? 'Quản trị viên' : post.cancelSource))}
                                                         </div>
                                                     )}
 

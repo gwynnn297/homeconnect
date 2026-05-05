@@ -11,7 +11,6 @@ import com.homeconnect.core.entity.Address;
 import com.homeconnect.core.entity.Booking;
 import com.homeconnect.core.entity.JobPost;
 import com.homeconnect.core.entity.JobPostEditLog;
-import com.homeconnect.core.entity.User;
 import com.homeconnect.core.event.JobPostCreatedEvent;
 import com.homeconnect.core.repository.JobPostRepository;
 import com.homeconnect.core.repository.BookingRepository;
@@ -404,7 +403,8 @@ public class JobService {
                     helperId,
                     new ArrayList<>(orderedPostIds),
                     List.of(BookingStatus.CONFIRMED, BookingStatus.ARRIVED, BookingStatus.IN_PROGRESS,
-                            BookingStatus.COMPLETED, BookingStatus.DISPUTED, BookingStatus.RESOLVED));
+                            BookingStatus.PENDING_COMPLETION, BookingStatus.COMPLETED, BookingStatus.DISPUTED,
+                            BookingStatus.RESOLVED, BookingStatus.CANCELLED, BookingStatus.EXPIRED));
 
             Map<Long, Booking> map = new HashMap<>();
             for (Booking booking : bookings) {
@@ -557,6 +557,8 @@ public class JobService {
                 .helperDisputeMessage(booking != null ? booking.getHelperDisputeMessage() : null)
                 .helperDisputeEvidenceUrl(booking != null ? booking.getHelperDisputeEvidenceUrl() : null)
                 .helperDisputeAt(booking != null ? booking.getHelperDisputeAt() : null)
+                .cancelReason(booking != null ? booking.getCancelReason() : null)
+                .cancelSource(booking != null ? booking.getCancelSource() : null)
                 .createdAt(jobPost.getCreatedAt())
                 .workSize(workSize)
                 .additionalData(additionalDataMap)

@@ -2,7 +2,6 @@ package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.DirectBookingRequest;
 import com.homeconnect.core.dto.request.BookingReportRequest;
-import com.homeconnect.core.dto.request.CancelBookingRequest;
 import com.homeconnect.core.dto.request.HelperDisputeResponseRequest;
 import com.homeconnect.core.dto.request.SelectApplicantRequest;
 import com.homeconnect.core.dto.response.ApiResponse;
@@ -74,30 +73,6 @@ public class BookingController {
                 return ResponseEntity.ok(ApiResponse.<BookingResponse>builder()
                                 .message("Yêu cầu đặt thợ đã được gửi. Đang chờ thợ xác nhận trong 10 phút.")
                                 .data(response)
-                                .build());
-        }
-
-        @Operation(summary = "Thợ xem danh sách đặt trực tiếp (PB-13)", description = "Trả về các booking không có job post (đặt trực tiếp), bao gồm cả PENDING_ACCEPTANCE")
-        @GetMapping("/my-direct")
-        @PreAuthorize("hasRole('HELPER')")
-        public ResponseEntity<ApiResponse<List<BookingResponse>>> getMyDirectBookings(Authentication authentication) {
-                Long helperId = securityUtil.getCurrentUserId(authentication);
-                List<BookingResponse> result = bookingService.getHelperDirectBookings(helperId);
-                return ResponseEntity.ok(ApiResponse.<List<BookingResponse>>builder()
-                                .message("Lấy danh sách đặt trực tiếp thành công")
-                                .data(result)
-                                .build());
-        }
-
-        @Operation(summary = "Khách hàng xem danh sách đặt trực tiếp (PB-13)", description = "Trả về các booking không có job post (đặt trực tiếp)")
-        @GetMapping("/customer-direct")
-        @PreAuthorize("hasRole('CUSTOMER')")
-        public ResponseEntity<ApiResponse<List<BookingResponse>>> getCustomerDirectBookings(Authentication authentication) {
-                Long customerId = securityUtil.getCurrentUserId(authentication);
-                List<BookingResponse> result = bookingService.getCustomerDirectBookings(customerId);
-                return ResponseEntity.ok(ApiResponse.<List<BookingResponse>>builder()
-                                .message("Lấy danh sách đặt trực tiếp thành công")
-                                .data(result)
                                 .build());
         }
 
@@ -174,7 +149,12 @@ public class BookingController {
                         Authentication authentication) {
 
                 Long helperId = securityUtil.getCurrentUserId(authentication);
-                bookingService.checkOut(bookingId, request.getCheckoutPhotoUrl(), request.getCheckoutReason(),
+                bookingService.checkOut(
+                                bookingId,
+                                request.getCheckoutPhotoUrl(),
+                                request.getCheckoutReason(),
+                                request.getLatitude(),
+                                request.getLongitude(),
                                 helperId);
 
                 return ResponseEntity.ok(ApiResponse.<Void>builder()
@@ -196,23 +176,22 @@ public class BookingController {
                                 .message("Đã xác nhận hoàn thành! Cảm ơn bạn đã sử dụng dịch vụ.")
                                 .build());
         }
-        @Operation(summary = "Hủy đơn hàng", description = "Khách hàng chỉ được hủy khi đơn ở trạng thái PENDING_ACCEPTANCE, bắt buộc nhập lý do. Nếu hủy sát giờ (< 2h) sẽ bị phạt 30% tiền ví Hold.")
+        @Operation(summary = "Hủy đơn hàng (PB-31)", description = "Khách hàng hủy đơn. Nếu hủy sát giờ (< 2h) sẽ bị phạt 30% tiền ví Hold.")
         @PostMapping("/{bookingId}/cancel")
         @PreAuthorize("hasRole('CUSTOMER')")
         public ResponseEntity<ApiResponse<Void>> cancelBooking(
                         @PathVariable Long bookingId,
-                        @Valid @RequestBody CancelBookingRequest request,
                         Authentication authentication) {
 
                 Long customerId = securityUtil.getCurrentUserId(authentication);
-                bookingService.cancelBooking(bookingId, customerId, request.getReason());
+                bookingService.cancelBooking(bookingId, customerId, null);
 
                 return ResponseEntity.ok(ApiResponse.<Void>builder()
                                 .message("Hủy đơn hàng thành công!")
                                 .build());
         }
 
-        @Operation(summary = "Khiếu nại đơn hàng", description = "Khách report booking COMPLETED. Đơn sẽ chuyển DISPUTED để admin xử lý dòng tiền.")
+        @Operation(summary = "Khiếu nại đơn hàng (PB-30)", description = "Khách report booking COMPLETED. Đơn sẽ chuyển DISPUTED để admin xử lý dòng tiền.")
         @PostMapping("/{bookingId}/report")
         @PreAuthorize("hasRole('CUSTOMER')")
         public ResponseEntity<ApiResponse<BookingResponse>> reportBooking(

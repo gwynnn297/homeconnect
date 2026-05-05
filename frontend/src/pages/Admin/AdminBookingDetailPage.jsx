@@ -19,6 +19,9 @@ const STATUS_LABEL = {
     EXPIRED: 'Hết hạn phản hồi',
 };
 
+const ADMIN_CANCEL_ALLOWED_STATUSES = new Set(['PENDING', 'PENDING_ACCEPTANCE', 'CONFIRMED']);
+const ADMIN_NO_SHOW_ALLOWED_STATUSES = new Set(['CONFIRMED', 'ARRIVED']);
+
 const PAY_LABEL = {
     HOLDING: 'Đang giữ (Escrow)',
     RELEASED: 'Đã giải ngân cho thợ',
@@ -67,9 +70,9 @@ const AdminBookingDetailPage = () => {
         load();
     }, [load]);
 
-    const canCancel = b && b.status !== 'COMPLETED' && b.status !== 'CANCELLED';
+    const canCancel = b && ADMIN_CANCEL_ALLOWED_STATUSES.has(String(b.status || '').toUpperCase());
     const canUnflag = b && b.isFlagged;
-    const canMarkNoShow = b && b.status !== 'COMPLETED' && b.status !== 'CANCELLED';
+    const canMarkNoShow = b && ADMIN_NO_SHOW_ALLOWED_STATUSES.has(String(b.status || '').toUpperCase());
     const executionTimeline = [
         { key: 'arrive', label: 'Thợ đến địa điểm', time: fmtDate(b?.arrivedAt), done: Boolean(b?.arrivedAt) },
         { key: 'arrivalConfirm', label: 'Khách xác nhận thợ đến', time: fmtDate(b?.customerArrivalConfirmedAt), done: Boolean(b?.customerArrivalConfirmed) },

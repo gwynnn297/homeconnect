@@ -17,8 +17,10 @@ import com.homeconnect.core.enums.ScheduleStatus;
 import com.homeconnect.core.exception.ApiException;
 import com.homeconnect.core.repository.*;
 import com.homeconnect.core.util.ConflictEngine;
+import com.homeconnect.core.util.GeoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +35,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -76,6 +77,9 @@ public class BookingService {
     private final LoyaltyService loyaltyService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final DirectBookingRequestRepository directBookingRequestRepository;
+
+    @Value("${app.checkout.max-distance-meters:500}")
+    private double maxCheckoutDistanceMeters;
 
     /**
      * Xác nhận đơn hàng và cập nhật lịch của Helper sang BUSY
@@ -726,7 +730,13 @@ public class BookingService {
      * không có lý do
      */
     @Transactional
-    public void checkOut(Long bookingId, String checkoutPhotoUrl, String checkoutReason, Long helperId) {
+    public void checkOut(
+            Long bookingId,
+            String checkoutPhotoUrl,
+            String checkoutReason,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            Long helperId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy đơn hàng", HttpStatus.NOT_FOUND));
 
@@ -738,6 +748,8 @@ public class BookingService {
             throw new ApiException("Đơn hàng phải ở trạng thái IN_PROGRESS mới có thể check-out",
                     HttpStatus.BAD_REQUEST);
         }
+        validateCheckoutLocation(booking, latitude, longitude);
+
         String normalizedPhotoUrl = checkoutPhotoUrl != null ? checkoutPhotoUrl.trim() : "";
         if (normalizedPhotoUrl.isEmpty()) {
             throw new ApiException("Ảnh hoàn thành không được để trống", HttpStatus.BAD_REQUEST);
@@ -785,6 +797,31 @@ public class BookingService {
 
         notificationService.createNotification(booking.getCustomer().getId(),
                 "Thợ báo đã hoàn thành!", notifContent, "WORK_DONE_BY_HELPER");
+    }
+
+    private void validateCheckoutLocation(Booking booking, BigDecimal latitude, BigDecimal longitude) {
+        if (latitude == null || longitude == null) {
+            throw new ApiException("Thiếu vị trí GPS để xác thực check-out", HttpStatus.BAD_REQUEST);
+        }
+
+        Address address = booking.getAddress();
+        if (address == null || address.getLatitude() == null || address.getLongitude() == null) {
+            throw new ApiException("Đơn hàng chưa có tọa độ địa chỉ để xác thực vị trí", HttpStatus.BAD_REQUEST);
+        }
+
+        double distanceMeters = GeoUtil.haversineMeters(
+                latitude.doubleValue(),
+                longitude.doubleValue(),
+                address.getLatitude().doubleValue(),
+                address.getLongitude().doubleValue());
+        if (distanceMeters > maxCheckoutDistanceMeters) {
+            throw new ApiException(
+                    String.format(
+                            "Bạn đang cách địa điểm làm việc %.0f m, vượt quá giới hạn %.0f m để check-out",
+                            distanceMeters,
+                            maxCheckoutDistanceMeters),
+                    HttpStatus.BAD_REQUEST);
+        }
     }
 
     /**

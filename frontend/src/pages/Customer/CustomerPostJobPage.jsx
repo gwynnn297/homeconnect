@@ -872,18 +872,45 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
     const handlePickSuggestion = async (s) => {
         const placeId = s?.place_id || s?.placeId;
         const description = s?.description || '';
-        const parsed = parseDescriptionToSaveRequest(description);
 
-        if (!placeId || !parsed) {
-            setSuggestError('Địa chỉ gợi ý chưa đủ thông tin (cần tối thiểu: số nhà/đường, phường, quận, tỉnh). Vui lòng nhập chi tiết hơn.');
+        if (!placeId) {
+            setSuggestError('Không xác định được placeId của địa chỉ gợi ý. Vui lòng chọn gợi ý khác.');
             return;
         }
 
         try {
             setIsSaving(true);
             setSuggestError('');
+
+            // Ưu tiên lấy địa chỉ có cấu trúc từ backend (detail-v2) thay vì tự tách chuỗi description.
+            const detailRes = await apiClient.get('/api/v1/addresses/detail-v2', { params: { placeId } });
+            const detail = extractPayload(detailRes);
+
+            const normalized = {
+                addressDetail: String(detail?.addressDetail || '').trim(),
+                wardName: String(detail?.wardName || '').trim(),
+                districtName: String(detail?.districtName || '').trim(),
+                provinceName: String(detail?.provinceName || '').trim()
+            };
+
+            const missingStructuredFields = !normalized.addressDetail
+                || !normalized.wardName
+                || !normalized.districtName
+                || !normalized.provinceName;
+            if (missingStructuredFields) {
+                const parsedFallback = parseDescriptionToSaveRequest(description);
+                if (!parsedFallback) {
+                    setSuggestError('Địa chỉ gợi ý chưa đủ thông tin (cần tối thiểu: số nhà/đường, phường, quận, tỉnh). Vui lòng nhập chi tiết hơn.');
+                    return;
+                }
+                normalized.addressDetail = parsedFallback.addressDetail;
+                normalized.wardName = parsedFallback.wardName;
+                normalized.districtName = parsedFallback.districtName;
+                normalized.provinceName = parsedFallback.provinceName;
+            }
+
             const payload = {
-                ...parsed,
+                ...normalized,
                 placeId,
                 type: addressType,
                 isDefault: false

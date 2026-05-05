@@ -16,6 +16,7 @@ const TABS = [
     { id: 'NEW', label: 'Việc mới' },
     { id: 'PENDING', label: 'Chờ xác nhận' },
     { id: 'CONFIRMED', label: 'Ca đang làm' },
+    { id: 'CANCELLED', label: 'Đã hủy' },
     { id: 'COMPLETED', label: 'Lịch sử ca' }
 ];
 
@@ -47,6 +48,13 @@ const TAB_UI = {
         badgeLabel: 'Đã hoàn thành',
         badgeClass: 'done',
         icon: 'check'
+    },
+    CANCELLED: {
+        title: 'Các ca đã hủy',
+        desc: 'Theo dõi các ca đã hủy và lý do hủy.',
+        badgeLabel: 'Đã hủy',
+        badgeClass: 'pending',
+        icon: 'clock'
     }
 };
 
@@ -63,6 +71,50 @@ const formatWorkDate = (value) => {
     return String(value);
 };
 
+const CHECKIN_WINDOW_MINUTES = 180;
+
+const parseJobStartDateTime = (job) => {
+    if (!job?.workDate || !job?.startTime) return null;
+    const startTime = String(job.startTime).slice(0, 5);
+    const datetime = new Date(`${job.workDate}T${startTime}:00`);
+    return Number.isNaN(datetime.getTime()) ? null : datetime;
+};
+
+const canCheckinByTimeWindow = (job) => {
+    const start = parseJobStartDateTime(job);
+    if (!start) return true;
+    const now = new Date();
+    const diffMinutes = (now.getTime() - start.getTime()) / 60000;
+    return Math.abs(diffMinutes) <= CHECKIN_WINDOW_MINUTES;
+};
+
+const getCurrentPosition = () => new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+        reject(new Error('Thiết bị không hỗ trợ định vị GPS.'));
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => resolve(position),
+        (error) => {
+            if (error?.code === 1) {
+                reject(new Error('Bạn đã từ chối quyền truy cập vị trí. Vui lòng bật GPS để checkout.'));
+                return;
+            }
+            if (error?.code === 3) {
+                reject(new Error('Không lấy được vị trí do quá thời gian chờ. Vui lòng thử lại.'));
+                return;
+            }
+            reject(new Error('Không thể lấy vị trí hiện tại. Vui lòng kiểm tra GPS và thử lại.'));
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 12000,
+            maximumAge: 0
+        }
+    );
+});
+
 const buildLocationText = (job) => {
     const fullAddress = typeof job?.fullAddress === 'string' ? job.fullAddress.trim() : '';
     if (fullAddress) return fullAddress;
@@ -76,7 +128,9 @@ const buildLocationText = (job) => {
     return detailedAddress || 'N/A';
 };
 
-const isCompletedJob = (job) => String(job?.status || '').toUpperCase() === 'COMPLETED' || String(job?.bookingStatus || '').toUpperCase() === 'COMPLETED';
+const COMPLETED_BOOKING_STATUSES = new Set(['COMPLETED', 'DISPUTED', 'RESOLVED']);
+const CANCELLED_BOOKING_STATUSES = new Set(['CANCELLED', 'EXPIRED']);
+const HISTORY_BOOKING_STATUSES = new Set([...COMPLETED_BOOKING_STATUSES, ...CANCELLED_BOOKING_STATUSES]);
 
 const getTabMeta = (tabId) => TAB_UI[tabId] || TAB_UI.NEW;
 
@@ -106,6 +160,14 @@ const getDisplayStatus = (tabId, jobStatus, isDirect = false) => {
         return fallback;
     }
 
+    if (tabId === 'CANCELLED') {
+        return {
+            ...fallback,
+            badgeLabel: 'Đã hủy',
+            badgeClass: 'rejected',
+            icon: 'clock'
+        };
+    }
     if (tabId === 'COMPLETED') {
         if (String(jobStatus).toUpperCase() === 'CANCELLED') {
             return {
@@ -123,6 +185,22 @@ const getDisplayStatus = (tabId, jobStatus, isDirect = false) => {
 
 const getCheckinBadgeMeta = (tabId, job) => {
     const bookingStatus = String(job?.bookingStatus || '').toUpperCase();
+    if (tabId === 'CANCELLED') {
+        const cancelSource = String(job?.cancelSource || '').toUpperCase();
+        if (bookingStatus === 'EXPIRED') {
+            return { badgeLabel: 'Đã hết hạn', badgeClass: 'pending', icon: 'clock' };
+        }
+        if (cancelSource === 'HELPER') {
+            return { badgeLabel: 'Đã hủy bởi thợ', badgeClass: 'rejected', icon: 'clock' };
+        }
+        if (cancelSource === 'CUSTOMER') {
+            return { badgeLabel: 'Đã hủy bởi khách', badgeClass: 'rejected', icon: 'clock' };
+        }
+        if (cancelSource === 'ADMIN') {
+            return { badgeLabel: 'Đã hủy bởi admin', badgeClass: 'rejected', icon: 'clock' };
+        }
+        return { badgeLabel: 'Đã hủy', badgeClass: 'rejected', icon: 'clock' };
+    }
     if (bookingStatus === 'DISPUTED') {
         return {
             badgeLabel: 'Đang bị khiếu nại',
@@ -213,7 +291,7 @@ const HelperNewJobPage = () => {
     const [jobsError, setJobsError] = useState('');
     const [hasLoadedJobsOnce, setHasLoadedJobsOnce] = useState(false);
     const [loadedJobsTab, setLoadedJobsTab] = useState(activeTab);
-    const [tabCounts, setTabCounts] = useState({ NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 });
+    const [tabCounts, setTabCounts] = useState({ NEW: 0, PENDING: 0, CONFIRMED: 0, CANCELLED: 0, COMPLETED: 0 });
     const handledNotificationTokenRef = useRef(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const refreshForTokenRef = useRef(null);
@@ -300,6 +378,13 @@ const HelperNewJobPage = () => {
             });
             return;
         }
+        if (!canCheckinByTimeWindow(job)) {
+            setToast({
+                type: 'warning',
+                message: `Chỉ được check-in trong khoảng trước/sau ${CHECKIN_WINDOW_MINUTES} phút so với lịch làm việc.`
+            });
+            return;
+        }
 
         setSelectedBookingId(bookingId);
         setOpenCheckinModal(true);
@@ -344,9 +429,18 @@ const HelperNewJobPage = () => {
         setSubmittingCheckout(true);
         setCheckoutError('');
         try {
+            const currentPosition = await getCurrentPosition();
+            const latitude = currentPosition?.coords?.latitude;
+            const longitude = currentPosition?.coords?.longitude;
+            if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+                throw new Error('Không lấy được tọa độ GPS hợp lệ để checkout.');
+            }
+
             await CheckoutService.checkOut(selectedJob.bookingId, {
                 checkoutPhotoUrl: checkoutPhotoUrl.trim(),
                 checkoutReason: checkoutReason.trim() || undefined,
+                latitude,
+                longitude
             });
             setToast({ type: 'success', message: `Đã checkout thành công cho booking #${selectedJob.bookingId}.` });
             setShowCheckoutModal(false);
@@ -448,7 +542,7 @@ const HelperNewJobPage = () => {
 
             if (userRole !== 'HELPER') {
                 setJobs([]);
-                setTabCounts({ NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 });
+                setTabCounts({ NEW: 0, PENDING: 0, CONFIRMED: 0, CANCELLED: 0, COMPLETED: 0 });
                 setJobsError('Bạn không có quyền truy cập trang này. Vui lòng đăng nhập bằng tài khoản Helper.');
                 setHasLoadedJobsOnce(true);
                 return;
@@ -478,20 +572,30 @@ const HelperNewJobPage = () => {
                 if (cancelled) return;
 
                 const directList = extractPayload(directRes) || [];
-                const nextCounts = { NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 };
-                const listByTab = { NEW: [], PENDING: [], CONFIRMED: [], COMPLETED: [] };
+                const nextCounts = { NEW: 0, PENDING: 0, CONFIRMED: 0, CANCELLED: 0, COMPLETED: 0 };
+                const listByTab = { NEW: [], PENDING: [], CONFIRMED: [], CANCELLED: [], COMPLETED: [] };
                 let err = '';
 
                 // Phân loại marketplace jobs
                 for (const r of jobResults) {
                     if (r.ok) {
                         if (r.tab === 'CONFIRMED') {
-                            listByTab.CONFIRMED.push(...r.list.filter(job => !isCompletedJob(job)));
-                            listByTab.COMPLETED.push(...r.list.filter(job => isCompletedJob(job)));
+                            listByTab.CONFIRMED.push(...r.list.filter(job => {
+                                const status = String(job?.bookingStatus || job?.status || '').toUpperCase();
+                                return !HISTORY_BOOKING_STATUSES.has(status);
+                            }));
+                            listByTab.CANCELLED.push(...r.list.filter(job => {
+                                const status = String(job?.bookingStatus || job?.status || '').toUpperCase();
+                                return CANCELLED_BOOKING_STATUSES.has(status);
+                            }));
+                            listByTab.COMPLETED.push(...r.list.filter(job => {
+                                const status = String(job?.bookingStatus || job?.status || '').toUpperCase();
+                                return COMPLETED_BOOKING_STATUSES.has(status);
+                            }));
                         } else {
                             listByTab[r.tab].push(...r.list);
                         }
-                    } else if (r.tab === activeTab || (r.tab === 'CONFIRMED' && activeTab === 'COMPLETED')) {
+                    } else if (r.tab === activeTab || (r.tab === 'CONFIRMED' && (activeTab === 'COMPLETED' || activeTab === 'CANCELLED'))) {
                         const e = r.error;
                         const statusCode = e?.status || e?.code || e?.response?.status;
                         err = statusCode === 403
@@ -524,14 +628,18 @@ const HelperNewJobPage = () => {
                         bookingStatus: status, // Essential for progress buttons (Arrival/Checkout)
                         canCheckin: db.canCheckin,
                         customerArrivalConfirmed: db.customerArrivalConfirmed,
+                        cancelReason: db.cancelReason || null,
+                        cancelSource: db.cancelSource || null,
                         createdAt: db.createdAt || new Date()
                     };
 
                     if (status === 'PENDING_ACCEPTANCE') {
                         listByTab.PENDING.push(jobWrap);
-                    } else if (status === 'COMPLETED' || status === 'CANCELLED') {
+                    } else if (CANCELLED_BOOKING_STATUSES.has(status)) {
+                        listByTab.CANCELLED.push(jobWrap);
+                    } else if (COMPLETED_BOOKING_STATUSES.has(status)) {
                         listByTab.COMPLETED.push(jobWrap);
-                    } else if (['CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'PENDING_COMPLETION', 'DISPUTED', 'RESOLVED'].includes(status)) {
+                    } else if (['CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'PENDING_COMPLETION'].includes(status)) {
                         listByTab.CONFIRMED.push(jobWrap);
                     }
                 });
@@ -548,7 +656,7 @@ const HelperNewJobPage = () => {
                 if (!cancelled) {
                     const msg = e?.message || e?.error || e?.msg || 'Không thể tải danh sách việc.';
                     setJobs([]);
-                    setTabCounts({ NEW: 0, PENDING: 0, CONFIRMED: 0, COMPLETED: 0 });
+                    setTabCounts({ NEW: 0, PENDING: 0, CONFIRMED: 0, CANCELLED: 0, COMPLETED: 0 });
                     setJobsError(typeof msg === 'string' ? msg : 'Không thể tải danh sách việc.');
                 }
             } finally {
@@ -585,8 +693,19 @@ const HelperNewJobPage = () => {
             targetTab = 'CONFIRMED';
         } else if (type === 'MARKETPLACE_MATCH' || type === 'NEW_JOB_AVAILABLE') {
             targetTab = 'NEW';
-        } else if (type === 'BOOKING_REJECTED' || type === 'DIRECT_BOOKING_REJECTED') {
-            targetTab = 'COMPLETED';
+        } else if (
+            type === 'BOOKING_REJECTED'
+            || type === 'DIRECT_BOOKING_REJECTED'
+            || type === 'BOOKING_ADMIN_CANCEL'
+            || type === 'BOOKING_CANCELLED_BY_HELPER'
+            || type === 'BOOKING_CANCELLED_BY_CUSTOMER'
+            || type === 'AUTO_COMPLETED'
+            || type === 'DISPUTE_REFUND'
+            || type === 'DISPUTE_REJECT'
+        ) {
+            targetTab = type === 'AUTO_COMPLETED' || type === 'DISPUTE_REFUND' || type === 'DISPUTE_REJECT'
+                ? 'COMPLETED'
+                : 'CANCELLED';
         }
 
         // Nếu thông báo là targetBookingId mà không thuộc các loại trên (hoặc không xác định), ép vô CONFIRMED
@@ -796,6 +915,7 @@ const HelperNewJobPage = () => {
                                     <button
                                         type="button"
                                         className="hnj-checkin-btn"
+                                        title={!canCheckinByTimeWindow(job) ? `Chỉ check-in trong khoảng ±${CHECKIN_WINDOW_MINUTES} phút so với giờ hẹn` : 'Nhấn để bắt đầu check-in'}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleOpenCheckin(job);
@@ -838,7 +958,8 @@ const HelperNewJobPage = () => {
                                 {activeTab === 'NEW' && 'Không có công việc đang mở lúc này.'}
                                 {activeTab === 'PENDING' && 'Bạn chưa có công việc nào đang chờ khách hàng xác nhận.'}
                                 {activeTab === 'CONFIRMED' && 'Bạn chưa có công việc nào đang làm hoặc đã được xác nhận.'}
-                                {activeTab === 'COMPLETED' && 'Bạn chưa hoàn thành công việc nào.'}
+                                {activeTab === 'CANCELLED' && 'Bạn chưa có ca nào đã hủy.'}
+                                {activeTab === 'COMPLETED' && 'Bạn chưa có ca nào đã hoàn thành hoặc đã hủy.'}
                             </p>
                         </div>
                     )}
@@ -1113,6 +1234,7 @@ const HelperNewJobPage = () => {
                                     <button
                                         type="button"
                                         className="hnj-btn-checkin"
+                                        title={!canCheckinByTimeWindow(selectedJob) ? `Chỉ check-in trong khoảng ±${CHECKIN_WINDOW_MINUTES} phút so với giờ hẹn` : 'Nhấn để bắt đầu check-in'}
                                         onClick={() => handleOpenCheckin(selectedJob)}
                                     >
                                         Check-in booking #{selectedJob.bookingId}

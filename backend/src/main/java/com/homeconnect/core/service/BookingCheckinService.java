@@ -3,12 +3,14 @@ package com.homeconnect.core.service;
 import com.homeconnect.core.dto.request.booking.CheckinVerifyRequest;
 import com.homeconnect.core.dto.response.booking.CheckinChallengeResponse;
 import com.homeconnect.core.dto.response.booking.CheckinVerifyResponse;
+import com.homeconnect.core.entity.Address;
 import com.homeconnect.core.entity.Booking;
 import com.homeconnect.core.entity.HelperProfile;
 import com.homeconnect.core.enums.BookingStatus;
 import com.homeconnect.core.exception.ApiException;
 import com.homeconnect.core.repository.BookingRepository;
 import com.homeconnect.core.repository.HelperProfileRepository;
+import com.homeconnect.core.util.GeoUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +25,7 @@ import org.springframework.core.ParameterizedTypeReference;
 
 import java.net.URI;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,11 +55,17 @@ public class BookingCheckinService {
     @Value("${app.facepp.min-confidence:80}")
     private double minConfidence;
 
-    @Value("${app.checkin.challenge-ttl-seconds:120}")
+    @Value("${app.checkin.challenge-ttl-seconds:10800}")
     private int challengeTtlSeconds;
 
     @Value("${app.checkin.max-attempts:3}")
     private int maxAttempts;
+
+    @Value("${app.checkin.allowed-window-minutes:180}")
+    private int allowedCheckinWindowMinutes;
+
+    @Value("${app.checkin.max-distance-meters:500}")
+    private double maxCheckinDistanceMeters;
 
     public CheckinChallengeResponse createChallenge(Long bookingId, Long helperId) {
         Booking booking = validateBookingForCheckin(bookingId, helperId);
@@ -98,6 +107,7 @@ public class BookingCheckinService {
     @Transactional
     public CheckinVerifyResponse verifyAndCheckin(Long bookingId, Long helperId, CheckinVerifyRequest request) {
         Booking booking = validateBookingForCheckin(bookingId, helperId);
+        validateCheckinTimeWindow(booking);
 
         log.info("[CHECKIN][VERIFY][START] bookingId={}, helperId={}, challengeId={}, bookingStatus={}",
                 bookingId,
@@ -173,9 +183,7 @@ public class BookingCheckinService {
             throw new ApiException("Bạn chưa hoàn thành đầy đủ các thao tác liveness", HttpStatus.BAD_REQUEST);
         }
 
-        // TODO: GPS verification (next phase)
-        // Validate request latitude/longitude against booking address coordinates
-        // before marking ARRIVED.
+        validateLocationWithinRadius(booking, request.getLatitude(), request.getLongitude());
 
         HelperProfile helperProfile = helperProfileRepository.findByUser_Id(helperId)
                 .orElseThrow(() -> new ApiException("Không tìm thấy hồ sơ helper", HttpStatus.NOT_FOUND));
@@ -369,6 +377,48 @@ public class BookingCheckinService {
         }
 
         throw new ApiException("Thiếu ảnh chứng minh địa điểm", HttpStatus.BAD_REQUEST);
+    }
+
+    private void validateCheckinTimeWindow(Booking booking) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start = booking.getScheduledStartTime();
+        if (start == null) {
+            throw new ApiException("Booking thiếu thời gian bắt đầu để xác thực check-in", HttpStatus.BAD_REQUEST);
+        }
+
+        LocalDateTime earliest = start.minusMinutes(allowedCheckinWindowMinutes);
+        LocalDateTime latest = start.plusMinutes(allowedCheckinWindowMinutes);
+        if (now.isBefore(earliest) || now.isAfter(latest)) {
+            throw new ApiException(
+                    "Chỉ được check-in trong khoảng trước/sau " + allowedCheckinWindowMinutes
+                            + " phút so với lịch làm việc",
+                    HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private void validateLocationWithinRadius(Booking booking, BigDecimal latitude, BigDecimal longitude) {
+        if (latitude == null || longitude == null) {
+            throw new ApiException("Thiếu vị trí GPS để xác thực check-in", HttpStatus.BAD_REQUEST);
+        }
+
+        Address address = booking.getAddress();
+        if (address == null || address.getLatitude() == null || address.getLongitude() == null) {
+            throw new ApiException("Đơn hàng chưa có tọa độ địa chỉ để xác thực vị trí", HttpStatus.BAD_REQUEST);
+        }
+
+        double distanceMeters = GeoUtil.haversineMeters(
+                latitude.doubleValue(),
+                longitude.doubleValue(),
+                address.getLatitude().doubleValue(),
+                address.getLongitude().doubleValue());
+        if (distanceMeters > maxCheckinDistanceMeters) {
+            throw new ApiException(
+                    String.format(
+                            "Bạn đang cách địa điểm làm việc %.0f m, vượt quá giới hạn %.0f m để check-in",
+                            distanceMeters,
+                            maxCheckinDistanceMeters),
+                    HttpStatus.BAD_REQUEST);
+        }
     }
 
     private record FaceCompareResult(boolean success, double confidence, String message) {

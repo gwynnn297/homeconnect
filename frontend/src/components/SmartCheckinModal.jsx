@@ -17,6 +17,33 @@ const ACTION_LABELS = {
 const toActionLabel = (action) => ACTION_LABELS[action] || action;
 const formatActionList = (actions) => actions.map(toActionLabel).join(', ');
 
+const getCurrentPosition = () => new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+        reject(new Error('Thiết bị không hỗ trợ định vị GPS.'));
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => resolve(position),
+        (error) => {
+            if (error?.code === 1) {
+                reject(new Error('Bạn đã từ chối quyền truy cập vị trí. Vui lòng bật GPS để check-in.'));
+                return;
+            }
+            if (error?.code === 3) {
+                reject(new Error('Không lấy được vị trí do quá thời gian chờ. Vui lòng thử lại.'));
+                return;
+            }
+            reject(new Error('Không thể lấy vị trí hiện tại. Vui lòng kiểm tra GPS và thử lại.'));
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 12000,
+            maximumAge: 0
+        }
+    );
+});
+
 const ensureModelsLoaded = async () => {
     if (!modelLoadedPromise) {
         modelLoadedPromise = Promise.all([
@@ -249,11 +276,24 @@ const SmartCheckinModal = ({ isOpen, bookingId, onClose, onSuccess }) => {
                 return;
             }
 
+            setStatusText('Đang lấy vị trí GPS...');
+            const currentPosition = await getCurrentPosition();
+            const latitude = currentPosition?.coords?.latitude;
+            const longitude = currentPosition?.coords?.longitude;
+            if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+                setStatusType('error');
+                setStatusText('Không lấy được tọa độ GPS');
+                setErrorText('Không lấy được tọa độ GPS hợp lệ. Vui lòng thử lại.');
+                return;
+            }
+
             const resp = await BookingCheckinService.verifyCheckin(bookingId, {
                 challengeId: activeChallenge.challengeId,
                 liveImageBase64: imageBase64,
                 proofImageUrl: proofImageUrlRef.current,
-                performedActions
+                performedActions,
+                latitude,
+                longitude
             });
 
             if (resp?.data?.matched) {

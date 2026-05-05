@@ -56,6 +56,8 @@ public class JobPostResponse {
     private String helperDisputeMessage;
     private String helperDisputeEvidenceUrl;
     private LocalDateTime helperDisputeAt;
+    private String cancelReason;
+    private String cancelSource;
 
     private Double workSize;
     private Boolean isPremium;
