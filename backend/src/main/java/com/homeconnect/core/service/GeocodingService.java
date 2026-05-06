@@ -324,8 +324,14 @@ public class GeocodingService {
             Map<String, Object> geometry = (Map<String, Object>) result.get("geometry");
             Map<String, Object> location = (geometry != null) ? (Map<String, Object>) geometry.get("location") : null;
 
-            Double lat = (location != null) ? Double.valueOf(String.valueOf(location.get("lat"))) : 0.0;
-            Double lng = (location != null) ? Double.valueOf(String.valueOf(location.get("lng"))) : 0.0;
+            if (location == null || location.get("lat") == null || location.get("lng") == null) {
+                throw new ApiException("Goong không trả về tọa độ hợp lệ cho địa điểm này", HttpStatus.BAD_REQUEST);
+            }
+            Double lat = Double.valueOf(String.valueOf(location.get("lat")));
+            Double lng = Double.valueOf(String.valueOf(location.get("lng")));
+            if (lat == 0.0 && lng == 0.0) {
+                throw new ApiException("Tọa độ địa điểm không hợp lệ (0,0). Vui lòng chọn địa điểm khác.", HttpStatus.BAD_REQUEST);
+            }
 
             return Map.of(
                 "place_id", placeId,
@@ -374,8 +380,14 @@ public class GeocodingService {
             // Lấy tọa độ
             Map<String, Object> geometry = (Map<String, Object>) result.get("geometry");
             Map<String, Object> location = (geometry != null) ? (Map<String, Object>) geometry.get("location") : null;
-            Double lat = (location != null) ? Double.valueOf(String.valueOf(location.get("lat"))) : 0.0;
-            Double lng = (location != null) ? Double.valueOf(String.valueOf(location.get("lng"))) : 0.0;
+            if (location == null || location.get("lat") == null || location.get("lng") == null) {
+                throw new ApiException("Goong không trả về tọa độ hợp lệ cho địa điểm này", HttpStatus.BAD_REQUEST);
+            }
+            Double lat = Double.valueOf(String.valueOf(location.get("lat")));
+            Double lng = Double.valueOf(String.valueOf(location.get("lng")));
+            if (lat == 0.0 && lng == 0.0) {
+                throw new ApiException("Tọa độ địa điểm không hợp lệ (0,0). Vui lòng chọn địa điểm khác.", HttpStatus.BAD_REQUEST);
+            }
 
             // Parse address_components để lấy từng thành phần
             List<Map<String, Object>> components = (List<Map<String, Object>>) result.get("address_components");

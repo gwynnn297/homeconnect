@@ -33,27 +33,15 @@ public class HelperProfileSpecification {
             predicates.add(cb.equal(root.get("isOnline"), true));
             predicates.add(cb.equal(root.get("kycStatus"), KycStatus.VERIFIED));
 
-            // 2. Lọc theo Tỉnh/Thành (Regional Gating) - Hỗ trợ Fallback
+            // 2. Lọc theo Tỉnh/Thành (Regional Gating)
+            // Chỉ hiển thị thợ đã đăng ký khu vực làm việc tại tỉnh này.
+            // Không dùng địa chỉ nhà để fallback (thợ ở Thái Nguyên không được hiện ở Đà Nẵng).
             if (province != null && !province.isBlank()) {
-                // Điều kiện A: Thợ đăng ký làm việc tại tỉnh này
                 Subquery<Long> wdSubquery = query.subquery(Long.class);
                 var wdRoot = wdSubquery.from(HelperWorkingDistrict.class);
                 wdSubquery.select(wdRoot.get("helper").get("id"))
                         .where(cb.equal(wdRoot.get("provinceCode"), province));
-                
-                // Điều kiện B: Thợ sống tại tỉnh này (Địa chỉ mặc định)
-                Subquery<Long> addrSubquery = query.subquery(Long.class);
-                var addrRoot = addrSubquery.from(Address.class);
-                addrSubquery.select(addrRoot.get("user").get("id"))
-                        .where(cb.and(
-                                cb.equal(addrRoot.get("isDefault"), true),
-                                cb.equal(addrRoot.get("provinceCode"), province)
-                        ));
-                
-                predicates.add(cb.or(
-                        userJoin.get("id").in(wdSubquery),
-                        userJoin.get("id").in(addrSubquery)
-                ));
+                predicates.add(userJoin.get("id").in(wdSubquery));
             }
 
             // 3. Lọc theo Quận/Huyện làm việc

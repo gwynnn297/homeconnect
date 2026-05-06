@@ -4,7 +4,8 @@ import CustomerLayout from '../../layouts/CustomerLayout';
 import apiClient from '../../services/apiClient';
 import './HistoryBookingPage.css';
 
-const JOB_LIST_ENDPOINTS = ['/api/v1/jobs/my', '/api/v1/jobs/customer', '/api/v1/jobs'];
+const JOB_POST_ENDPOINT = '/api/v1/jobs';
+const DIRECT_BOOKING_ENDPOINT = '/api/v1/bookings/customer-direct';
 
 const extractPayload = (res) => (res && typeof res === 'object' && 'data' in res ? res.data : res);
 
@@ -41,33 +42,38 @@ const HistoryBookingPage = () => {
         const loadPosts = async () => {
             setLoading(true);
             setError('');
-            let fetched = null;
-            let lastErr = null;
 
-            for (const endpoint of JOB_LIST_ENDPOINTS) {
-                try {
-                    const res = await apiClient.get(endpoint);
-                    const list = extractPayload(res);
-                    if (Array.isArray(list)) {
-                        fetched = list;
-                        break;
-                    }
-                } catch (err) {
-                    lastErr = err;
-                }
+            try {
+                const [resJobs, resDirect] = await Promise.all([
+                    apiClient.get(JOB_POST_ENDPOINT).catch(() => ({ data: [] })),
+                    apiClient.get(DIRECT_BOOKING_ENDPOINT).catch(() => ({ data: [] })),
+                ]);
+
+                if (cancelled) return;
+
+                const jobPosts = Array.isArray(extractPayload(resJobs)) ? extractPayload(resJobs) : [];
+
+                // Normalize direct bookings thành cùng format với job posts
+                const directList = Array.isArray(extractPayload(resDirect)) ? extractPayload(resDirect) : [];
+                const normalizedDirect = directList.map((db) => ({
+                    postId: `DIR-${db.bookingId}`,
+                    bookingId: db.bookingId,
+                    title: db.description ? `Đặt trực tiếp: ${db.description.substring(0, 35)}` : 'Đặt thợ trực tiếp',
+                    categoryName: db.serviceName || 'Dịch vụ tại nhà',
+                    bookingStatus: db.status,
+                    status: db.status,
+                    createdAt: db.createdAt,
+                    completedAt: db.completedAt || db.updatedAt || db.createdAt,
+                    offerPrice: db.finalPrice ?? db.totalPrice ?? 0,
+                    isDirect: true,
+                }));
+
+                setPosts([...jobPosts, ...normalizedDirect]);
+            } catch (err) {
+                if (!cancelled) setError(err?.message || 'Không thể tải lịch sử dịch vụ.');
+            } finally {
+                if (!cancelled) setLoading(false);
             }
-
-            if (cancelled) return;
-
-            if (!Array.isArray(fetched)) {
-                setPosts([]);
-                setError(lastErr?.message || 'Không thể tải lịch sử dịch vụ.');
-                setLoading(false);
-                return;
-            }
-
-            setPosts(fetched);
-            setLoading(false);
         };
 
         loadPosts();
@@ -123,20 +129,26 @@ const HistoryBookingPage = () => {
                     <div className="hbp-list">
                         {completedBookings.map((item) => (
                             <article key={`${item.postId}-${item.bookingId}`} className="hbp-card">
+                                {/* Row 1: service label + badge — cùng chiều cao */}
                                 <div className="hbp-card-top">
-                                    <div>
-                                        <p className="hbp-service">{item.serviceName}</p>
-                                        <h3 className="hbp-title">{item.title}</h3>
-                                    </div>
+                                    <span className="hbp-service">{item.serviceName}</span>
                                     <span className="hbp-status">{getStatusLabel(item.status)}</span>
                                 </div>
 
+                                {/* Row 2: title — min-height 2 dòng để card cân nhau */}
+                                <h3 className="hbp-title">{item.title}</h3>
+
+                                {/* Row 3: meta info */}
                                 <div className="hbp-meta">
-                                    <span>Mã booking: #{item.bookingId || '---'}</span>
-                                    <span>Hoàn thành: {formatDateTime(item.completedAt)}</span>
-                                    <span>Chi phí: {formatCurrency(item.totalPrice)}</span>
+                                    <span className="hbp-meta-sub">Mã booking: <strong>#{item.bookingId || '---'}</strong></span>
+                                    <span className="hbp-meta-sub">Hoàn thành: <strong>{formatDateTime(item.completedAt)}</strong></span>
+                                    <div className="hbp-price-row">
+                                        <span className="hbp-price-label">Chi phí: </span>
+                                        <span className="hbp-price-value">{formatCurrency(item.totalPrice)}</span>
+                                    </div>
                                 </div>
 
+                                {/* Row 4: actions — luôn ở đáy card */}
                                 <div className="hbp-actions">
                                     <button
                                         type="button"

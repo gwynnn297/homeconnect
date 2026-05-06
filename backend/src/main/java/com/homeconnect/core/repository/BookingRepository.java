@@ -83,8 +83,11 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
        List<com.homeconnect.core.entity.Booking> findByStatusAndCreatedAtBefore(
                      com.homeconnect.core.enums.BookingStatus status, java.time.LocalDateTime dateTime);
 
-       List<com.homeconnect.core.entity.Booking> findByStatusAndScheduledStartTimeBefore(
-                     com.homeconnect.core.enums.BookingStatus status, java.time.LocalDateTime dateTime);
+       @Query("SELECT b FROM Booking b JOIN FETCH b.customer JOIN FETCH b.helper " +
+                     "WHERE b.status = :status AND b.scheduledStartTime < :cutoff")
+       List<com.homeconnect.core.entity.Booking> findNoShowBookings(
+                     @Param("status") com.homeconnect.core.enums.BookingStatus status,
+                     @Param("cutoff") java.time.LocalDateTime cutoff);
 
        List<com.homeconnect.core.entity.Booking> findByStatusAndCheckedOutAtBefore(
                      com.homeconnect.core.enums.BookingStatus status, java.time.LocalDateTime dateTime);

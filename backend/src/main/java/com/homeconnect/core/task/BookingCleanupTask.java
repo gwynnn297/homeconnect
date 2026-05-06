@@ -29,6 +29,7 @@ public class BookingCleanupTask {
     private final HelperScheduleRepository helperScheduleRepository;
     private final WalletService walletService;
     private final NotificationService notificationService;
+    private final NoShowBookingProcessor noShowBookingProcessor;
 
     /**
      * Tự động hủy các đơn đặt trực tiếp quá 10 phút chưa phản hồi
@@ -38,11 +39,13 @@ public class BookingCleanupTask {
     @Transactional
     public void cleanupExpiredBookings() {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(15);
+        log.info("[CleanupTask] cleanupExpiredBookings chạy. Cutoff: {}", cutoff);
         
         List<Booking> expiredBookings = bookingRepository.findByStatusAndCreatedAtBefore(
                 BookingStatus.PENDING_ACCEPTANCE, cutoff);
 
         if (expiredBookings.isEmpty()) {
+            log.info("[CleanupTask] Không có đơn PENDING_ACCEPTANCE hết hạn.");
             return;
         }
 
@@ -99,61 +102,30 @@ public class BookingCleanupTask {
     }
 
     /**
-     * Tự động hủy các đơn hàng đã chốt (CONFIRMED) mà thợ không đến (No-Show)
-     * Thư giãn 30 phút sau giờ bắt đầu dự kiến nếu vẫn chưa ARRIVED/IN_PROGRESS.
+     * Tự động hủy các đơn hàng đã chốt (CONFIRMED) mà thợ không đến (No-Show).
+     * Mỗi đơn được xử lý trong transaction độc lập (REQUIRES_NEW) qua NoShowBookingProcessor.
      */
-    @Scheduled(fixedRate = 60000) // 1 phút quét 1 lần
-    @Transactional
+    @Scheduled(fixedRate = 60000)
     public void cleanupNoShowBookings() {
-        // Cutoff: 30 phút sau giờ bắt đầu dự kiến
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(30);
+        log.info("[CleanupTask] cleanupNoShowBookings chạy. Cutoff: {}", cutoff);
 
-        List<Booking> noShowBookings = bookingRepository.findByStatusAndScheduledStartTimeBefore(
-                BookingStatus.CONFIRMED, cutoff);
+        List<Booking> noShowBookings = bookingRepository.findNoShowBookings(BookingStatus.CONFIRMED, cutoff);
+        log.info("[CleanupTask] Query NoShow trả về {} đơn.", noShowBookings.size());
 
-        if (noShowBookings.isEmpty()) {
-            return;
-        }
+        if (noShowBookings.isEmpty()) return;
 
-        log.info("Phát hiện {} đơn hàng thợ không đến (No-Show). Đang tiến hành xử lý...", noShowBookings.size());
+        log.info("Phát hiện {} đơn hàng thợ No-Show. Đang xử lý...", noShowBookings.size());
 
         for (Booking booking : noShowBookings) {
-            log.info("Xử lý No-Show đơn hàng ID: {}. Khách: {}, Thợ: {}",
-                    booking.getId(), booking.getCustomer().getId(), booking.getHelper().getId());
-
-            booking.setStatus(BookingStatus.EXPIRED);
-            booking.setCancelSource("SYSTEM");
-            booking.setCancelReason("Hết hạn 30 phút: thợ không xác nhận địa điểm (No-Show)");
-            booking.setCancelledAt(LocalDateTime.now());
-            booking.setTimeoutAt(LocalDateTime.now());
-
-            // Giải phóng lịch thợ
-            List<HelperSchedule> schedules = helperScheduleRepository.findByBooking(booking);
-            for (HelperSchedule schedule : schedules) {
-                schedule.setStatus(ScheduleStatus.AVAILABLE);
-                schedule.setBooking(null);
-                helperScheduleRepository.save(schedule);
+            try {
+                noShowBookingProcessor.process(booking);
+            } catch (Exception e) {
+                log.error("[NoShow] Lỗi xử lý đơn #{}: {}", booking.getId(), e.getMessage(), e);
             }
-
-            bookingRepository.save(booking);
-
-            // Hoàn tiền Hold 100% nếu có
-            if (booking.getPaymentStatus() == com.homeconnect.core.enums.PaymentStatus.HOLDING) {
-                walletService.refundHold(
-                        booking.getCustomer().getId(),
-                        booking.getTotalPrice(),
-                        booking.getId(),
-                        "Thợ không đến đúng hẹn: Hệ thống tự động hoàn tiền");
-            }
-
-            // Thông báo
-            String msgCustomer = String.format("Đơn hàng #%d đã bị hủy do thợ chưa thể đến địa điểm làm việc đúng hẹn. Hệ thống đã hoàn trả 100%% tiền giữ chỗ vào ví của bạn.", booking.getId());
-            notificationService.createNotification(booking.getCustomer().getId(), "Thợ không đến đúng hẹn", msgCustomer, "BOOKING_NO_SHOW");
-
-            String msgHelper = String.format("Đơn hàng #%d đã bị hệ thống hủy do bạn chưa xác nhận có mặt tại địa điểm sau 30 phút quá giờ bắt đầu.", booking.getId());
-            notificationService.createNotification(booking.getHelper().getId(), "Bạn đã lỡ hẹn công việc", msgHelper, "BOOKING_NO_SHOW");
         }
-        
-        log.info("Đã xử lý xong {} đơn hàng No-Show.", noShowBookings.size());
+
+        log.info("Đã xử lý xong {} đơn No-Show.", noShowBookings.size());
     }
 }
+
