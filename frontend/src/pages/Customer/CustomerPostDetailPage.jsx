@@ -114,46 +114,64 @@ const CustomerPostDetailPage = () => {
                     const bookingId = postId.replace('DIR-', '');
                     res = await apiClient.get(`/api/v1/bookings/${bookingId}`);
                     const booking = extractPayload(res);
-                    // Map Booking data to pseudo-Job structure
-                    const pseudoJob = {
-                        postId: postId,
-                        title: booking.description ? `Đặt trực tiếp: ${booking.description.substring(0, 35)}` : 'Đặt thợ trực tiếp',
-                        categoryName: booking.serviceName,
-                        serviceNames: booking.subServiceNames || '',
-                        description: booking.description,
-                        status: booking.status,
-                        createdAt: booking.createdAt,
-                        workDate: booking.workDate,
-                        startTime: booking.startTime,
-                        durationHours: booking.durationHours,
-                        offerPrice: booking.totalPrice || booking.finalPrice,
-                        addressDetail: booking.address,
-                        wardName: booking.wardName,
-                        districtName: booking.districtName,
-                        provinceName: booking.provinceName,
-                        isPremium: booking.isPremium,
-                        hasPets: booking.hasPets,
-                        bringTools: booking.bringTools,
-                        workSize: booking.workSize,
-                        bookingId: booking.bookingId,
-                        bookingStatus: booking.status,
-                        customerArrivalConfirmed: booking.customerArrivalConfirmed,
-                        arrivalProofImage: booking.arrivalProofImage,
-                        isDirect: true
-                    };
-                    setData(pseudoJob);
+                    setData(mapBookingToPseudoJob(booking, postId));
                 } else {
-                    res = await apiClient.get(`/api/v1/jobs/${postId}`);
-                    const job = extractPayload(res);
-                    setData(job || null);
+                    // Try Job API first
+                    try {
+                        res = await apiClient.get(`/api/v1/jobs/${postId}`);
+                        const job = extractPayload(res);
+                        if (job) {
+                            setData(job);
+                        } else {
+                            throw new Error('Not found in jobs');
+                        }
+                    } catch (jobErr) {
+                        // Fallback: Try Booking API in case it's a direct booking without prefix
+                        try {
+                            const resB = await apiClient.get(`/api/v1/bookings/${postId}`);
+                            const booking = extractPayload(resB);
+                            if (booking) {
+                                setData(mapBookingToPseudoJob(booking, `DIR-${postId}`));
+                            } else {
+                                throw new Error('Not found in bookings');
+                            }
+                        } catch (bookingErr) {
+                            throw new Error('Không tìm thấy bài đăng hoặc đơn hàng nào với mã này.');
+                        }
+                    }
                 }
             } catch (err) {
                 setData(null);
-                setError(err?.message || 'Không thể tải chi tiết bài đăng.');
+                setError(err?.message || 'Không tìm thấy bài đăng');
             } finally {
                 setLoading(false);
             }
         };
+
+        // Helper function inside useEffect to map booking to job structure
+        const mapBookingToPseudoJob = (booking, pId) => ({
+            postId: pId,
+            title: booking.description ? `Đặt trực tiếp: ${booking.description.substring(0, 35)}` : 'Đặt thợ trực tiếp',
+            categoryName: booking.serviceName,
+            serviceNames: booking.subServiceNames || '',
+            description: booking.description,
+            status: booking.status,
+            createdAt: booking.createdAt,
+            workDate: booking.workDate,
+            startTime: booking.startTime,
+            durationHours: booking.durationHours,
+            offerPrice: booking.totalPrice || booking.finalPrice,
+            addressDetail: booking.address,
+            wardName: booking.wardName,
+            districtName: booking.districtName,
+            provinceName: booking.provinceName,
+            workSize: booking.workSize,
+            bookingId: booking.bookingId,
+            bookingStatus: booking.status,
+            customerArrivalConfirmed: booking.customerArrivalConfirmed,
+            arrivalProofImage: booking.arrivalProofImage,
+            isDirect: true
+        });
 
         if (!postId) {
             setLoading(false);
@@ -204,11 +222,11 @@ const CustomerPostDetailPage = () => {
             workDate: job?.workDate,
             startTime: job?.startTime,
             durationHours: job?.durationHours,
-            offerPrice: job?.offerPrice,
+            offerPrice: job?.offerPrice ?? job?.totalPrice,
+            originalPrice: Number(job?.originalPrice ?? job?.offerPrice ?? job?.totalPrice ?? 0),
+            finalPrice: Number(job?.finalPrice ?? job?.offerPrice ?? job?.totalPrice ?? 0),
+            discountAmount: Number(job?.discountAmount ?? 0),
             addressText: addressText || '---',
-            isPremium: Boolean(job?.isPremium),
-            hasPets: Boolean(job?.hasPets),
-            bringTools: Boolean(job?.bringTools),
             workSize: job?.workSize,
             isDirect: Boolean(job?.isDirect)
         };
@@ -377,12 +395,35 @@ const CustomerPostDetailPage = () => {
 
                             <div className="cpd-card">
                                 <div className="cpd-section">
-                                    <div className="cpd-price-label">Giá đề xuất</div>
-                                    <div className="cpd-price">{formatCurrency(viewModel.offerPrice)}</div>
+                                    <div className="cpd-price-label" style={{ fontSize: '15px', color: '#64748b', fontWeight: '700', paddingBottom: '4px' }}>Giá :</div>
+                                    <div className="cpd-price-value-wrap" style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                                        {viewModel.discountAmount > 0 ? (
+                                            <>
+                                                <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '13px', fontWeight: '600', opacity: '0.85' }}>
+                                                    {formatCurrency(viewModel.originalPrice)}
+                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    <span style={{ color: '#059669', fontSize: '24px', fontWeight: '800', letterSpacing: '-0.02em' }}>
+                                                        {formatCurrency(viewModel.finalPrice)}
+                                                    </span>
+                                                    {(() => {
+                                                        const ratio = (viewModel.originalPrice - viewModel.finalPrice) / viewModel.originalPrice;
+                                                        const pct = Math.round(ratio * 100);
+                                                        if (pct === 5) return <span className="cmp-discount-badge" style={{ verticalAlign: 'middle' }}>Hạng Bạc -5%</span>;
+                                                        if (pct === 10) return <span className="cmp-discount-badge" style={{ verticalAlign: 'middle' }}>Hạng Vàng -10%</span>;
+                                                        if (pct > 0) return <span className="cmp-discount-badge" style={{ verticalAlign: 'middle' }}>-{pct}%</span>;
+                                                        return null;
+                                                    })()}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <span style={{ fontSize: '24px', fontWeight: '800', color: 'var(--primary)' }}>
+                                                {formatCurrency(viewModel.offerPrice)}
+                                            </span>
+                                        )}
+                                    </div>
+
                                     <div className="cpd-meta">
-                                        {viewModel.isPremium && <span className="cpd-pill">Premium</span>}
-                                        {viewModel.hasPets && <span className="cpd-pill">Có thú cưng</span>}
-                                        {viewModel.bringTools && <span className="cpd-pill">Cần mang dụng cụ</span>}
                                         {viewModel.workSize ? <span className="cpd-pill">Diện tích: {viewModel.workSize}</span> : null}
                                     </div>
                                 </div>

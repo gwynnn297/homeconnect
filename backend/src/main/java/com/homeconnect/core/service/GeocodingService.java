@@ -11,6 +11,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import com.homeconnect.core.exception.ApiException;
 import org.springframework.http.HttpStatus;
 
@@ -45,6 +48,12 @@ public class GeocodingService {
         private BigDecimal latitude;
         private BigDecimal longitude;
         private String normalizedAddress;
+        private String wardName;
+        private String districtName;
+        private String provinceName;
+        private String wardCode;
+        private String districtCode;
+        private String provinceCode;
     }
 
     /**
@@ -95,80 +104,39 @@ public class GeocodingService {
     }
 
     /**
-     * Lấy tọa độ từ địa chỉ. Sử dụng chiến lược Fallback nếu không tìm thấy địa chỉ cụ thể.
+     * Lấy tọa độ từ địa chỉ.
      */
     @RateLimiter(name = "goong")
     public GeoResult geocode(String detail, String ward, String district, String province) {
-        log.info("Geocoding via Goong attempt for: {}, {}, {}, {}, Vietnam", detail, ward, district, province);
-        
-        // 1. Cấp độ 1: Địa chỉ đầy đủ
         String addrFull = String.format("%s, %s, %s, %s, Vietnam", detail, ward != null ? ward : "", district, province)
                 .replace(", ,", ",");
         GeoResult result = tryGeocode(addrFull);
         if (result != null) return result;
 
-        log.warn("Goong Geocoding chi tiết thất bại. Bắt đầu đơn giản hóa...");
-
-        // 2. Cấp độ 2: Bỏ tiền tố hành chính (Phường/Quận/...)
         result = tryGeocode(String.format("%s, %s, %s, %s, Vietnam", detail, cleanPrefix(ward), cleanPrefix(district), cleanPrefix(province)));
         if (result != null) return result;
 
-        // 3. Cấp độ 3: Chỉ Số nhà + Tên đường + Quận + Tỉnh (Bỏ phường)
         result = tryGeocode(String.format("%s, %s, %s, Vietnam", detail, district, province));
-        if (result != null) return result;
-
-        log.error("Tất cả các thử nghiệm Goong Geocoding đều thất bại cho: {}.", addrFull);
-        return null;
+        return result;
     }
 
-    /**
-     * Geocode theo địa chỉ tự do (dùng cho tạo Job Post).
-     * Backend tự xử lý lat/lng từ addressDetail để không phụ thuộc tọa độ FE gửi lên.
-     */
     @RateLimiter(name = "goong")
     public GeoResult geocodeByAddressText(String addressDetail) {
         String normalizedAddress = addressDetail.trim();
-        
-        // Kiểm tra sơ bộ chuỗi nhập vào: Phải đủ dài (số từ >= 6) HOẶC có ít nhất 2 dấu phẩy
-        // Để đảm bảo có ít nhất [Số nhà/Đường] + [Quận/Phường] + [Tỉnh/Thành phố]
-        String[] words = normalizedAddress.split("\\s+");
-        long commaCount = normalizedAddress.chars().filter(ch -> ch == ',').count();
-        
-        if (words.length < 7 && commaCount < 3) {
-            throw new ApiException(
-                    "Địa chỉ quá ngắn hoặc thiếu thông tin (Quận, Phường, Tỉnh). Vui lòng nhập đầy đủ (Ví dụ: 60 Lý Thường Kiệt, Trần Hưng Đạo, Hoàn Kiếm, Hà Nội).",
-                    HttpStatus.BAD_REQUEST);
-        }
-
         String finalQuery = normalizedAddress;
         if (!normalizedAddress.toLowerCase().contains("vietnam") && !normalizedAddress.toLowerCase().contains("việt nam")) {
             finalQuery = normalizedAddress + ", Vietnam";
         }
         
         GeoResult result = tryGeocode(finalQuery);
-        if (result != null) {
-            if (result.getNormalizedAddress() == null || result.getNormalizedAddress().isBlank()) {
-                result.setNormalizedAddress(normalizedAddress);
-            }
-            return result;
-        }
+        if (result != null) return result;
 
         result = tryGeocode(normalizedAddress);
-        if (result != null) {
-            if (result.getNormalizedAddress() == null || result.getNormalizedAddress().isBlank()) {
-                result.setNormalizedAddress(normalizedAddress);
-            }
-            return result;
-        }
+        if (result != null) return result;
 
-        throw new ApiException(
-                "Địa chỉ chưa đủ cụ thể. Vui lòng nhập đầy đủ Số nhà, Tên đường, Phường/Xã và Quận/Huyện.",
-                HttpStatus.BAD_REQUEST);
+        throw new ApiException("Địa chỉ chưa đủ cụ thể. Vui lòng nhập đầy đủ Số nhà, Tên đường, Phường/Xã và Quận/Huyện.", HttpStatus.BAD_REQUEST);
     }
 
-    /**
-     * Loại bỏ các tiền tố địa danh phổ biến của Việt Nam
-     */
     private String cleanPrefix(String name) {
         if (name == null) return null;
         return name.replaceFirst("(?i)^(Tỉnh|Thành phố|Quận|Huyện|Thị xã|Phường|Xã|Thị trấn)\\s+", "").trim();
@@ -199,80 +167,40 @@ public class GeocodingService {
             List<Map<String, Object>> results = (List<Map<String, Object>>) response.get("results");
             if (results != null && !results.isEmpty()) {
                 Map<String, Object> firstResult = results.get(0);
-                log.debug("Goong result: {}", firstResult.get("formatted_address"));
-
-                // Kiểm tra độ tin cậy: Nếu kết quả quá chung chung (chỉ có tên nước) thì coi như không tìm thấy
-                String formattedAddress = firstResult.get("formatted_address") != null
-                        ? firstResult.get("formatted_address").toString()
-                        : "";
+                String formattedAddress = firstResult.get("formatted_address") != null ? firstResult.get("formatted_address").toString() : "";
                 
-                // Nếu kết quả trả về quá chung chung (ít hơn 4 thành phần phân cách bởi dấu phẩy)
-                // Ví dụ: "Quận 1, TP.HCM, Vietnam" (3 phần) -> Chưa đủ cụ thể
-                // Một địa chỉ tốt thường có: [Tên đường], [Quận], [Tỉnh/TP], Vietnam (Tối thiểu 4 phần)
-                if (formattedAddress.equalsIgnoreCase("Vietnam") || formattedAddress.equalsIgnoreCase("Việt Nam") 
-                    || formattedAddress.split(",").length < 4) {
-                    log.warn("Goong returned a result that is too broad/generic: {}", formattedAddress);
-                    return null;
-                }
-
                 Map<String, Object> geometry = (Map<String, Object>) firstResult.get("geometry");
                 Map<String, Object> location = (Map<String, Object>) geometry.get("location");
                 
-                // Kiểm tra location_type: Chặn các kết quả quá chung chung (vùng, thành phố, quận)
-                String locationType = geometry.get("location_type") != null ? geometry.get("location_type").toString() : "UNKNOWN";
-                if (locationType.equals("APPROXIMATE") || locationType.equals("GEOMETRIC_CENTER")) {
-                    log.warn("Goong returned a generic location type ({}). Rejecting for strictness.", locationType);
-                    return null;
-                }
-
-                // Kiểm tra khớp số nhà: Nếu input có số mà kết quả không có số ở đầu -> Sai lệch
-                if (originalAddress != null && originalAddress.matches("^\\d+.*") && !formattedAddress.matches("^\\d+.*")) {
-                    log.warn("Input has house number but result does not. Potential fuzzy mismatch: {}", formattedAddress);
-                    return null;
-                }
+                Map<String, String> components = parseComponents(firstResult);
 
                 return GeoResult.builder()
                         .placeId(firstResult.get("place_id") != null ? firstResult.get("place_id").toString() : null)
                         .latitude(new BigDecimal(location.get("lat").toString()))
                         .longitude(new BigDecimal(location.get("lng").toString()))
                         .normalizedAddress(formattedAddress)
+                        .wardName(components.get("wardName"))
+                        .districtName(components.get("districtName"))
+                        .provinceName(components.get("provinceName"))
+                        .wardCode(components.get("wardCode"))
+                        .districtCode(components.get("districtCode"))
+                        .provinceCode(components.get("provinceCode"))
                         .build();
             }
-        } else {
-            log.warn("Goong status: {}", response != null ? response.get("status") : "null");
         }
         return null;
     }
 
     @RateLimiter(name = "goong")
     public List<Map<String, String>> getSuggestions(String input) {
-        if (input == null || input.trim().length() < 3) {
-            return List.of();
-        }
-
-        // Junk detector: Chặn chuỗi lặp lại hoặc chuỗi vô nghĩa trước khi gọi API
-        String normalized = input.toLowerCase().trim();
-        if (normalized.matches(".*(.)\\1{3,}.*") || // Ký tự lặp lại 4 lần liên tiếp (aaaa, 1111)
-            normalized.matches("^[asdfghjklqwertyuiopzxcvbnm]{5,}$") && !normalized.contains(" ")) { // Chuỗi nhảm nhí dài không dấu cách
-            
-            // Chặn các chuỗi múa phím phổ biến: asdasd, qweqwe, zxczxc
-            if (normalized.contains("asd") || normalized.contains("qwe") || normalized.contains("zxc") || 
-                normalized.contains("dfg") || normalized.contains("ghj") || normalized.contains("jkl")) {
-               return List.of();
-            }
-
-            // Kiểm tra nguyên âm: Nếu chuỗi dài > 5 ký tự mà không có nguyên âm -> Rác
-            if (normalized.length() > 5 && !normalized.matches(".*[aeiouyáàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ].*")) {
-                return List.of();
-            }
-        }
+        if (input == null || input.trim().length() < 3) return List.of();
         try {
             String url = UriComponentsBuilder.fromUriString(goongAutocompleteUrl)
                     .queryParam("input", input)
                     .queryParam("limit", 10)
-                    .queryParam("location", "10.7769,106.7009") // Bias về TP.HCM (hoặc HN nếu cần)
-                    .queryParam("radius", 50000) // Bán kính 50km
-                    .queryParam("more_compound", true) // Trả về thông tin địa chỉ chi tiết hơn
+                    .queryParam("location", "10.7769,106.7009")
+                    .queryParam("radius", 50000)
+                    .queryParam("more_compound", true)
                     .queryParam("api_key", apiKey)
                     .build()
                     .toUriString();
@@ -285,15 +213,16 @@ public class GeocodingService {
             List<Map<String, Object>> predictions = (List<Map<String, Object>>) raw.get("predictions");
             if (predictions == null) return List.of();
 
-            return predictions.stream()
-                    .map(p -> Map.of(
-                            "place_id",    String.valueOf(p.getOrDefault("place_id", "")),
-                            "description", String.valueOf(p.getOrDefault("description", ""))
-                    ))
-                    .collect(java.util.stream.Collectors.toList());
-
+            List<Map<String, String>> result = new ArrayList<>();
+            for (Map<String, Object> p : predictions) {
+                Map<String, String> map = new HashMap<>();
+                map.put("place_id", String.valueOf(p.getOrDefault("place_id", "")));
+                map.put("description", String.valueOf(p.getOrDefault("description", "")));
+                result.add(map);
+            }
+            return result;
         } catch (Exception e) {
-            log.error("Goong Autocomplete error for input '{}': {}", input, e.getMessage());
+            log.error("Goong Autocomplete error: {}", e.getMessage());
             return List.of();
         }
     }
@@ -312,8 +241,7 @@ public class GeocodingService {
 
             Map<String, Object> raw = restTemplate.getForObject(url, Map.class);
             if (raw == null || !"OK".equals(raw.get("status"))) {
-                throw new ApiException("Không thể lấy chi tiết địa điểm từ Goong (status: " + 
-                    (raw != null ? raw.get("status") : "null") + ")", HttpStatus.BAD_REQUEST);
+                throw new ApiException("Không thể lấy chi tiết địa điểm từ Goong", HttpStatus.BAD_REQUEST);
             }
 
             Map<String, Object> result = (Map<String, Object>) raw.get("result");
@@ -329,28 +257,22 @@ public class GeocodingService {
             }
             Double lat = Double.valueOf(String.valueOf(location.get("lat")));
             Double lng = Double.valueOf(String.valueOf(location.get("lng")));
-            if (lat == 0.0 && lng == 0.0) {
-                throw new ApiException("Tọa độ địa điểm không hợp lệ (0,0). Vui lòng chọn địa điểm khác.", HttpStatus.BAD_REQUEST);
-            }
 
-            return Map.of(
-                "place_id", placeId,
-                "name", String.valueOf(result.getOrDefault("name", "")),
-                "formatted_address", String.valueOf(result.getOrDefault("formatted_address", "")),
-                "latitude", lat,
-                "longitude", lng
-            );
-
+            Map<String, Object> response = new HashMap<>();
+            response.put("place_id", placeId);
+            response.put("name", String.valueOf(result.getOrDefault("name", "")));
+            response.put("formatted_address", String.valueOf(result.getOrDefault("formatted_address", "")));
+            response.put("latitude", lat);
+            response.put("longitude", lng);
+            return response;
         } catch (Exception e) {
             log.error("Goong Place Detail error: {}", e.getMessage());
-            return Map.of("status", "ERROR");
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "ERROR");
+            return error;
         }
     }
 
-    /**
-     * Lấy thông tin địa chỉ có cấu trúc từ placeId (cho Frontend tự điền form).
-     * Trả về: addressDetail, wardName, districtName, provinceName, latitude, longitude
-     */
     @RateLimiter(name = "goong")
     public Map<String, Object> getAddressComponents(String placeId) {
         if (placeId == null || placeId.isBlank()) {
@@ -377,7 +299,6 @@ public class GeocodingService {
                 throw new ApiException("Goong không trả về kết quả cho placeId này", HttpStatus.NOT_FOUND);
             }
 
-            // Lấy tọa độ
             Map<String, Object> geometry = (Map<String, Object>) result.get("geometry");
             Map<String, Object> location = (geometry != null) ? (Map<String, Object>) geometry.get("location") : null;
             if (location == null || location.get("lat") == null || location.get("lng") == null) {
@@ -385,69 +306,120 @@ public class GeocodingService {
             }
             Double lat = Double.valueOf(String.valueOf(location.get("lat")));
             Double lng = Double.valueOf(String.valueOf(location.get("lng")));
-            if (lat == 0.0 && lng == 0.0) {
-                throw new ApiException("Tọa độ địa điểm không hợp lệ (0,0). Vui lòng chọn địa điểm khác.", HttpStatus.BAD_REQUEST);
-            }
 
-            // Parse address_components để lấy từng thành phần
-            List<Map<String, Object>> components = (List<Map<String, Object>>) result.get("address_components");
-            String streetNumber = "", route = "", ward = "", district = "", province = "";
+            Map<String, String> extracted = parseComponents(result);
+            String wCode = extracted.get("wardCode"), dCode = extracted.get("districtCode"), pCode = extracted.get("provinceCode");
+            String ward = extracted.get("wardName"), district = extracted.get("districtName"), province = extracted.get("provinceName");
 
-            if (components != null) {
-                for (Map<String, Object> comp : components) {
-                    List<String> types = (List<String>) comp.get("types");
-                    String longName = String.valueOf(comp.getOrDefault("long_name", ""));
-                    if (types == null) continue;
-                    if (types.contains("street_number"))                   streetNumber = longName;
-                    else if (types.contains("route"))                      route = longName;
-                    else if (types.contains("administrative_area_level_3") || 
-                             types.contains("sublocality_level_1") ||
-                             types.contains("administrative_area_level_4")) ward = longName;
-                    else if (types.contains("administrative_area_level_2")) district = longName;
-                    else if (types.contains("administrative_area_level_1")) province = longName;
+            if (wCode.isBlank() || dCode.isBlank() || pCode.isBlank()) {
+                try {
+                    String reverseUrl = UriComponentsBuilder.fromUriString(goongUrl)
+                            .queryParam("latlng", lat.toString() + "," + lng.toString())
+                            .queryParam("api_key", apiKey)
+                            .build().toUriString();
+                    
+                    Map<String, Object> revBody = restTemplate.getForObject(reverseUrl, Map.class);
+                    if (revBody != null && "OK".equals(revBody.get("status"))) {
+                        List<Map<String, Object>> results = (List<Map<String, Object>>) revBody.get("results");
+                        if (results != null && !results.isEmpty()) {
+                            Map<String, String> revComp = parseComponents(results.get(0));
+                            if (wCode.isBlank()) { wCode = revComp.get("wardCode"); ward = revComp.get("wardName"); }
+                            if (dCode.isBlank()) { dCode = revComp.get("districtCode"); district = revComp.get("districtName"); }
+                            if (pCode.isBlank()) { pCode = revComp.get("provinceCode"); province = revComp.get("provinceName"); }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("Reverse Geocoding fallback failed: {}", e.getMessage());
                 }
             }
 
-            // Ghép addressDetail từ số nhà + tên đường
-            String addressDetail = (streetNumber.isBlank() ? "" : streetNumber + " ") + route;
-            if (addressDetail.isBlank()) {
-                addressDetail = String.valueOf(result.getOrDefault("name", ""));
+            List<Map<String, Object>> components = (List<Map<String, Object>>) result.get("address_components");
+            String streetNumber = "", route = "";
+            if (components != null) {
+                for (Map<String, Object> comp : components) {
+                    List<String> types = (List<String>) comp.get("types");
+                    if (types == null) continue;
+                    if (types.contains("street_number")) streetNumber = String.valueOf(comp.get("long_name"));
+                    if (types.contains("route")) route = String.valueOf(comp.get("long_name"));
+                }
             }
 
-            // Nếu parse không được từ components, fallback dùng formatted_address
-            String formattedAddress = String.valueOf(result.getOrDefault("formatted_address", ""));
+            String addressDetail = (streetNumber.isBlank() ? "" : streetNumber + " ") + route;
+            if (addressDetail.isBlank()) addressDetail = String.valueOf(result.getOrDefault("name", ""));
 
-            java.util.Map<String, Object> response = new java.util.LinkedHashMap<>();
+            Map<String, Object> response = new LinkedHashMap<>();
             response.put("placeId", placeId);
-            response.put("formattedAddress", formattedAddress);
+            response.put("formattedAddress", String.valueOf(result.getOrDefault("formatted_address", "")));
             response.put("addressDetail", addressDetail.trim());
             response.put("wardName", ward);
             response.put("districtName", district);
             response.put("provinceName", province);
+            response.put("wardCode", wCode);
+            response.put("districtCode", dCode);
+            response.put("provinceCode", pCode);
             response.put("latitude", lat);
             response.put("longitude", lng);
             return response;
-
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
             log.error("Goong Address Components error: {}", e.getMessage());
-            throw new ApiException("Không thể phân tích địa chỉ từ placeId này.", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new ApiException("Không thể phân tích địa chỉ.", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    private double calculateDistanceMeters(BigDecimal lat1, BigDecimal lng1,
-                                           BigDecimal lat2, BigDecimal lng2) {
-        final int EARTH_RADIUS = 6371000;
+    private Map<String, String> parseComponents(Map<String, Object> result) {
+        Map<String, String> res = new HashMap<>();
+        String ward = "", district = "", province = "";
+        String wCode = "", dCode = "", pCode = "";
 
+        List<Map<String, Object>> components = (List<Map<String, Object>>) result.get("address_components");
+        if (components != null) {
+            for (Map<String, Object> comp : components) {
+                List<String> types = (List<String>) comp.get("types");
+                String longName = String.valueOf(comp.getOrDefault("long_name", ""));
+                String shortName = String.valueOf(comp.getOrDefault("short_name", ""));
+                if (types == null) continue;
+
+                if (types.contains("administrative_area_level_3") || types.contains("ward") || types.contains("sublocality_level_1")) {
+                    ward = longName; wCode = shortName;
+                } else if (types.contains("administrative_area_level_2")) {
+                    district = longName; dCode = shortName;
+                } else if (types.contains("administrative_area_level_1")) {
+                    province = longName; pCode = shortName;
+                }
+            }
+        }
+
+        if (result.containsKey("compound")) {
+            Map<String, Object> compound = (Map<String, Object>) result.get("compound");
+            if (compound != null) {
+                if (compound.get("commune") != null) ward = String.valueOf(compound.get("commune"));
+                if (compound.get("district") != null) district = String.valueOf(compound.get("district"));
+                if (compound.get("province") != null) province = String.valueOf(compound.get("province"));
+                if (compound.get("commune_id") != null) wCode = String.valueOf(compound.get("commune_id"));
+                if (compound.get("district_id") != null) dCode = String.valueOf(compound.get("district_id"));
+                if (compound.get("province_id") != null) pCode = String.valueOf(compound.get("province_id"));
+            }
+        }
+
+        res.put("wardName", ward);
+        res.put("districtName", district);
+        res.put("provinceName", province);
+        res.put("wardCode", wCode);
+        res.put("districtCode", dCode);
+        res.put("provinceCode", pCode);
+        return res;
+    }
+
+    private double calculateDistanceMeters(BigDecimal lat1, BigDecimal lng1, BigDecimal lat2, BigDecimal lng2) {
+        final int EARTH_RADIUS = 6371000;
         double dLat = Math.toRadians(lat2.doubleValue() - lat1.doubleValue());
         double dLng = Math.toRadians(lng2.doubleValue() - lng1.doubleValue());
-
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                 Math.cos(Math.toRadians(lat1.doubleValue())) *
-                        Math.cos(Math.toRadians(lat2.doubleValue())) *
-                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
-
+                Math.cos(Math.toRadians(lat2.doubleValue())) *
+                Math.sin(dLng / 2) * Math.sin(dLng / 2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return EARTH_RADIUS * c;
     }

@@ -4,20 +4,86 @@ import './HelperProfileModal.css';
 
 const HelperProfileModal = ({ helper, onClose, onBookNow }) => {
     const [reviews, setReviews] = useState([]);
+    const [schedule, setSchedule] = useState([]);
+    const [loadingSchedule, setLoadingSchedule] = useState(false);
     const [imgError, setImgError] = useState(false);
 
     useEffect(() => {
         if (!helper?.id) return;
-        const fetchReviews = async () => {
+        
+        const fetchData = async () => {
             try {
-                const res = await ProfileService.getHelperReviews(helper.id);
-                setReviews(res?.data?.data || res?.data || []);
+                const [reviewsRes, scheduleRes] = await Promise.all([
+                    ProfileService.getHelperReviews(helper.id),
+                    ProfileService.getHelperSchedule(helper.id, new Date().getMonth() + 1, new Date().getFullYear())
+                ]);
+                
+                setReviews(reviewsRes?.data?.data || reviewsRes?.data || []);
+
+                // scheduleRes.data contains the list because of backend ApiResponse wrapper
+                const rawList = scheduleRes?.data || (Array.isArray(scheduleRes) ? scheduleRes : []);
+                
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
+                const currentHour = now.getHours();
+                const currentMinute = now.getMinutes();
+
+                const availableSlots = rawList
+                    .filter(slot => {
+                        if (slot.status !== 'AVAILABLE') return false;
+                        if (slot.workDate < todayStr) return false;
+                        
+                        // If it's today, only show slots that haven't started yet
+                        if (slot.workDate === todayStr && slot.startTime) {
+                            const [h, m] = slot.startTime.split(':').map(Number);
+                            if (h < currentHour || (h === currentHour && m <= currentMinute)) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    })
+                    .sort((a, b) => a.workDate.localeCompare(b.workDate) || a.startTime.localeCompare(b.startTime));
+                
+                setSchedule(availableSlots);
             } catch (err) {
-                console.error("Error fetching reviews:", err);
+                console.error("Error fetching helper data:", err);
             }
         };
-        fetchReviews();
+        fetchData();
     }, [helper?.id]);
+
+    const groupContiguousSlots = (slots) => {
+        if (!slots || slots.length === 0) return {};
+        
+        const sorted = [...slots].sort((a, b) => a.workDate.localeCompare(b.workDate) || a.startTime.localeCompare(b.startTime));
+        const dateGroups = {};
+
+        sorted.forEach(slot => {
+            if (!dateGroups[slot.workDate]) dateGroups[slot.workDate] = [];
+            const dayRanges = dateGroups[slot.workDate];
+            const lastRange = dayRanges[dayRanges.length - 1];
+
+            if (lastRange && lastRange.endTime === slot.startTime) {
+                lastRange.endTime = slot.endTime;
+                // Calculate duration in hours
+                const startH = parseInt(lastRange.startTime.split(':')[0]);
+                const endH = parseInt(lastRange.endTime.split(':')[0]);
+                lastRange.maxDuration = endH - startH;
+            } else {
+                const startH = parseInt(slot.startTime.split(':')[0]);
+                const endH = parseInt(slot.endTime.split(':')[0]);
+                dayRanges.push({
+                    workDate: slot.workDate,
+                    startTime: slot.startTime,
+                    endTime: slot.endTime,
+                    maxDuration: endH - startH
+                });
+            }
+        });
+        return dateGroups;
+    };
+
+    const groupedSchedule = groupContiguousSlots(schedule);
 
     if (!helper) return null;
 
@@ -89,6 +155,48 @@ const HelperProfileModal = ({ helper, onClose, onBookNow }) => {
                             {helper.workingDistricts?.map(dist => (
                                 <span key={dist.code} className="hpm-dist-tag">📍 {dist.name}</span>
                             ))}
+                        </div>
+                    </div>
+
+                    <div className="hpm-section">
+                        <h4 className="hpm-section-title">Lịch rảnh </h4>
+                        <div className="hpm-schedule-container">
+                            {Object.keys(groupedSchedule).length > 0 ? (
+                                <div className="hpm-date-list">
+                                    {Object.keys(groupedSchedule).map(date => (
+                                        <div key={date} className="hpm-date-group">
+                                            <div className="hpm-date-label">
+                                                {new Date(date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                                            </div>
+                                            <div className="hpm-slot-grid">
+                                                {groupedSchedule[date].map((range, idx) => (
+                                                    <button 
+                                                        key={`${date}-${idx}`} 
+                                                        className="hpm-slot-pill"
+                                                        title={`Rảnh ${range.maxDuration} tiếng`}
+                                                        onClick={() => {
+                                                            onClose();
+                                                            onBookNow(helper, {
+                                                                date: range.workDate,
+                                                                time: range.startTime,
+                                                                endTime: range.endTime,
+                                                                maxDuration: range.maxDuration
+                                                            });
+                                                        }}
+                                                    >
+                                                        <span className="hpm-slot-time">
+                                                            {range.startTime.substring(0, 5)} - {range.endTime.substring(0, 5)}
+                                                        </span>
+                                                        <span className="hpm-slot-dur">({range.maxDuration}h)</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="hpm-empty-hint">Thợ chưa đăng ký lịch rảnh hoặc đã kín lịch. Bạn vẫn có thể thử đặt trực tiếp.</p>
+                            )}
                         </div>
                     </div>
 

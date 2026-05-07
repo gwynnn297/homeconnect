@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import HelperLayout from '../../layouts/HelperLayout';
 import NotificationModal from '../../components/NotificationModal';
@@ -208,6 +208,13 @@ const getCheckinBadgeMeta = (tabId, job) => {
             icon: 'clock'
         };
     }
+    if (bookingStatus === 'RESOLVED') {
+        return {
+            badgeLabel: 'Đã xử lý khiếu nại',
+            badgeClass: 'completed',
+            icon: 'check'
+        };
+    }
     if (tabId === 'CONFIRMED' && bookingStatus === 'ARRIVED') {
         return {
             badgeLabel: 'Đã đến nhà',
@@ -295,6 +302,7 @@ const HelperNewJobPage = () => {
     const handledNotificationTokenRef = useRef(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const refreshForTokenRef = useRef(null);
+    const pendingNotificationRef = useRef(null);
     const [showDisputeModal, setShowDisputeModal] = useState(false);
     const [disputeMessage, setDisputeMessage] = useState('');
     const [disputeEvidenceUrl, setDisputeEvidenceUrl] = useState('');
@@ -580,18 +588,20 @@ const HelperNewJobPage = () => {
                 for (const r of jobResults) {
                     if (r.ok) {
                         if (r.tab === 'CONFIRMED') {
-                            listByTab.CONFIRMED.push(...r.list.filter(job => {
+                            r.list.forEach(job => {
                                 const status = String(job?.bookingStatus || job?.status || '').toUpperCase();
-                                return !HISTORY_BOOKING_STATUSES.has(status);
-                            }));
-                            listByTab.CANCELLED.push(...r.list.filter(job => {
-                                const status = String(job?.bookingStatus || job?.status || '').toUpperCase();
-                                return CANCELLED_BOOKING_STATUSES.has(status);
-                            }));
-                            listByTab.COMPLETED.push(...r.list.filter(job => {
-                                const status = String(job?.bookingStatus || job?.status || '').toUpperCase();
-                                return COMPLETED_BOOKING_STATUSES.has(status);
-                            }));
+                                const isDisputed = !!job.disputeReason || status === 'DISPUTED' || status === 'RESOLVED';
+
+                                if (isDisputed) {
+                                    listByTab.COMPLETED.push(job);
+                                } else if (CANCELLED_BOOKING_STATUSES.has(status)) {
+                                    listByTab.CANCELLED.push(job);
+                                } else if (COMPLETED_BOOKING_STATUSES.has(status)) {
+                                    listByTab.COMPLETED.push(job);
+                                } else {
+                                    listByTab.CONFIRMED.push(job);
+                                }
+                            });
                         } else {
                             listByTab[r.tab].push(...r.list);
                         }
@@ -633,8 +643,13 @@ const HelperNewJobPage = () => {
                         createdAt: db.createdAt || new Date()
                     };
 
+                    const isDisputed = !!db.disputeReason || status === 'DISPUTED' || status === 'RESOLVED';
+
                     if (status === 'PENDING_ACCEPTANCE') {
                         listByTab.PENDING.push(jobWrap);
+                    } else if (isDisputed) {
+                        // Ưu tiên đưa vào tab COMPLETED nếu có khiếu nại, kể cả khi status gốc là CANCELLED
+                        listByTab.COMPLETED.push(jobWrap);
                     } else if (CANCELLED_BOOKING_STATUSES.has(status)) {
                         listByTab.CANCELLED.push(jobWrap);
                     } else if (COMPLETED_BOOKING_STATUSES.has(status)) {
@@ -673,109 +688,90 @@ const HelperNewJobPage = () => {
     }, [activeTab, refreshTrigger]);
 
     useEffect(() => {
-        const targetPostId = location?.state?.targetPostId;
-        const targetBookingId = location?.state?.targetBookingId;
-        const targetId = location?.state?.targetPostId;
-        const type = location?.state?.notificationType;
-        const cameFromNotification = Boolean(location?.state?.fromNotification);
-        const notificationToken = location?.state?.notificationToken ?? null;
+        const state = location?.state;
+        const cameFromNotification = state?.cameFromNotification || state?.fromNotification;
+        const notificationToken = state?.notificationToken;
 
-        if (!cameFromNotification || !hasLoadedJobsOnce || loadingJobs || jobsError) return;
-        if (notificationToken && handledNotificationTokenRef.current === notificationToken) return;
+        // 1. Nếu có state mới từ notification, lưu vào Ref và xóa state ngay để tránh loop
+        if (cameFromNotification && notificationToken !== handledNotificationTokenRef.current) {
+            pendingNotificationRef.current = {
+                targetPostId: state.targetPostId,
+                targetBookingId: state.targetBookingId,
+                targetId: state.targetId || state.targetPostId,
+                type: state.type || state.notificationType,
+                token: notificationToken
+            };
+            // Xóa state để URL sạch và tránh chạy lại logic này vô tận
+            navigate(location.pathname, { replace: true, state: null });
+            return;
+        }
 
-        // VẤN ĐỀ LAG Ở ĐÂY: Bạn từng để logic ép tab thành 'NEW' phía trên, rồi phía dưới lại đổi về 'PENDING'
-        // Làm React lặp vô tận (Infinite Loop). Giờ gom hết việc chuyển Tab về DƯỚI ĐÂY nhé!
+        // 2. Kiểm tra xem có việc gì đang chờ xử lý không
+        const pending = pendingNotificationRef.current;
+        if (!pending) return;
 
+        const { targetPostId, targetBookingId, targetId, type, token } = pending;
+
+        // 3. Xác định Tab cần thiết dựa trên loại thông báo
         let targetTab = null;
         if (type === 'DIRECT_BOOKING' || type === 'DIRECT_BOOKING_TIMEOUT') {
             targetTab = 'PENDING';
-        } else if (type === 'BOOKING_ACCEPTED' || type === 'DIRECT_BOOKING_ACCEPTED' || type === 'WORK_STARTED' || type === 'WORK_DONE_BY_HELPER') {
-            targetTab = 'CONFIRMED';
         } else if (type === 'MARKETPLACE_MATCH' || type === 'NEW_JOB_AVAILABLE') {
             targetTab = 'NEW';
-        } else if (
-            type === 'BOOKING_REJECTED'
-            || type === 'DIRECT_BOOKING_REJECTED'
-            || type === 'BOOKING_ADMIN_CANCEL'
-            || type === 'BOOKING_CANCELLED_BY_HELPER'
-            || type === 'BOOKING_CANCELLED_BY_CUSTOMER'
-            || type === 'AUTO_COMPLETED'
-            || type === 'DISPUTE_REFUND'
-            || type === 'DISPUTE_REJECT'
-        ) {
-            targetTab = type === 'AUTO_COMPLETED' || type === 'DISPUTE_REFUND' || type === 'DISPUTE_REJECT'
-                ? 'COMPLETED'
-                : 'CANCELLED';
-        }
-
-        // Nếu thông báo là targetBookingId mà không thuộc các loại trên (hoặc không xác định), ép vô CONFIRMED
-        if (targetBookingId != null && !targetTab) {
+        } else if (type === 'DISPUTE_OPENED' || type === 'DISPUTE_REFUND' || type === 'DISPUTE_REJECT' || type === 'DISPUTED' || type === 'PAYMENT_RECEIVED' || type === 'AUTO_COMPLETED' || type === 'BOOKING_COMPLETED' || type === 'WORK_COMPLETED' || type === 'COMPLETED') {
+            targetTab = 'COMPLETED';
+        } else if (type === 'BOOKING_REJECTED' || type === 'DIRECT_BOOKING_REJECTED' || type === 'BOOKING_ADMIN_CANCEL' || type === 'BOOKING_CANCELLED_BY_HELPER' || type === 'BOOKING_CANCELLED_BY_CUSTOMER') {
+            targetTab = 'CANCELLED';
+        } else if (type === 'BOOKING_ACCEPTED' || type === 'DIRECT_BOOKING_ACCEPTED' || type === 'WORK_STARTED' || type === 'WORK_DONE_BY_HELPER' || type === 'ARRIVAL_CONFIRMED' || type === 'PENDING_COMPLETION' || targetBookingId != null) {
             targetTab = 'CONFIRMED';
         }
 
-        // Đảm bảo tab phải tự reset nếu chưa đến đúng chỗ
+        // 4. Nếu sai Tab, chuyển Tab và chờ render lại
         if (targetTab && activeTab !== targetTab) {
             setActiveTab(targetTab);
-            return; // Chờ đổi tab xong Component sẽ Render lại và chạy tiếp dòng bên dưới
+            return;
         }
 
-        if (targetTab && loadedJobsTab !== targetTab) {
-            return; // Chờ API load xong list Jobs cho tab vừa đổi
+        // 5. Nếu Tab đúng rồi nhưng Jobs chưa load xong cho Tab đó, chờ tiếp
+        if (!hasLoadedJobsOnce || loadingJobs || (targetTab && loadedJobsTab !== targetTab)) {
+            return;
         }
 
-        // Bắt đầu đi tìm id trong list:
-        if (targetBookingId == null && targetPostId == null) {
+        // 6. Tìm job trong danh sách đã load
+        let matchedJob = null;
+        const searchIdStr = String(targetBookingId || targetPostId || targetId || '').toUpperCase().replace('DIR-', '').replace('D-', '');
+
+        if (searchIdStr) {
+            matchedJob = jobs.find((job) => {
+                const jPostId = String(job?.postId || '').toUpperCase().replace('DIR-', '').replace('D-', '');
+                const jBookingId = String(job?.bookingId || '').toUpperCase();
+                return jPostId === searchIdStr || jBookingId === searchIdStr;
+            });
+        }
+
+        // 7. Xử lý kết quả tìm kiếm
+        if (matchedJob) {
+            setSelectedJob(matchedJob);
+            handledNotificationTokenRef.current = token;
+            pendingNotificationRef.current = null; // Xong việc, xóa hàng đợi
+        } else if (hasLoadedJobsOnce && !loadingJobs) {
+            // Đã load xong mà không thấy -> có thể do data Backend chưa update kịp hoặc ID sai
+            // Chúng ta có thể thử đợi thêm 1 chút hoặc báo lỗi
             setToast({
-                message: 'Không xác định được bài đăng từ thông báo.',
+                message: `Không tìm thấy công việc tương ứng trong tab ${targetTab || 'hiện tại'}.`,
                 type: 'error'
             });
-        } else if (targetBookingId != null) {
-            const matchedBookingJob = jobs.find((job) => Number(job?.bookingId) === Number(targetBookingId));
-            if (matchedBookingJob) {
-                setSelectedJob(matchedBookingJob);
-            } else {
-                setToast({
-                    message: `Không tìm thấy booking #${targetBookingId} (có thể chưa vào ca đang làm hoặc đã hoàn tất).`,
-                    type: 'error'
-                });
-            }
-        } else {
-            if (targetId != null) {
-                const matchedJob = jobs.find((job) =>
-                    Number(job?.postId) === Number(targetId) ||
-                    job?.postId === `D-${targetId}` ||
-                    (job?.isDirect && Number(job?.bookingId) === Number(targetId))
-                );
-
-                if (matchedJob) {
-                    setSelectedJob(matchedJob);
-                } else if (activeTab === targetTab || !targetTab) {
-                    if (refreshForTokenRef.current !== notificationToken) {
-                        refreshForTokenRef.current = notificationToken;
-                        setRefreshTrigger(prev => prev + 1);
-                        return;
-                    } else {
-                        setToast({
-                            message: `Không tìm thấy công việc #${targetId} trong danh mục này (có thể đã bị hủy hoặc đã được người khác nhận).`,
-                            type: 'error'
-                        });
-                    }
-                }
-            }
-
-            handledNotificationTokenRef.current = notificationToken;
-            navigate(location.pathname, { replace: true, state: null });
+            handledNotificationTokenRef.current = token;
+            pendingNotificationRef.current = null;
         }
-
     }, [
         location,
         navigate,
         jobs,
-        hasLoadedJobsOnce,
-        loadingJobs,
-        loadedJobsTab,
-        jobsError,
         activeTab,
+        loadingJobs,
+        hasLoadedJobsOnce,
+        loadedJobsTab,
         refreshTrigger
     ]);
 
@@ -863,7 +859,7 @@ const HelperNewJobPage = () => {
                                         </span>
                                     </div>
                                 </div>
-                                <div className="hnj-price-badge">{formatCurrencyVnd(job.offerPrice)}</div>
+                                <div className="hnj-price-badge">{formatCurrencyVnd(job.originalPrice || job.offerPrice)}</div>
                             </div>
                             <div className="hnj-card-status-row">
                                 <span className={`hnj-state-pill hnj-state-pill--${getCheckinBadgeMeta(activeTab, job).badgeClass}`}>
@@ -874,11 +870,6 @@ const HelperNewJobPage = () => {
                                     <span className="hnj-state-pill hnj-state-pill--verified">
                                         <StatusIcon type="check" />
                                         VIP
-                                    </span>
-                                )}
-                                {job?.isPremium && (
-                                    <span className="hnj-state-pill hnj-state-pill--premium" style={{ background: '#fffbeb', color: '#92400e', borderColor: '#fef3c7' }}>
-                                        ⭐ Premium
                                     </span>
                                 )}
                             </div>
@@ -911,7 +902,7 @@ const HelperNewJobPage = () => {
                             </div>
 
                             <div className="hnj-card-footer">
-                                {activeTab === 'CONFIRMED' && Number(job?.bookingId) > 0 && Boolean(job?.canCheckin) && (
+                                {activeTab === 'CONFIRMED' && Number(job?.bookingId) > 0 && Boolean(job?.canCheckin) && canCheckinByTimeWindow(job) && (
                                     <button
                                         type="button"
                                         className="hnj-checkin-btn"
@@ -989,11 +980,6 @@ const HelperNewJobPage = () => {
                                     const disputeEvidence = selectedJob?.disputeEvidenceUrl || '';
                                     const helperResponseAt = selectedJob?.helperDisputeAt;
                                     const hasScope = detail.workBullets.length > 0 || detail.workLists.length > 0;
-                                    const flagEntries = [
-                                        detail.flags.premium && { key: 'premium', label: 'Gói cao cấp' },
-                                        detail.flags.pets && { key: 'pets', label: 'Có thú cưng' },
-                                        detail.flags.bringTools && { key: 'tools', label: 'Mang dụng cụ theo yêu cầu' },
-                                    ].filter(Boolean);
 
                                     return (
                                         <>
@@ -1008,9 +994,10 @@ const HelperNewJobPage = () => {
                                                     </div>
                                                     {detail.offerPrice && (
                                                         <div className="hnj-modal-price-block">
-                                                            <span className="hnj-modal-price-label">Thù lao dự kiến</span>
+                                                            <span className="hnj-modal-price-label">Thù lao thực nhận</span>
                                                             <span className="hnj-modal-price-value">{detail.offerPrice}</span>
                                                         </div>
+
                                                     )}
                                                 </div>
                                                 <div className={`hnj-state-pill hnj-state-pill--${pillMeta.badgeClass} hnj-state-pill--modal`}>
@@ -1091,19 +1078,6 @@ const HelperNewJobPage = () => {
                                                 </section>
                                             )}
 
-                                            <div className="hnj-modal-flags">
-                                                {flagEntries.length > 0 ? (
-                                                    <div className="hnj-modal-chip-row" role="list">
-                                                        {flagEntries.map((f) => (
-                                                            <span key={f.key} className="hnj-modal-chip" role="listitem">
-                                                                {f.label}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="hnj-modal-flags-note">Không có ghi chú đặc biệt (thú cưng / dụng cụ / gói premium).</p>
-                                                )}
-                                            </div>
 
                                             <div className="hnj-desc-box hnj-desc-box--modal">
                                                 <h3 className="hnj-desc-title">Mô tả &amp; yêu cầu từ khách</h3>

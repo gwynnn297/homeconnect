@@ -215,8 +215,8 @@ public class MatchingService {
                 notificationService.createNotification(
                         jobPost.getCustomerId(),
                         "Chưa tìm được thợ phù hợp",
-                        String.format("Hệ thống chưa tìm được thợ phù hợp cho công việc '%s' tại '%s'. " +
-                                "Bạn có thể thử điều chỉnh khu vực hoặc thời gian.", jobPost.getTitle(), jobDistrict),
+                        String.format("Tin #%d: Hệ thống chưa tìm được thợ phù hợp cho công việc '%s' tại '%s'. " +
+                                "Bạn có thể thử điều chỉnh khu vực hoặc thời gian.", postId, jobPost.getTitle(), jobDistrict),
                         "NO_HELPER_FOUND");
                 return;
             }
@@ -255,8 +255,8 @@ public class MatchingService {
                 notificationService.createNotification(
                         jobPost.getCustomerId(),
                         "Đã tìm thấy " + notifyCount + " thợ phù hợp",
-                        String.format("Có %d thợ gần khu vực %s đang sẵn sàng nhận việc '%s' của bạn.", 
-                                notifyCount, jobDistrict, jobPost.getTitle()),
+                        String.format("Tin #%d: Có %d thợ gần khu vực %s đang sẵn sàng nhận việc '%s' của bạn.",
+                                postId, notifyCount, jobDistrict, jobPost.getTitle()),
                         "MATCHING_FOUND");
             }
 

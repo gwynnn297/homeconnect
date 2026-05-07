@@ -154,32 +154,69 @@ const HeaderComponent = () => {
         const content = `${notif?.title ?? ''} ${notif?.content ?? ''}`;
         const type = String(notif?.type || '').toUpperCase();
 
-        // Mở rộng Regex để bắt mọi thứ trước dấu # (VD: "Đơn đặt #123", "Yêu cầu #123", "Job #DIR-40")
-        const idMatch = content.match(/.*?#\s*(?:DIR-)?(\d+)/i);
-        const id = idMatch?.[1] ? Number(idMatch[1]) : null;
+        // ===== CÁC LOẠI THÔNG BÁO BÀI ĐĂNG (Post ID) =====
+        // Gửi cho Customer sau khi đăng tin: "Tin #123: Có X thợ..."
+        // Gửi cho Helper về Job mới: "Job #123: ..."
+        const postNotifTypes = [
+            'MATCHING_FOUND', 'NO_HELPER_FOUND',  // Customer - kết quả tìm thợ
+            'MATCHING',                            // Helper - việc mới phù hợp
+            'JOB_CANCELLED', 'JOB_UPDATED',        // Helper - việc bị hủy/cập nhật
+            'JOB_ADMIN_CANCEL',                    // Customer - admin hủy tin
+            'INVITATION_CANCELLED',                // Helper - lời mời bị hủy
+        ];
+        if (postNotifTypes.includes(type)) {
+            // Bắt số đầu tiên sau dấu # (backend đã nhúng #postId vào nội dung)
+            const m = content.match(/#\s*(?:DIR-)?(\d+)/i);
+            const postId = m?.[1] ? Number(m[1]) : null;
+            return { targetPostId: postId, targetBookingId: null };
+        }
+
+        // ===== CÁC LOẠI THÔNG BÁO DIRECT BOOKING =====
+        // Gửi cho Customer/Helper về yêu cầu đặt thợ trực tiếp
+        // Điều hướng về: /customer/manage-posts/DIR-ID (để nằm trong Quản lý bài đăng)
+        if (type === 'DIRECT_BOOKING' || type === 'DIRECT_BOOKING_TIMEOUT' || type === 'DIRECT_BOOKING_REJECTED') {
+            const m = content.match(/#\s*(?:DIR-)?(\d+)/i);
+            const idNum = m?.[1] ? m[1] : null;
+            return { targetPostId: idNum ? `DIR-${idNum}` : null, targetBookingId: null };
+        }
+
+        // ===== CÁC LOẠI THÔNG BÁO VẬN HÀNH BOOKING =====
+        // (Ca đang làm, Lịch sử, Giải ngân, Khiếu nại...)
+        const bookingTypes = [
+            'ARRIVAL_CONFIRMED', 'PENDING_COMPLETION', 'PAYMENT_RECEIVED',
+            'DISPUTED', 'DISPUTE_REFUND', 'DISPUTE_REJECT', 'AUTO_COMPLETED',
+            'DIRECT_BOOKING_ACCEPTED', 'WORK_STARTED', 'WORK_DONE_BY_HELPER', 'WORK_COMPLETED',
+            'DISPUTE_OPENED'
+        ];
+
+        // Ưu tiên bắt "Booking #xxx" hoặc "Đơn hàng #xxx" hoặc "Đơn #xxx"
+        const bookingIdMatch = content.match(/(?:Booking|Đơn hàng|Đơn)\s+#(\d+)/i);
+        const firstIdMatch = content.match(/#\s*(?:DIR-)?(\d+)/i);
+        const id = (bookingIdMatch?.[1] || firstIdMatch?.[1])
+            ? Number(bookingIdMatch?.[1] || firstIdMatch?.[1])
+            : null;
 
         if (id == null) {
             return { targetPostId: null, targetBookingId: null };
         }
 
-        // Với DIRECT_BOOKING, ta LUÔN trả về targetPostId để nó được load bên tab PENDING
-        if (type === 'DIRECT_BOOKING' || type === 'DIRECT_BOOKING_TIMEOUT' || type === 'DIRECT_BOOKING_REJECTED') {
-            return { targetPostId: id, targetBookingId: null };
-        }
-
-        // Các thông báo vận hành booking (Ca đang làm & Lịch sử) thì trút vào targetBookingId
         if (
-            type === 'ARRIVAL_CONFIRMED' ||
+            bookingTypes.includes(type) ||
             type.startsWith('WORK_') ||
-            type.startsWith('BOOKING_') ||
-            type === 'PAYMENT_RECEIVED'
+            type.startsWith('BOOKING_')
         ) {
+            // Với Customer, nếu là đơn trực tiếp, vẫn ưu tiên về trang Manage Posts để xem chi tiết bài đăng
+            if (userInfo?.role === 'CUSTOMER' && content.includes('DIR-')) {
+                return { targetPostId: `DIR-${id}`, targetBookingId: null };
+            }
             return { targetPostId: null, targetBookingId: id };
         }
 
-        // Mặc định là postId cho luồng việc mới.
-        return { targetPostId: id, targetBookingId: null };
-    }, []); // ĐÃ FIX NGÀM ĐÓNG HÀM Ở ĐÂY
+        // Mặc định: postId cho các luồng khác
+        const postIdMatch = content.match(/#\s*(?:DIR-)?(\d+)/i);
+        const postId2 = postIdMatch?.[1] ? Number(postIdMatch[1]) : null;
+        return { targetPostId: postId2, targetBookingId: null };
+    }, []);
 
     const extractJobInfoFromNotification = useCallback((notif) => {
         const type = notif?.type || 'UNKNOWN';
@@ -223,7 +260,11 @@ const HeaderComponent = () => {
             : id;
 
         if (userInfo?.role === 'CUSTOMER') {
-            if (id) {
+            if (targetBookingId) {
+                navigate(`/customer/bookings/${targetBookingId}`);
+            } else if (targetPostId) {
+                navigate(`/customer/manage-posts/${targetPostId}`);
+            } else if (id) {
                 navigate(`/customer/manage-posts/${id}`);
             } else {
                 navigate('/customer/manage-posts');

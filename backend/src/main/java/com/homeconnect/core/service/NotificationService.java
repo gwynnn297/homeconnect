@@ -1,5 +1,6 @@
 package com.homeconnect.core.service;
 
+import com.homeconnect.core.socket.SocketIOService;
 import com.homeconnect.core.dto.response.NotificationResponse;
 import com.homeconnect.core.dto.response.NotificationPageResponse;
 import com.homeconnect.core.entity.JobPost;
@@ -37,6 +38,7 @@ public class NotificationService {
 
     private static final int MAX_NOTIFICATION_TYPE_LENGTH = 20;
     private final NotificationRepository notificationRepository;
+    private final SocketIOService socketIOService;
 
     // Danh sách kết nối SSE theo từng userId (1 user có thể mở nhiều tab)
     private final Map<Long, CopyOnWriteArrayList<SseEmitter>> emittersByUserId = new ConcurrentHashMap<>();
@@ -208,6 +210,10 @@ public class NotificationService {
      * Nếu emitter lỗi thì remove khỏi danh sách để tránh leak.
      */
 private void pushRealtime(Long userId, NotificationResponse payload) {
+        // 1. Gửi qua Socket.IO (Room user_ID)
+        socketIOService.sendMessage(userId.toString(), "new_notification", payload);
+
+        // 2. Gửi qua SSE (Duy trì cho backward compatibility)
         List<SseEmitter> emitters = emittersByUserId.get(userId);
         if (emitters == null || emitters.isEmpty()) {
             return;

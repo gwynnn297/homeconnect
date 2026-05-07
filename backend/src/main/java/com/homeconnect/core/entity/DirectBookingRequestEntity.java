@@ -84,14 +84,6 @@ public class DirectBookingRequestEntity {
     @Column(name = "service_ids", length = 500)
     private String serviceIds;
 
-    @Column(name = "is_premium")
-    private Boolean isPremium;
-
-    @Column(name = "has_pets")
-    private Boolean hasPets;
-
-    @Column(name = "bring_tools")
-    private Boolean bringTools;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CustomerLayout from '../../layouts/CustomerLayout';
 import ProfileService from '../../services/ProfileService';
@@ -174,6 +174,10 @@ const CustomerDashboardPage = () => {
     const [jobsError, setJobsError] = useState('');
     const [memberTier, setMemberTier] = useState('BRONZE');
     const [memberDiscountPercent, setMemberDiscountPercent] = useState(TIER_DISCOUNT_PERCENT.BRONZE);
+
+    const refreshDashboard = useCallback((showLoading = false) => {
+        // Implementation logic for refreshing data
+    }, []);
 
     useEffect(() => {
         const loadCategories = async () => {

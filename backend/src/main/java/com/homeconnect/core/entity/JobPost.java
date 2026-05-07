@@ -70,17 +70,6 @@ public class JobPost {
     @Column(name = "additional_data", columnDefinition = "TEXT")
     private String additionalData;
 
-    @Builder.Default
-    @Column(name = "is_premium")
-    private Boolean isPremium = false;
-
-    @Builder.Default
-    @Column(name = "has_pets")
-    private Boolean hasPets = false;
-
-    @Builder.Default
-    @Column(name = "bring_tools")
-    private Boolean bringTools = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)

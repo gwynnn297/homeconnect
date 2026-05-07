@@ -1,9 +1,13 @@
-
 import React from 'react'
 import AuthRouter from './routers/AuthRouter.jsx'
+import { SocketProvider } from './contexts/SocketContext.jsx'
 
 function App() {
-	return <AuthRouter />
+	return (
+		<SocketProvider>
+			<AuthRouter />
+		</SocketProvider>
+	)
 }
 
 export default App

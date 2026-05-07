@@ -3,6 +3,7 @@ package com.homeconnect.core.controller;
 import com.homeconnect.core.dto.request.schedule.ScheduleRegisterRequest;
 import com.homeconnect.core.dto.request.schedule.ScheduleSlotRequest;
 import com.homeconnect.core.dto.request.schedule.ScheduleUpdateDayRequest;
+import com.homeconnect.core.dto.response.ApiResponse;
 import com.homeconnect.core.dto.response.schedule.RegisterScheduleSummaryResponse;
 import com.homeconnect.core.dto.response.schedule.ScheduleResponse;
 import com.homeconnect.core.entity.User;
@@ -82,13 +83,16 @@ public class ScheduleController {
      */
     @Operation(summary = "Lấy lịch theo tháng", description = "Trả về danh sách khung giờ của Helper. Nếu không truyền helperId, hệ thống tự lấy lịch của chính Helper đang đăng nhập.")
     @GetMapping("/monthly")
-    public ResponseEntity<List<ScheduleResponse>> getMonthlySchedule(
+    public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getMonthlySchedule(
             @AuthenticationPrincipal UserDetails userDetails,
             @Parameter(description = "ID của helper (không bắt buộc nếu xem lịch bản thân)") @RequestParam(required = false) Long helperId,
             @Parameter(description = "Tháng (1-12)") @RequestParam int month,
             @Parameter(description = "Năm (ví dụ: 2026)") @RequestParam int year) {
         Long targetId = (helperId != null) ? helperId : getUserId(userDetails);
-        return ResponseEntity.ok(scheduleService.getMonthlySchedule(targetId, month, year));
+        return ResponseEntity.ok(ApiResponse.<List<ScheduleResponse>>builder()
+                .message("Lấy lịch theo tháng thành công")
+                .data(scheduleService.getMonthlySchedule(targetId, month, year))
+                .build());
     }
 
     /**
@@ -96,11 +100,14 @@ public class ScheduleController {
      */
     @Operation(summary = "Lấy toàn bộ lịch làm việc", description = "Trả về toàn bộ danh sách khung giờ của Helper. Nếu không truyền helperId, hệ thống tự lấy lịch của chính Helper đang đăng nhập.")
     @GetMapping("/all")
-    public ResponseEntity<List<ScheduleResponse>> getAllSchedules(
+    public ResponseEntity<ApiResponse<List<ScheduleResponse>>> getAllSchedules(
             @AuthenticationPrincipal UserDetails userDetails,
             @Parameter(description = "ID của helper (không bắt buộc nếu xem lịch bản thân)") @RequestParam(required = false) Long helperId) {
         Long targetId = (helperId != null) ? helperId : getUserId(userDetails);
-        return ResponseEntity.ok(scheduleService.getAllSchedules(targetId));
+        return ResponseEntity.ok(ApiResponse.<List<ScheduleResponse>>builder()
+                .message("Lấy toàn bộ lịch thành công")
+                .data(scheduleService.getAllSchedules(targetId))
+                .build());
     }
 
     /**
@@ -108,8 +115,11 @@ public class ScheduleController {
      */
     @Operation(summary = "Xem chi tiết khung giờ", description = "Trả về thông tin chi tiết của một slot lịch theo ID.")
     @GetMapping("/{id}")
-    public ResponseEntity<ScheduleResponse> getScheduleDetail(@PathVariable Long id) {
-        return ResponseEntity.ok(scheduleService.getScheduleDetail(id));
+    public ResponseEntity<ApiResponse<ScheduleResponse>> getScheduleDetail(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.<ScheduleResponse>builder()
+                .message("Lấy chi tiết khung giờ thành công")
+                .data(scheduleService.getScheduleDetail(id))
+                .build());
     }
 
     /**

@@ -60,9 +60,6 @@ public class JobPostResponse {
     private String cancelSource;
 
     private Double workSize;
-    private Boolean isPremium;
-    private Boolean hasPets;
-    private Boolean bringTools;
 
     private java.util.Map<String, Object> additionalData;
 

@@ -95,6 +95,14 @@ const HelperWalletPage = () => {
     useEffect(() => { fetchWalletData(); }, [fetchWalletData]);
     useEffect(() => { fetchBankAccounts(); }, []);
 
+    useEffect(() => {
+        const handleWalletUpdate = () => {
+            fetchWalletData();
+        };
+        window.addEventListener('wallet:updated', handleWalletUpdate);
+        return () => window.removeEventListener('wallet:updated', handleWalletUpdate);
+    }, [fetchWalletData]);
+
     // ── Load VietQR bank list when modal opens ──
     useEffect(() => {
         if (showAddBank && bankList.length === 0) {

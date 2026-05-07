@@ -25,12 +25,12 @@ const formatVnd = (value) => {
 };
 
 const resolveHelperCompensation = (job) => {
-    // Hiển thị thù lao thực nhận = giá gốc trừ phí hoa hồng 5%
+    // Hiển thị thù lao thực nhận = giá gốc trừ phí hoa hồng 15%
     const rawPrice = job?.originalPrice ?? job?.offerPrice;
     const originalPrice = Number(rawPrice);
     if (!Number.isFinite(originalPrice)) return formatVnd(job?.offerPrice);
 
-    const commissionRate = 0.05; // 5% phí nền tảng
+    const commissionRate = 0.15; // 15% phí nền tảng
     const helperCompensation = originalPrice * (1 - commissionRate);
     return formatVnd(helperCompensation);
 };
@@ -167,11 +167,7 @@ export function buildHelperJobModalModel(job) {
             extra: null,
         },
         offerPrice: resolveHelperCompensation(job),
-        flags: {
-            premium: job.isPremium === true,
-            pets: job.hasPets === true,
-            bringTools: job.bringTools === true,
-        },
+        flags: {},
         booking:
             job.bookingId != null
                 ? {

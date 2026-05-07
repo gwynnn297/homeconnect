@@ -69,6 +69,7 @@ public class BookingCheckinService {
 
     public CheckinChallengeResponse createChallenge(Long bookingId, Long helperId) {
         Booking booking = validateBookingForCheckin(bookingId, helperId);
+        validateCheckinTimeWindow(booking);
 
         List<String> requiredActions = new ArrayList<>(ACTION_POOL);
         Collections.shuffle(requiredActions);

@@ -120,4 +120,14 @@ public class AddressController {
                 .data(geocodingService.getAddressComponents(placeId))
                 .build());
     }
+
+    @GetMapping("/geocode")
+    @Operation(summary = "Giải mã địa chỉ từ văn bản (cho nhập tay)")
+    public ResponseEntity<ApiResponse<GeocodingService.GeoResult>> geocode(
+            @RequestParam @jakarta.validation.constraints.NotBlank(message = "Địa chỉ không được để trống") String address) {
+        return ResponseEntity.ok(ApiResponse.<GeocodingService.GeoResult>builder()
+                .message("Giải mã địa chỉ thành công")
+                .data(geocodingService.geocodeByAddressText(address))
+                .build());
+    }
 }

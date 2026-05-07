@@ -25,6 +25,7 @@ public class AddressService {
     private final JobPostRepository jobPostRepository;
     private final BookingRepository bookingRepository;
     private final GeocodingService geocodingService;
+    private final ExternalLocationService externalLocationService;
 
     // ─── GET ──────────────────────────────────────────────────────────────────
 
@@ -55,42 +56,40 @@ public class AddressService {
         String provinceName  = request.getProvinceName();
 
         if (request.getPlaceId() != null && !request.getPlaceId().isBlank()) {
-            // Trường hợp có placeId (ưu tiên)
             Map<String, Object> components = geocodingService.getAddressComponents(request.getPlaceId());
-            lat = java.math.BigDecimal.valueOf((Double) components.get("latitude"));
-            lng = java.math.BigDecimal.valueOf((Double) components.get("longitude"));
+            lat = java.math.BigDecimal.valueOf(Double.parseDouble(components.get("latitude").toString()));
+            lng = java.math.BigDecimal.valueOf(Double.parseDouble(components.get("longitude").toString()));
             
-            // Standardize address từ Goong (tùy chọn, ở đây ta lấy luôn để tránh "nhập bậy")
             addressDetail = resolve(components, "addressDetail", addressDetail);
             wardName      = resolve(components, "wardName",      wardName);
             districtName  = resolve(components, "districtName",  districtName);
             provinceName  = resolve(components, "provinceName",  provinceName);
         } else {
-            // Trường hợp nhập tay hoàn toàn -> Geocode từ text để validate
             GeocodingService.GeoResult geo = geocodingService.geocode(addressDetail, wardName, districtName, provinceName);
             if (geo == null) {
                 throw new com.homeconnect.core.exception.ApiException(
-                    "Không tìm thấy địa chỉ này trên bản đồ. Vui lòng kiểm tra lại Số nhà, Tên đường và Phường/Quận.",
+                    "Không tìm thấy địa chỉ này trên bản đồ.",
                     org.springframework.http.HttpStatus.BAD_REQUEST);
             }
             lat = geo.getLatitude();
             lng = geo.getLongitude();
-
-            // QUAN TRỌNG: Lấy địa chỉ CHUẨN từ Goong để ghi đè cái người dùng nhập bậy
-            if (geo.getPlaceId() != null) {
-                Map<String, Object> components = geocodingService.getAddressComponents(geo.getPlaceId());
-                addressDetail = resolve(components, "addressDetail", addressDetail);
-                wardName      = resolve(components, "wardName",      wardName);
-                districtName  = resolve(components, "districtName",  districtName);
-                provinceName  = resolve(components, "provinceName",  provinceName);
-            }
         }
 
-        // 3. Kiểm tra trùng lặp
+        // 3. Liên kết mã số chuẩn từ ExternalLocationService
+        String wCode = request.getWardCode();
+        String dCode = request.getDistrictCode();
+        String pCode = request.getProvinceCode();
+        
+
+        if (pCode == null || pCode.isBlank()) pCode = externalLocationService.findProvinceCodeByName(provinceName);
+        if (dCode == null || dCode.isBlank()) dCode = externalLocationService.findDistrictCodeByName(pCode, districtName);
+        if (wCode == null || wCode.isBlank()) wCode = externalLocationService.findWardCodeByName(dCode, wardName);
+
+        // 4. Kiểm tra trùng lặp
         if (addressRepository.existsByUser_IdAndAddressDetailIgnoreCaseAndWardNameAndDistrictNameAndProvinceName(
                 userId, addressDetail, wardName, districtName, provinceName)) {
             throw new com.homeconnect.core.exception.ApiException(
-                "Địa chỉ này đã tồn tại trong danh sách của bạn.",
+                "Địa chỉ này đã tồn tại.",
                 org.springframework.http.HttpStatus.CONFLICT);
         }
 
@@ -104,6 +103,9 @@ public class AddressService {
                 .wardName(wardName)
                 .districtName(districtName)
                 .provinceName(provinceName)
+                .wardCode(wCode)
+                .districtCode(dCode)
+                .provinceCode(pCode)
                 .latitude(lat)
                 .longitude(lng)
                 .type(request.getType() != null ? request.getType() : "HOME")
@@ -118,68 +120,53 @@ public class AddressService {
     @Transactional
     public AddressResponse updateAddress(Long userId, Integer addressId, UpdateAddressRequest request) {
         Address existing = addressRepository.findById(addressId)
-                .orElseThrow(() -> new com.homeconnect.core.exception.ApiException(
-                        "Không tìm thấy địa chỉ.", org.springframework.http.HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new com.homeconnect.core.exception.ApiException("Không tìm thấy địa chỉ", org.springframework.http.HttpStatus.NOT_FOUND));
 
         if (!existing.getUser().getId().equals(userId)) {
-            throw new com.homeconnect.core.exception.ApiException(
-                    "Bạn không có quyền chỉnh sửa địa chỉ này.", org.springframework.http.HttpStatus.FORBIDDEN);
+            throw new com.homeconnect.core.exception.ApiException("Bạn không có quyền sửa địa chỉ này", org.springframework.http.HttpStatus.FORBIDDEN);
         }
 
-        if (Boolean.TRUE.equals(request.getIsDefault()) && !Boolean.TRUE.equals(existing.getIsDefault())) {
-            resetDefaultAddress(userId);
-        }
-
-        BigDecimal lat, lng;
+        BigDecimal lat = existing.getLatitude();
+        BigDecimal lng = existing.getLongitude();
         String addressDetail = request.getAddressDetail();
-        String wardName      = request.getWardName();
-        String districtName  = request.getDistrictName();
-        String provinceName  = request.getProvinceName();
+        String wardName = request.getWardName();
+        String districtName = request.getDistrictName();
+        String provinceName = request.getProvinceName();
 
         if (request.getPlaceId() != null && !request.getPlaceId().isBlank()) {
             Map<String, Object> components = geocodingService.getAddressComponents(request.getPlaceId());
-            lat = java.math.BigDecimal.valueOf((Double) components.get("latitude"));
-            lng = java.math.BigDecimal.valueOf((Double) components.get("longitude"));
+            lat = java.math.BigDecimal.valueOf(Double.parseDouble(components.get("latitude").toString()));
+            lng = java.math.BigDecimal.valueOf(Double.parseDouble(components.get("longitude").toString()));
             addressDetail = resolve(components, "addressDetail", addressDetail);
-            wardName      = resolve(components, "wardName",      wardName);
-            districtName  = resolve(components, "districtName",  districtName);
-            provinceName  = resolve(components, "provinceName",  provinceName);
-        } else {
-            GeocodingService.GeoResult geo = geocodingService.geocode(addressDetail, wardName, districtName, provinceName);
-            if (geo == null) {
-                throw new com.homeconnect.core.exception.ApiException(
-                    "Địa chỉ không hợp lệ hoặc không tìm thấy trên bản đồ.",
-                    org.springframework.http.HttpStatus.BAD_REQUEST);
-            }
-            lat = geo.getLatitude();
-            lng = geo.getLongitude();
-
-            // Chuẩn hóa lại text nhập tay
-            if (geo.getPlaceId() != null) {
-                Map<String, Object> components = geocodingService.getAddressComponents(geo.getPlaceId());
-                addressDetail = resolve(components, "addressDetail", addressDetail);
-                wardName      = resolve(components, "wardName",      wardName);
-                districtName  = resolve(components, "districtName",  districtName);
-                provinceName  = resolve(components, "provinceName",  provinceName);
-            }
+            wardName = resolve(components, "wardName", wardName);
+            districtName = resolve(components, "districtName", districtName);
+            provinceName = resolve(components, "provinceName", provinceName);
         }
 
-        // Kiểm tra trùng lặp trước khi lưu (Ngoại trừ chính nó)
-        if (addressRepository.existsByUser_IdAndAddressDetailIgnoreCaseAndWardNameAndDistrictNameAndProvinceNameAndAddressIdNot(
-                userId, addressDetail, wardName, districtName, provinceName, addressId)) {
-            throw new com.homeconnect.core.exception.ApiException(
-                "Địa chỉ này đã tồn tại trong danh sách của bạn.",
-                org.springframework.http.HttpStatus.CONFLICT);
+        // Sync mã chuẩn
+        String wCode = request.getWardCode();
+        String dCode = request.getDistrictCode();
+        String pCode = request.getProvinceCode();
+
+        if (pCode == null || pCode.isBlank()) pCode = externalLocationService.findProvinceCodeByName(provinceName);
+        if (dCode == null || dCode.isBlank()) dCode = externalLocationService.findDistrictCodeByName(pCode, districtName);
+        if (wCode == null || wCode.isBlank()) wCode = externalLocationService.findWardCodeByName(dCode, wardName);
+
+        if (Boolean.TRUE.equals(request.getIsDefault())) {
+            resetDefaultAddress(userId);
         }
 
         existing.setAddressDetail(addressDetail);
         existing.setWardName(wardName);
         existing.setDistrictName(districtName);
         existing.setProvinceName(provinceName);
+        existing.setWardCode(wCode);
+        existing.setDistrictCode(dCode);
+        existing.setProvinceCode(pCode);
         existing.setLatitude(lat);
         existing.setLongitude(lng);
-        existing.setIsDefault(request.getIsDefault());
-        existing.setType(request.getType() != null ? request.getType() : existing.getType());
+        existing.setIsDefault(Boolean.TRUE.equals(request.getIsDefault()));
+        if (request.getType() != null) existing.setType(request.getType());
 
         return AddressResponse.from(addressRepository.save(existing));
     }
@@ -188,47 +175,31 @@ public class AddressService {
 
     @Transactional
     public void deleteAddress(Long userId, Integer addressId) {
-        Address existing = addressRepository.findById(addressId)
-                .orElseThrow(() -> new com.homeconnect.core.exception.ApiException(
-                        "Không tìm thấy địa chỉ.", org.springframework.http.HttpStatus.NOT_FOUND));
+        Address address = addressRepository.findById(addressId)
+                .orElseThrow(() -> new com.homeconnect.core.exception.ApiException("Không tìm thấy địa chỉ", org.springframework.http.HttpStatus.NOT_FOUND));
 
-        if (!existing.getUser().getId().equals(userId)) {
-            throw new com.homeconnect.core.exception.ApiException(
-                    "Bạn không có quyền xóa địa chỉ này.", org.springframework.http.HttpStatus.FORBIDDEN);
+        if (!address.getUser().getId().equals(userId)) {
+            throw new com.homeconnect.core.exception.ApiException("Bạn không có quyền xóa địa chỉ này", org.springframework.http.HttpStatus.FORBIDDEN);
         }
 
-        // RÀNG BUỘC: Không xóa địa chỉ nếu đang có bài đăng tin hoặc đơn hàng liên kết
-        if (jobPostRepository.existsByAddress_AddressId(addressId)) {
-            throw new com.homeconnect.core.exception.ApiException(
-                    "Không thể xóa địa chỉ này vì đang có bài đăng tin liên kết.", 
-                    org.springframework.http.HttpStatus.BAD_REQUEST);
-        }
-        if (bookingRepository.existsByAddress_AddressId(addressId)) {
-            throw new com.homeconnect.core.exception.ApiException(
-                    "Không thể xóa địa chỉ này vì đang có đơn hàng (booking) liên kết.", 
-                    org.springframework.http.HttpStatus.BAD_REQUEST);
+        if (jobPostRepository.existsByAddress_AddressId(addressId) || bookingRepository.existsByAddress_AddressId(addressId)) {
+            throw new com.homeconnect.core.exception.ApiException("Không thể xóa địa chỉ đang được sử dụng trong các đơn hàng hoặc tin đăng.", org.springframework.http.HttpStatus.BAD_REQUEST);
         }
 
-        addressRepository.delete(existing);
+        addressRepository.delete(address);
     }
-
-    // ─── HELPER ───────────────────────────────────────────────────────────────
 
     private void resetDefaultAddress(Long userId) {
-        addressRepository.findByUser_IdAndIsDefaultTrue(userId)
-                .ifPresent(a -> {
-                    a.setIsDefault(false);
-                    addressRepository.save(a);
-                });
+        addressRepository.findByUser_Id(userId).forEach(a -> {
+            if (Boolean.TRUE.equals(a.getIsDefault())) {
+                a.setIsDefault(false);
+                addressRepository.save(a);
+            }
+        });
     }
 
-    /** Ưu tiên giá trị nhập từ user (fallback) nếu có, nếu trống mới dùng từ Goong (val). */
     private String resolve(Map<String, Object> components, String key, String fallback) {
-        // Nếu user đã nhập/chọn từ gợi ý có data rồi thì giữ nguyên để tránh mất số nhà 
-        if (fallback != null && !fallback.isBlank()) {
-            return fallback;
-        }
         Object val = components.get(key);
-        return (val != null && !val.toString().isBlank()) ? val.toString() : fallback;
+        return (val != null && !String.valueOf(val).isBlank()) ? String.valueOf(val) : fallback;
     }
 }

@@ -14,6 +14,8 @@ const getStatusLabel = (status) => {
     if (normalized === 'COMPLETED') return 'Đã hoàn thành';
     if (normalized === 'CANCELLED') return 'Đã hủy';
     if (normalized === 'EXPIRED') return 'Đã hết hạn';
+    if (normalized === 'DISPUTED') return 'Đang khiếu nại';
+    if (normalized === 'RESOLVED') return 'Đã xử lý khiếu nại';
     return normalized || '---';
 };
 
@@ -87,7 +89,7 @@ const HistoryBookingPage = () => {
             .map((post) => {
                 const bookingStatus = String(post?.bookingStatus || '').toUpperCase();
                 const status = String(post?.status || '').toUpperCase();
-                const isCompleted = bookingStatus === 'COMPLETED' || status === 'COMPLETED';
+                const isHistory = ['COMPLETED', 'DISPUTED', 'RESOLVED'].includes(bookingStatus) || ['COMPLETED', 'DISPUTED', 'RESOLVED'].includes(status);
 
                 return {
                     postId: post?.postId,
@@ -98,10 +100,10 @@ const HistoryBookingPage = () => {
                     createdAt: post?.createdAt || post?.created_at,
                     completedAt: post?.completedAt || post?.updatedAt || post?.updated_at || post?.createdAt,
                     totalPrice: post?.offerPrice ?? post?.totalPrice ?? post?.estimated_price ?? 0,
-                    isCompleted,
+                    isHistory,
                 };
             })
-            .filter((item) => item.isCompleted)
+            .filter((item) => item.isHistory)
             .sort((a, b) => {
                 const ta = new Date(a.completedAt || a.createdAt).getTime() || 0;
                 const tb = new Date(b.completedAt || b.createdAt).getTime() || 0;

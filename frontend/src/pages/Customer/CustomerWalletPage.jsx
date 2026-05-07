@@ -56,7 +56,18 @@ const CustomerWalletPage = () => {
         fetchWalletData();
         fetchTransactions(0);
         fetchBankAccounts();
-        return () => { stopPolling(); stopCountdown(); };
+
+        const handleWalletUpdate = () => {
+            fetchWalletData();
+            fetchTransactions(0);
+        };
+        window.addEventListener('wallet:updated', handleWalletUpdate);
+
+        return () => {
+            stopPolling();
+            stopCountdown();
+            window.removeEventListener('wallet:updated', handleWalletUpdate);
+        };
     }, []);
 
     // ===== FETCH HELPERS =====
@@ -387,37 +398,42 @@ const CustomerWalletPage = () => {
                                     </div>
                                 ) : (
                                     <div className="vw-tx-list">
-                                        {transactions.map(tx => {
-                                            const typeInfo = formatTxType(tx.transactionType || tx.type);
-                                            const isPositive = ['DEPOSIT', 'REFUND'].includes(tx.transactionType || tx.type);
-                                            let dateStr = 'N/A';
-                                            if (tx.createdAt) {
-                                                const d = typeof tx.createdAt === 'string' ? new Date(tx.createdAt)
-                                                    : new Date(tx.createdAt[0], tx.createdAt[1] - 1, tx.createdAt[2], tx.createdAt[3], tx.createdAt[4], tx.createdAt[5]);
-                                                dateStr = d.toLocaleString('vi-VN');
-                                            }
-                                            return (
-                                                <div className="vw-tx-item" key={tx.id || tx.transactionId}>
-                                                    <div className={`vw-tx-icon vw-bg-${typeInfo.cls}-soft vw-text-${typeInfo.cls}`}>
-                                                        {isPositive
-                                                            ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
-                                                            : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
-                                                        }
-                                                    </div>
-                                                    <div className="vw-tx-content">
-                                                        <div className="vw-tx-title">{formatTxDescription(tx.description)}</div>
-                                                        <div className="vw-tx-meta">
-                                                            <span className={`vw-tx-type vw-text-${typeInfo.cls}`}>{typeInfo.label}</span>
-                                                            <span className="vw-tx-dot">&bull;</span>
-                                                            <span className="vw-tx-time">{dateStr}</span>
+                                        {transactions
+                                            .filter(tx => {
+                                                const desc = String(tx.description || '').toLowerCase();
+                                                return !desc.includes('subsidy loyalty') && !desc.includes('loyalty subsidy') && !desc.includes('trợ giá');
+                                            })
+                                            .map(tx => {
+                                                const typeInfo = formatTxType(tx.transactionType || tx.type);
+                                                const isPositive = ['DEPOSIT', 'REFUND'].includes(tx.transactionType || tx.type);
+                                                let dateStr = 'N/A';
+                                                if (tx.createdAt) {
+                                                    const d = typeof tx.createdAt === 'string' ? new Date(tx.createdAt)
+                                                        : new Date(tx.createdAt[0], tx.createdAt[1] - 1, tx.createdAt[2], tx.createdAt[3], tx.createdAt[4], tx.createdAt[5]);
+                                                    dateStr = d.toLocaleString('vi-VN');
+                                                }
+                                                return (
+                                                    <div className="vw-tx-item" key={tx.id || tx.transactionId}>
+                                                        <div className={`vw-tx-icon vw-bg-${typeInfo.cls}-soft vw-text-${typeInfo.cls}`}>
+                                                            {isPositive
+                                                                ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+                                                                : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+                                                            }
+                                                        </div>
+                                                        <div className="vw-tx-content">
+                                                            <div className="vw-tx-title">{formatTxDescription(tx.description)}</div>
+                                                            <div className="vw-tx-meta">
+                                                                <span className={`vw-tx-type vw-text-${typeInfo.cls}`}>{typeInfo.label}</span>
+                                                                <span className="vw-tx-dot">&bull;</span>
+                                                                <span className="vw-tx-time">{dateStr}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className={`vw-tx-amount ${isPositive ? 'vw-text-success' : 'vw-text-main'}`}>
+                                                            {isPositive ? '+' : '-'}{formatCurrency(tx.amount)}
                                                         </div>
                                                     </div>
-                                                    <div className={`vw-tx-amount ${isPositive ? 'vw-text-success' : 'vw-text-main'}`}>
-                                                        {isPositive ? '+' : '-'}{formatCurrency(tx.amount)}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                                );
+                                            })}
                                     </div>
                                 )}
                             </div>

@@ -193,6 +193,96 @@
     color: #2F5D50;
 }
 
+.hpm-review-item:last-child {
+    border-bottom: none;
+}
+
+/* Schedule Section Styles */
+.hpm-schedule-container {
+    max-height: 250px;
+    overflow-y: auto;
+    background: #f9fbfb;
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid #e2e8e8;
+}
+
+.hpm-date-group {
+    margin-bottom: 15px;
+}
+
+.hpm-date-group:last-child {
+    margin-bottom: 0;
+}
+
+.hpm-date-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.hpm-date-label::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: #2F5D50;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.hpm-slot-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.hpm-slot-pill {
+    padding: 8px 14px;
+    background: #ffffff;
+    border: 1px solid #cbd5e0;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: #2d3748;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 100px;
+}
+
+.hpm-slot-time {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.hpm-slot-dur {
+    font-size: 0.75rem;
+    color: #2F5D50;
+    font-weight: 600;
+    background: #f0fdf4;
+    padding: 1px 6px;
+    border-radius: 6px;
+}
+
+.hpm-slot-pill:hover {
+    border-color: #2F5D50;
+    color: #2F5D50;
+    background: #f0fdf4;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(47, 93, 80, 0.1);
+}
+
+.hpm-slot-pill:hover .hpm-slot-dur {
+    background: #2F5D50;
+    color: #fff;
+}
+
 .hpm-section {
     margin-bottom: 20px;
 }

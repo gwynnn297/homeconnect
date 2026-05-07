@@ -1,5 +1,6 @@
 package com.homeconnect.core.service;
 
+import com.homeconnect.core.socket.SocketIOService;
 import com.homeconnect.core.dto.request.DirectBookingRequest;
 import com.homeconnect.core.dto.request.BookingReportRequest;
 import com.homeconnect.core.dto.request.HelperDisputeResponseRequest;
@@ -77,6 +78,7 @@ public class BookingService {
     private final LoyaltyService loyaltyService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final DirectBookingRequestRepository directBookingRequestRepository;
+    private final SocketIOService socketIOService;
 
     @Value("${app.checkout.max-distance-meters:500}")
     private double maxCheckoutDistanceMeters;
@@ -357,9 +359,9 @@ public class BookingService {
             Optional<Address> existing = addressRepository.findFirstByUser_IdAndAddressDetailIgnoreCaseAndWardCodeAndDistrictCodeAndProvinceCode(
                     customer.getId(),
                     request.getAddressDetail(),
-                    request.getWardId(),
-                    request.getDistrictId(),
-                    request.getProvinceId()
+                    request.getWardCode(),
+                    request.getDistrictCode(),
+                    request.getProvinceCode()
             );
 
             if (existing.isPresent()) {
@@ -368,9 +370,9 @@ public class BookingService {
             } else {
                 bookingAddress = Address.builder()
                         .user(customer)
-                        .provinceCode(request.getProvinceId())
-                        .districtCode(request.getDistrictId())
-                        .wardCode(request.getWardId())
+                        .provinceCode(request.getProvinceCode())
+                        .districtCode(request.getDistrictCode())
+                        .wardCode(request.getWardCode())
                         .provinceName(request.getProvinceName())
                         .districtName(request.getDistrictName())
                         .wardName(request.getWardName())
@@ -401,9 +403,6 @@ public class BookingService {
                 .startTime(request.getStartTime())
                 .durationHours(totalHours)
                 .workSize(request.getWorkSize())
-                .isPremium(request.getIsPremium())
-                .hasPets(request.getHasPets())
-                .bringTools(request.getBringTools())
                 .description(request.getDescription())
                 .serviceIds(serviceIdsStr)
                 .build();
@@ -538,10 +537,6 @@ public class BookingService {
             price = category.getBasePrice().multiply(BigDecimal.valueOf(hours));
         }
 
-        // Premium
-        if (Boolean.TRUE.equals(req.getIsPremium())) {
-            price = price.add(BigDecimal.valueOf(50000));
-        }
 
         // Sub-services
         // Quy tắc mới: Mỗi dịch vụ con tính phí cố định 40k (tương ứng 1 giờ làm thêm)
@@ -559,14 +554,6 @@ public class BookingService {
 
         int catId = category.getCategoryId();
 
-        if (Boolean.TRUE.equals(req.getBringTools())) {
-            price = price.add(BigDecimal.valueOf(30000));
-        }
-
-        // Nhà có thú cưng (+30k)
-        if (Boolean.TRUE.equals(req.getHasPets())) {
-            price = price.add(BigDecimal.valueOf(30000));
-        }
 
         java.util.Map<String, Object> extra = req.getAdditionalData();
 
@@ -632,6 +619,10 @@ public class BookingService {
                     "Đơn đặt #" + booking.getId() + ": Thợ " + booking.getHelper().getFullName() + " đã đồng ý nhận yêu cầu trực tiếp của bạn.",
                     "DIRECT_BOOKING_ACCEPTED"
             );
+            
+            // Real-time update for both parties
+            socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getCustomer().getId()));
+            socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getHelper().getId()));
         } else {
             booking.setStatus(BookingStatus.CANCELLED);
             booking.setCancelSource("HELPER");
@@ -658,6 +649,11 @@ public class BookingService {
 
         bookingRepository.save(booking);
         helperScheduleRepository.save(schedule);
+
+        if (!accept) {
+            // Real-time update for rejection
+            socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getCustomer().getId()));
+        }
     }
 
     /**
@@ -673,6 +669,8 @@ public class BookingService {
                 BookingStatus.IN_PROGRESS,
                 BookingStatus.PENDING_COMPLETION,
                 BookingStatus.COMPLETED,
+                BookingStatus.DISPUTED,
+                BookingStatus.RESOLVED,
                 BookingStatus.CANCELLED);
 
         return bookingRepository
@@ -721,7 +719,11 @@ public class BookingService {
 
         notificationService.createNotification(booking.getHelper().getId(),
                 "Công việc đã bắt đầu!",
-                "Khách hàng đã xác nhận. Bạn có thể bắt đầu làm việc ngay.", "WORK_STARTED");
+                "Đơn hàng #" + bookingId + ": Khách hàng đã xác nhận. Bạn có thể bắt đầu làm việc ngay.", "WORK_STARTED");
+        
+        // Real-time update
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getHelper().getId()));
+        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getCustomer().getId()));
     }
 
     /**
@@ -792,11 +794,15 @@ public class BookingService {
         log.info("[BE-Exec-03] Helper {} checked out booking {}. Status: PENDING_COMPLETION", helperId, bookingId);
 
         String notifContent = isUndertime
-                ? "Thợ đã báo hoàn thành sớm (Lý do: " + normalizedReason + "). Vui lòng kiểm tra kỹ trước khi xác nhận."
-                : "Công việc đã xong. Vui lòng kiểm tra và bấm 'Xác nhận & Đánh giá'.";
+                ? "Đơn hàng #" + booking.getId() + ": Thợ đã báo hoàn thành sớm (Lý do: " + normalizedReason + "). Vui lòng kiểm tra kỹ trước khi xác nhận."
+                : "Đơn hàng #" + booking.getId() + ": Công việc đã xong. Vui lòng kiểm tra và bấm 'Xác nhận & Đánh giá'.";
 
         notificationService.createNotification(booking.getCustomer().getId(),
                 "Thợ báo đã hoàn thành!", notifContent, "WORK_DONE_BY_HELPER");
+        
+        // Real-time update
+        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getCustomer().getId()));
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getHelper().getId()));
     }
 
     private void validateCheckoutLocation(Booking booking, BigDecimal latitude, BigDecimal longitude) {
@@ -852,26 +858,38 @@ public class BookingService {
 
         notificationService.createNotification(booking.getHelper().getId(),
                 "Khách đã xác nhận hoàn thành!",
-                "Tuyệt vời! Khách hàng đã xác nhận. Lương sẽ được giải ngân sau 24h.", "WORK_COMPLETED");
+                "Đơn hàng #" + bookingId + ": Tuyệt vời! Khách hàng đã xác nhận. Lương sẽ được giải ngân sau 24h.", "WORK_COMPLETED");
+        
+        // Real-time update
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getHelper().getId()));
+        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getCustomer().getId()));
     }
 
     private BookingResponse mapToBookingResponse(Booking b, Long viewerId) {
         String fullAddress = "";
-        if (b.getAddress() != null) {
-            // [PB-15] Privacy: Helper chỉ thấy Quận/Huyện khi đơn ở trạng thái
-            // PENDING_ACCEPTANCE
-            if (b.getHelper().getId().equals(viewerId) && b.getStatus() == BookingStatus.PENDING_ACCEPTANCE) {
-                fullAddress = String.format("%s, %s, %s",
-                        b.getAddress().getWardName(),
-                        b.getAddress().getDistrictName(),
-                        b.getAddress().getProvinceName());
-            } else {
-                fullAddress = String.format("%s, %s, %s, %s",
-                        b.getAddress().getAddressDetail(),
-                        b.getAddress().getWardName(),
-                        b.getAddress().getDistrictName(),
-                        b.getAddress().getProvinceName());
+        try {
+            Address addr = b.getAddress();
+            if (addr != null) {
+                // Trigger lazy load
+                addr.getAddressId();
+                
+                // [PB-15] Privacy: Helper chỉ thấy Quận/Huyện khi đơn ở trạng thái PENDING_ACCEPTANCE
+                List<String> parts = new java.util.ArrayList<>();
+                if (b.getHelper().getId().equals(viewerId) && b.getStatus() == BookingStatus.PENDING_ACCEPTANCE) {
+                    if (addr.getWardName() != null && !addr.getWardName().isBlank()) parts.add(addr.getWardName());
+                    if (addr.getDistrictName() != null && !addr.getDistrictName().isBlank()) parts.add(addr.getDistrictName());
+                    if (addr.getProvinceName() != null && !addr.getProvinceName().isBlank()) parts.add(addr.getProvinceName());
+                } else {
+                    if (addr.getAddressDetail() != null && !addr.getAddressDetail().isBlank()) parts.add(addr.getAddressDetail());
+                    if (addr.getWardName() != null && !addr.getWardName().isBlank()) parts.add(addr.getWardName());
+                    if (addr.getDistrictName() != null && !addr.getDistrictName().isBlank()) parts.add(addr.getDistrictName());
+                    if (addr.getProvinceName() != null && !addr.getProvinceName().isBlank()) parts.add(addr.getProvinceName());
+                }
+                fullAddress = String.join(", ", parts);
             }
+        } catch (Exception e) {
+            log.warn("Address for Booking #{} not found or inaccessible: {}", b.getId(), e.getMessage());
+            fullAddress = "Địa chỉ không xác định";
         }
 
         String serviceIds = b.getJobPost() != null ? b.getJobPost().getServiceId() : 
@@ -932,9 +950,9 @@ public class BookingService {
                 .finalPrice(b.getFinalPrice())
                 .tierAtBooking(b.getTierAtBooking())
                 .address(fullAddress)
-                .wardName(b.getAddress() != null ? b.getAddress().getWardName() : null)
-                .districtName(b.getAddress() != null ? b.getAddress().getDistrictName() : null)
-                .provinceName(b.getAddress() != null ? b.getAddress().getProvinceName() : null)
+                .wardName(null) // Ward/Dist/Province are already part of fullAddress
+                .districtName(null)
+                .provinceName(null)
                 .paymentStatus(b.getPaymentStatus())
                 .disputeReason(b.getDisputeReason())
                 .evidenceUrl(b.getEvidenceUrl())
@@ -947,14 +965,8 @@ public class BookingService {
                 .description(b.getJobPost() != null ? b.getJobPost().getDescription() : b.getDescription())
                 .serviceIds(serviceIds)
                 .subServiceNames(subServiceNames)
-                .isPremium(b.getJobPost() != null ? b.getJobPost().getIsPremium() : 
-                           (b.getDirectBookingRequest() != null ? b.getDirectBookingRequest().getIsPremium() : false))
                 .isVipCustomer("GOLD".equalsIgnoreCase(b.getTierAtBooking()) || "PLATINUM".equalsIgnoreCase(b.getTierAtBooking()))
-                .hasPets(b.getJobPost() != null ? b.getJobPost().getHasPets() : 
-                        (b.getDirectBookingRequest() != null ? b.getDirectBookingRequest().getHasPets() : false))
-                .bringTools(b.getJobPost() != null ? b.getJobPost().getBringTools() : 
-                           (b.getDirectBookingRequest() != null ? b.getDirectBookingRequest().getBringTools() : false))
-                .canCheckin(b.getStatus() == BookingStatus.CONFIRMED)
+                .canCheckin(b.getStatus() == BookingStatus.CONFIRMED && (b.getScheduledStartTime() == null || Math.abs(java.time.Duration.between(b.getScheduledStartTime(), java.time.LocalDateTime.now()).toMinutes()) <= 180))
                 .arrivalProofImage(arrivalProofImage)
                 .cancelReason(b.getCancelReason())
                 .cancelSource(b.getCancelSource())
@@ -1429,8 +1441,8 @@ public class BookingService {
         if (!booking.getCustomer().getId().equals(customerId)) {
             throw new ApiException("Bạn không có quyền khiếu nại đơn này", HttpStatus.FORBIDDEN);
         }
-        if (booking.getStatus() != BookingStatus.COMPLETED) {
-            throw new ApiException("Chỉ có thể khiếu nại đơn ở trạng thái COMPLETED", HttpStatus.BAD_REQUEST);
+        if (booking.getStatus() != BookingStatus.COMPLETED && booking.getStatus() != BookingStatus.PENDING_COMPLETION) {
+            throw new ApiException("Chỉ có thể khiếu nại đơn ở trạng thái PENDING_COMPLETION hoặc COMPLETED", HttpStatus.BAD_REQUEST);
         }
         if (booking.getPaymentStatus() != PaymentStatus.HOLDING) {
             throw new ApiException("Đơn đã giải ngân/hoàn tiền, không thể mở khiếu nại", HttpStatus.BAD_REQUEST);

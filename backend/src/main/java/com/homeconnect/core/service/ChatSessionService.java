@@ -593,9 +593,7 @@ public class ChatSessionService {
         BigDecimal subServiceTotal = subFees.stream()
                 .map(fee -> fee.getPrice() != null ? fee.getPrice() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal premiumFee = Boolean.TRUE.equals(context.get("isPremium")) ? BigDecimal.valueOf(50000)
-                : BigDecimal.ZERO;
-        BigDecimal rawOtherFee = estimatedPrice.subtract(basePrice).subtract(subServiceTotal).subtract(premiumFee);
+        BigDecimal rawOtherFee = estimatedPrice.subtract(basePrice).subtract(subServiceTotal);
         final BigDecimal otherFee = rawOtherFee.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : rawOtherFee;
         Map<Long, HelperProfile> profileMap = helperProfileRepository.findByUser_IdIn(helperIds).stream()
                 .collect(Collectors.toMap(h -> h.getUser().getId(), h -> h));
@@ -632,8 +630,6 @@ public class ChatSessionService {
                             .availableStartTime(matchedSlot != null ? matchedSlot.getStartTime() : null)
                             .availableEndTime(matchedSlot != null ? matchedSlot.getEndTime() : null)
                             .basePrice(basePrice)
-                            .premiumFee(premiumFee)
-                            .subServiceTotal(subServiceTotal)
                             .otherFee(otherFee)
                             .subServices(subFees.stream()
                                     .map(fee -> ChatHelperCandidateResponse.ServiceFeeItem.builder()
@@ -720,7 +716,6 @@ public class ChatSessionService {
                 .categoryId(categoryId)
                 .durationHours(durationHours)
                 .serviceIds(getIntList(context, "serviceIds"))
-                .isPremium(Boolean.TRUE.equals(context.get("isPremium")))
                 .workSize(getDouble(context, "workSize"))
                 .additionalData(getMap(context, "additionalData"))
                 .build();
@@ -763,9 +758,6 @@ public class ChatSessionService {
                 .title("Đặt lịch từ chatbot")
                 .description(getString(context, "lastUserMessage"))
                 .workSize(getDouble(context, "workSize"))
-                .isPremium(Boolean.TRUE.equals(context.get("isPremium")))
-                .hasPets(Boolean.TRUE.equals(context.get("hasPets")))
-                .bringTools(Boolean.TRUE.equals(context.get("bringTools")))
                 .additionalData(getMap(context, "additionalData"))
                 .build();
     }

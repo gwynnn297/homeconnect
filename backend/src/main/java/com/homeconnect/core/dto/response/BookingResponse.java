@@ -54,9 +54,6 @@ public class BookingResponse {
     private Double workSize;
     private String description;
     private String serviceIds;
-    private Boolean isPremium;
-    private Boolean hasPets;
-    private Boolean bringTools;
     private java.util.Map<String, Object> additionalData;
     private Boolean isVipCustomer;
     private Boolean canCheckin;

@@ -1,6 +1,6 @@
-
 package com.homeconnect.core.service;
 
+import com.homeconnect.core.socket.SocketIOService;
 import com.homeconnect.core.dto.request.CreateJobPostRequest;
 import com.homeconnect.core.dto.request.EstimatePriceRequest;
 import com.homeconnect.core.dto.response.EstimatePriceResponse;
@@ -98,6 +98,7 @@ public class JobService {
     private final ObjectMapper objectMapper;
     private final JobPostEditLogRepository jobPostEditLogRepository;
     private final AdminAuditLogService adminAuditLogService;
+    private final SocketIOService socketIOService;
 
     public EstimatePriceResponse estimatePrice(EstimatePriceRequest request) {
         log.info("Estimating price for category {}, duration {} hours",
@@ -147,11 +148,8 @@ public class JobService {
         BigDecimal finalEstimatedPrice = calculatePriceInternal(
                 category,
                 request.getDurationHours(),
-                request.getIsPremium(),
                 request.getServiceIds(),
                 request.getWorkSize(),
-                request.getBringTools(),
-                request.getHasPets(),
                 request.getAdditionalData());
 
         log.info("Estimated price: {} VND (Base: {}, Fees: {})", finalEstimatedPrice, finalBasePrice,
@@ -208,11 +206,8 @@ public class JobService {
         BigDecimal originalPrice = calculatePriceInternal(
                 category,
                 request.getDurationHours(),
-                request.getIsPremium(),
                 request.getServiceIds(),
                 request.getWorkSize(),
-                request.getBringTools(),
-                request.getHasPets(),
                 request.getAdditionalData());
         userRepository.findById(customerId)
                 .orElseThrow(() -> new ApiException("Khách hàng không tồn tại", HttpStatus.NOT_FOUND));
@@ -258,9 +253,6 @@ public class JobService {
                 .expiresAt(LocalDateTime.now().plusDays(3))
                 .lastValidatedAt(LocalDateTime.now())
                 .workSize(request.getWorkSize())
-                .isPremium(Boolean.TRUE.equals(request.getIsPremium()))
-                .hasPets(Boolean.TRUE.equals(request.getHasPets()))
-                .bringTools(Boolean.TRUE.equals(request.getBringTools()) || Boolean.TRUE.equals(request.getIsPremium()))
                 .build();
 
         // Xử lý additionalData: Lưu kèm snapshot loyalty để booking có thể kế thừa
@@ -286,6 +278,9 @@ public class JobService {
 
         // --- 5. Publish event thông báo ---
         eventPublisher.publishEvent(new JobPostCreatedEvent(jobPost.getPostId()));
+
+        // --- 6. Real-time update: Thông báo cho các helper tiềm năng
+        socketIOService.broadcast("new_job_available", mapToJobPostResponse(jobPost, false));
 
         return mapToJobPostResponse(jobPost, true);
     }
@@ -475,6 +470,13 @@ public class JobService {
                 .status("PENDING")
                 .build();
         jobApplicationRepository.save(application);
+
+        // --- Real-time update: Thông báo cho Customer
+        socketIOService.sendMessage(jobPost.getCustomerId().toString(), "new_job_application", Map.of(
+            "postId", jobId,
+            "jobTitle", jobPost.getTitle(),
+            "helperId", helperId
+        ));
     }
 
     private JobPostResponse mapToJobPostResponse(JobPost jobPost, boolean showAddressDetail) {
@@ -482,121 +484,143 @@ public class JobService {
     }
 
     private JobPostResponse mapToJobPostResponse(JobPost jobPost, boolean showAddressDetail, Booking booking) {
-        List<Integer> sIds = parseServiceIds(jobPost.getServiceId());
-        StringBuilder sNames = new StringBuilder();
-        List<JobPostResponse.ServiceFee> serviceFees = new ArrayList<>();
+        try {
+            List<Integer> sIds = parseServiceIds(jobPost.getServiceId());
+            StringBuilder sNames = new StringBuilder();
+            List<JobPostResponse.ServiceFee> serviceFees = new ArrayList<>();
 
-        for (Integer id : sIds) {
-            serviceRepository.findById(id).ifPresent(s -> {
-                if (sNames.length() > 0)
-                    sNames.append(", ");
-                sNames.append(s.getName());
+            for (Integer id : sIds) {
+                serviceRepository.findById(id).ifPresent(s -> {
+                    if (sNames.length() > 0)
+                        sNames.append(", ");
+                    sNames.append(s.getName());
 
-                serviceFees.add(JobPostResponse.ServiceFee.builder()
-                        .name(s.getName())
-                        .price(s.getBasePrice() != null ? s.getBasePrice() : BigDecimal.ZERO)
-                        .build());
-            });
-        }
+                    serviceFees.add(JobPostResponse.ServiceFee.builder()
+                            .name(s.getName())
+                            .price(s.getBasePrice() != null ? s.getBasePrice() : BigDecimal.ZERO)
+                            .build());
+                });
+            }
 
-        // Tính giá cơ bản (không bao gồm phụ phí và giờ phụ)
-        BigDecimal baseLaborPrice_Unit = (jobPost.getCategory() != null) ? jobPost.getCategory().getBasePrice()
-                : BigDecimal.ZERO;
-        int baseDurationHours = Math.max(0, (jobPost.getDurationHours() != null ? jobPost.getDurationHours() : 0)
-                - (sIds.size() * HOURS_PER_SUB_SERVICE));
-        BigDecimal finalBasePrice = baseLaborPrice_Unit.multiply(BigDecimal.valueOf(baseDurationHours));
+            // Safe category access
+            BigDecimal baseLaborPrice_Unit = BigDecimal.ZERO;
+            Integer categoryId = null;
+            String categoryName = null;
+            try {
+                ServiceCategory cat = jobPost.getCategory();
+                if (cat != null) {
+                    baseLaborPrice_Unit = cat.getBasePrice() != null ? cat.getBasePrice() : BigDecimal.ZERO;
+                    categoryId = cat.getCategoryId();
+                    categoryName = cat.getName();
+                }
+            } catch (Exception e) {
+                log.warn("Failed to load category for job post {}: {}", jobPost.getPostId(), e.getMessage());
+            }
 
-        // Map additionalData
-        Map<String, Object> additionalDataMap = deserializeAdditionalData(jobPost.getAdditionalData());
+            int baseDurationHours = Math.max(0, (jobPost.getDurationHours() != null ? jobPost.getDurationHours() : 0)
+                    - (sIds.size() * HOURS_PER_SUB_SERVICE));
+            BigDecimal finalBasePrice = baseLaborPrice_Unit.multiply(BigDecimal.valueOf(baseDurationHours));
 
-        // Ưu tiên lấy workSize từ cột riêng, nếu null mới tìm trong additionalData
-        // (legacy)
-        Double workSize = jobPost.getWorkSize();
-        if (workSize == null && additionalDataMap != null && additionalDataMap.containsKey("workSize")) {
-            Object wsObj = additionalDataMap.get("workSize");
-            if (wsObj != null) {
-                try {
-                    workSize = Double.valueOf(wsObj.toString());
-                } catch (NumberFormatException ignored) {
+            Map<String, Object> additionalDataMap = deserializeAdditionalData(jobPost.getAdditionalData());
+
+            Double workSize = jobPost.getWorkSize();
+            if (workSize == null && additionalDataMap != null && additionalDataMap.containsKey("workSize")) {
+                Object wsObj = additionalDataMap.get("workSize");
+                if (wsObj != null) {
+                    try {
+                        workSize = Double.valueOf(wsObj.toString());
+                    } catch (NumberFormatException ignored) {}
                 }
             }
+
+            JobPostResponse.JobPostResponseBuilder builder = JobPostResponse.builder()
+                    .postId(jobPost.getPostId())
+                    .serviceIds(sIds)
+                    .serviceNames(sNames.toString())
+                    .categoryId(categoryId)
+                    .categoryName(categoryName)
+                    .title(jobPost.getTitle())
+                    .description(jobPost.getDescription());
+
+            // Safe address mapping
+            try {
+                Address addr = null;
+                try {
+                    addr = jobPost.getAddress();
+                } catch (jakarta.persistence.EntityNotFoundException e) {
+                    log.warn("Address reference lost for JobPost #{}: {}", jobPost.getPostId(), e.getMessage());
+                }
+
+                if (addr != null) {
+                    builder.addressId(addr.getAddressId())
+                           .wardName(addr.getWardName())
+                           .districtName(addr.getDistrictName())
+                           .provinceName(addr.getProvinceName());
+
+                    if (showAddressDetail) {
+                        String fullAddrStr = String.join(", ",
+                                addr.getAddressDetail() != null ? addr.getAddressDetail() : "",
+                                addr.getWardName() != null ? addr.getWardName() : "",
+                                addr.getDistrictName() != null ? addr.getDistrictName() : "",
+                                addr.getProvinceName() != null ? addr.getProvinceName() : "").replaceAll(", , ", ", ").trim();
+                        builder.fullAddress(fullAddrStr.isEmpty() ? "Địa chỉ không xác định" : fullAddrStr);
+                        builder.addressDetail(addr.getAddressDetail());
+                    }
+                } else {
+                    builder.fullAddress("Địa chỉ không xác định (Dữ liệu gốc đã bị xóa)");
+                }
+            } catch (Exception e) {
+                log.warn("General Address error for JobPost #{}: {}", jobPost.getPostId(), e.getMessage());
+                if (showAddressDetail) builder.fullAddress("Địa chỉ không xác định (Lỗi dữ liệu)");
+            }
+
+
+            builder.workDate(jobPost.getWorkDate())
+                    .startTime(jobPost.getStartTime())
+                    .durationHours(jobPost.getDurationHours())
+                    .offerPrice(jobPost.getOfferPrice())
+                    .basePrice(finalBasePrice)
+                    .serviceFees(serviceFees)
+                    .currency("VND")
+                    .status(jobPost.getStatus())
+                    .bookingId(booking != null ? booking.getId() : null)
+                    .bookingStatus(booking != null && booking.getStatus() != null ? booking.getStatus().name() : null)
+                    .canCheckin(booking != null && booking.getStatus() == BookingStatus.CONFIRMED && (booking.getScheduledStartTime() == null || Math.abs(java.time.Duration.between(booking.getScheduledStartTime(), java.time.LocalDateTime.now()).toMinutes()) <= 180))
+                    .customerArrivalConfirmed(booking != null && Boolean.TRUE.equals(booking.getCustomerArrivalConfirmed()))
+                    .arrivalProofImage(booking != null
+                            ? (booking.getArrivalProofImage() != null && !booking.getArrivalProofImage().isBlank()
+                                    ? booking.getArrivalProofImage()
+                                    : booking.getCheckinPhotoUrl())
+                            : null)
+                    .disputeReason(booking != null ? booking.getDisputeReason() : null)
+                    .disputeEvidenceUrl(booking != null ? booking.getEvidenceUrl() : null)
+                    .disputedAt(booking != null ? booking.getDisputedAt() : null)
+                    .helperDisputeMessage(booking != null ? booking.getHelperDisputeMessage() : null)
+                    .helperDisputeEvidenceUrl(booking != null ? booking.getHelperDisputeEvidenceUrl() : null)
+                    .helperDisputeAt(booking != null ? booking.getHelperDisputeAt() : null)
+                    .cancelReason(booking != null ? booking.getCancelReason() : null)
+                    .cancelSource(booking != null ? booking.getCancelSource() : null)
+                    .createdAt(jobPost.getCreatedAt())
+                    .workSize(workSize)
+                    .additionalData(additionalDataMap);
+
+
+            BigDecimal originalPrice = extractBigDecimal(additionalDataMap, "loyaltyOriginalPrice", jobPost.getOfferPrice());
+            BigDecimal discountAmount = extractBigDecimal(additionalDataMap, "loyaltyDiscountAmount", BigDecimal.ZERO);
+            BigDecimal finalPrice = extractBigDecimal(additionalDataMap, "loyaltyFinalPrice", jobPost.getOfferPrice());
+            String customerTier = extractString(additionalDataMap, "loyaltyTierAtBooking", CustomerTier.BRONZE.name());
+            
+            builder.originalPrice(originalPrice)
+                    .discountAmount(discountAmount)
+                    .finalPrice(finalPrice)
+                    .customerTier(customerTier)
+                    .isVipCustomer("GOLD".equalsIgnoreCase(customerTier) || Boolean.TRUE.equals(extractBoolean(additionalDataMap, "isVipCustomer")));
+
+            return builder.build();
+        } catch (Exception e) {
+            log.error("Failed to map JobPost {}: {}", jobPost.getPostId(), e.getMessage(), e);
+            return null;
         }
-
-        JobPostResponse.JobPostResponseBuilder builder = JobPostResponse.builder()
-                .postId(jobPost.getPostId())
-                .serviceIds(sIds)
-                .serviceNames(sNames.toString())
-                .categoryId(jobPost.getCategory() != null ? jobPost.getCategory().getCategoryId() : null)
-                .categoryName(jobPost.getCategory() != null ? jobPost.getCategory().getName() : null)
-                .title(jobPost.getTitle())
-                .description(jobPost.getDescription())
-                .addressId(jobPost.getAddress() != null ? jobPost.getAddress().getAddressId() : null)
-                .wardName(jobPost.getAddress() != null ? jobPost.getAddress().getWardName() : null)
-                .districtName(jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : null)
-                .provinceName(jobPost.getAddress() != null ? jobPost.getAddress().getProvinceName() : null)
-                .workDate(jobPost.getWorkDate())
-                .startTime(jobPost.getStartTime())
-                .durationHours(jobPost.getDurationHours())
-                .offerPrice(jobPost.getOfferPrice())
-                .basePrice(finalBasePrice)
-                .serviceFees(serviceFees)
-                .currency("VND")
-                .status(jobPost.getStatus())
-                .bookingId(booking != null ? booking.getId() : null)
-                .bookingStatus(booking != null && booking.getStatus() != null ? booking.getStatus().name() : null)
-                .canCheckin(booking != null && booking.getStatus() == BookingStatus.CONFIRMED)
-                .customerArrivalConfirmed(booking != null && Boolean.TRUE.equals(booking.getCustomerArrivalConfirmed()))
-                .arrivalProofImage(booking != null
-                        ? (booking.getArrivalProofImage() != null && !booking.getArrivalProofImage().isBlank()
-                                ? booking.getArrivalProofImage()
-                                : booking.getCheckinPhotoUrl())
-                        : null)
-                .disputeReason(booking != null ? booking.getDisputeReason() : null)
-                .disputeEvidenceUrl(booking != null ? booking.getEvidenceUrl() : null)
-                .disputedAt(booking != null ? booking.getDisputedAt() : null)
-                .helperDisputeMessage(booking != null ? booking.getHelperDisputeMessage() : null)
-                .helperDisputeEvidenceUrl(booking != null ? booking.getHelperDisputeEvidenceUrl() : null)
-                .helperDisputeAt(booking != null ? booking.getHelperDisputeAt() : null)
-                .cancelReason(booking != null ? booking.getCancelReason() : null)
-                .cancelSource(booking != null ? booking.getCancelSource() : null)
-                .createdAt(jobPost.getCreatedAt())
-                .workSize(workSize)
-                .additionalData(additionalDataMap)
-                .isPremium(jobPost.getIsPremium())
-                .hasPets(jobPost.getHasPets())
-                .bringTools(jobPost.getBringTools());
-
-        BigDecimal originalPrice = extractBigDecimal(additionalDataMap, "loyaltyOriginalPrice",
-                jobPost.getOfferPrice());
-        BigDecimal discountAmount = extractBigDecimal(additionalDataMap, "loyaltyDiscountAmount", BigDecimal.ZERO);
-        BigDecimal finalPrice = extractBigDecimal(additionalDataMap, "loyaltyFinalPrice", jobPost.getOfferPrice());
-        String customerTier = extractString(additionalDataMap, "loyaltyTierAtBooking", CustomerTier.BRONZE.name());
-        boolean vipCustomer = "GOLD".equalsIgnoreCase(customerTier)
-                || Boolean.TRUE.equals(extractBoolean(additionalDataMap, "isVipCustomer"));
-        builder.originalPrice(originalPrice)
-                .discountAmount(discountAmount)
-                .finalPrice(finalPrice)
-                .customerTier(customerTier)
-                .isVipCustomer(vipCustomer);
-
-        // Nếu được yêu cầu hiển thị địa chỉ chi tiết (Dành cho Customer hoặc View riêng
-        // biệt)
-        if (showAddressDetail && jobPost.getAddress() != null) {
-            com.homeconnect.core.entity.Address addr = jobPost.getAddress();
-            String fullAddress = String.join(", ",
-                    addr.getAddressDetail() != null ? addr.getAddressDetail() : "",
-                    addr.getWardName() != null ? addr.getWardName() : "",
-                    addr.getDistrictName() != null ? addr.getDistrictName() : "",
-                    addr.getProvinceName() != null ? addr.getProvinceName() : "").replaceAll(", $", "")
-                    .replaceAll("^, ", "");
-
-            builder.addressDetail(addr.getAddressDetail())
-                    .latitude(addr.getLatitude())
-                    .longitude(addr.getLongitude())
-                    .fullAddress(fullAddress);
-        }
-
-        return builder.build();
     }
 
     private BigDecimal extractBigDecimal(Map<String, Object> data, String key, BigDecimal defaultValue) {
@@ -761,6 +785,7 @@ public class JobService {
 
         return jobPosts.stream()
                 .map(jp -> mapToJobPostResponse(jp, true, bookingByPostId.get(jp.getPostId())))
+                .filter(Objects::nonNull) // Filter out any posts that failed to map
                 .collect(Collectors.toList());
     }
 
@@ -831,12 +856,6 @@ public class JobService {
             jobPost.setDurationHours(request.getDurationHours());
         // if (request.getWorkSize() != null)
         // jobPost.setWorkSize(request.getWorkSize());
-        if (request.getIsPremium() != null)
-            jobPost.setIsPremium(request.getIsPremium());
-        if (request.getHasPets() != null)
-            jobPost.setHasPets(request.getHasPets());
-        if (request.getBringTools() != null)
-            jobPost.setBringTools(request.getBringTools());
 
         // Update additionalData and workSize
         Map<String, Object> currentData = deserializeAdditionalData(jobPost.getAdditionalData());
@@ -1157,11 +1176,8 @@ public class JobService {
         return calculatePriceInternal(
                 jobPost.getCategory(),
                 baseLaborHours,
-                jobPost.getIsPremium(),
                 sIds,
                 workSize,
-                jobPost.getBringTools(),
-                jobPost.getHasPets(),
                 additionalData);
     }
 
@@ -1172,11 +1188,8 @@ public class JobService {
     private BigDecimal calculatePriceInternal(
             ServiceCategory category,
             Integer hours,
-            Boolean isPremium,
             List<Integer> serviceIds,
             Double workSize,
-            Boolean bringTools,
-            Boolean hasPets,
             Map<String, Object> additionalData) {
 
         if (category == null)
@@ -1195,20 +1208,6 @@ public class JobService {
             price = category.getBasePrice().multiply(BigDecimal.valueOf(laborBaseHours));
         }
 
-        // 3. Phí Premium (Dịch vụ cao cấp)
-        if (Boolean.TRUE.equals(isPremium)) {
-            price = price.add(BigDecimal.valueOf(50000));
-        }
-
-        // 3b. Phí mang dụng cụ (+30k)
-        if (Boolean.TRUE.equals(bringTools)) {
-            price = price.add(BigDecimal.valueOf(30000));
-        }
-
-        // 3c. Phí nhà có thú cưng (+30k)
-        if (Boolean.TRUE.equals(hasPets)) {
-            price = price.add(BigDecimal.valueOf(30000));
-        }
 
         // 4. Phí các dịch vụ con (extra services) - Cộng theo giá niêm yết của từng dịch vụ
         if (serviceIds != null && !serviceIds.isEmpty()) {

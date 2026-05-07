@@ -25,8 +25,6 @@ public class ChatHelperCandidateResponse {
     private LocalTime availableStartTime;
     private LocalTime availableEndTime;
     private BigDecimal basePrice;
-    private BigDecimal premiumFee;
-    private BigDecimal subServiceTotal;
     private BigDecimal otherFee;
     private List<ServiceFeeItem> subServices;
 

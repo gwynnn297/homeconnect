@@ -131,6 +131,9 @@ const ProfileService = {
     getActiveCategories,
     getHelperReviews: (helperId) => {
         return apiClient.get(`/api/v1/reviews/helper/${helperId}?size=3&sort=createdAt,desc`);
+    },
+    getHelperSchedule: (helperId, month, year) => {
+        return apiClient.get(`/api/v1/schedules/monthly?helperId=${helperId}&month=${month}&year=${year}`);
     }
 };
 

@@ -78,8 +78,8 @@ const CustomerManagePostsPage = () => {
     const [cancelDirectError, setCancelDirectError] = useState('');
     const [toast, setToast] = useState(null);
 
-    const loadPosts = useCallback(async () => {
-        setLoading(true);
+    const loadPosts = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         setError('');
 
         let fetched = null;
@@ -124,6 +124,9 @@ const CustomerManagePostsPage = () => {
                         createdAt: db.createdAt,
                         status: db.status,
                         estimatedPrice: Number(db.finalPrice ?? db.totalPrice ?? 0),
+                        originalPrice: Number(db.originalPrice ?? db.totalPrice ?? 0),
+                        finalPrice: Number(db.finalPrice ?? db.totalPrice ?? 0),
+                        discountAmount: Number(db.discountAmount ?? 0),
                         isDirect: true,
                         cancelReason: db.cancelReason,
                         cancelSource: db.cancelSource || null,
@@ -147,16 +150,34 @@ const CustomerManagePostsPage = () => {
                 ? 'Không thể tải bài đăng do có dữ liệu địa chỉ cũ đã bị xóa khỏi hệ thống. Vui lòng liên hệ quản trị để đồng bộ lại dữ liệu địa chỉ cho các bài đăng trước đây.'
                 : rawMsg || 'Không thể tải danh sách bài đăng từ hệ thống.';
             setError(friendlyMsg);
-            setLoading(false);
+            if (!silent) setLoading(false);
             return;
         }
 
         setPosts(fetched);
-        setLoading(false);
+        if (!silent) setLoading(false);
     }, []);
 
     useEffect(() => {
         loadPosts();
+
+        // Polling every 10 seconds
+        const interval = setInterval(() => {
+            loadPosts(true);
+        }, 10000);
+
+        // Instant refresh on notification or socket update
+        const handleRefresh = () => loadPosts(true);
+        window.addEventListener('notification:received', handleRefresh);
+        window.addEventListener('job:new_application', handleRefresh);
+        window.addEventListener('booking:updated', handleRefresh);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('notification:received', handleRefresh);
+            window.removeEventListener('job:new_application', handleRefresh);
+            window.removeEventListener('booking:updated', handleRefresh);
+        };
     }, [loadPosts]);
 
     const handleCancelPost = async (post) => {
@@ -252,6 +273,9 @@ const CustomerManagePostsPage = () => {
                     createdAt: post?.createdAt ?? post?.created_at,
                     status: resolveUnifiedStatus(post),
                     estimatedPrice,
+                    originalPrice: Number(post?.originalPrice ?? estimatedPrice),
+                    finalPrice: Number(post?.finalPrice ?? estimatedPrice),
+                    discountAmount: Number(post?.discountAmount ?? 0),
                     cancelReason: post?.cancelReason || null,
                     cancelSource: post?.cancelSource || null
                 };
@@ -454,15 +478,7 @@ const CustomerManagePostsPage = () => {
                                                             {post.cancelReason}
                                                         </div>
                                                     )}
-                                                    {post.cancelSource && ['CANCELLED', 'EXPIRED'].includes(post.status) && (
-                                                        <div className="cmp-cancel-reason" style={{ marginTop: 8 }}>
-                                                            Nguồn hủy: {String(post.cancelSource).toUpperCase() === 'HELPER'
-                                                                ? 'Thợ'
-                                                                : (String(post.cancelSource).toUpperCase() === 'CUSTOMER'
-                                                                    ? 'Khách hàng'
-                                                                    : (String(post.cancelSource).toUpperCase() === 'ADMIN' ? 'Quản trị viên' : post.cancelSource))}
-                                                        </div>
-                                                    )}
+
 
                                                     <h3 className="cmp-post-title">{post.title}</h3>
                                                     <p className="cmp-post-desc">{post.description}</p>
@@ -488,8 +504,35 @@ const CustomerManagePostsPage = () => {
                                                         </span>
                                                     </div>
                                                     <div className="cmp-post-price">
-                                                        Giá dự kiến: <strong>{formatCurrency(post.estimatedPrice)}</strong>
+                                                        <span className="cmp-price-label">Giá :</span>
+                                                        <div className="cmp-price-value-group">
+                                                            {post.discountAmount > 0 ? (
+                                                                <>
+                                                                    <span className="cmp-original-price">{formatCurrency(post.originalPrice)}</span>
+                                                                    <div className="cmp-final-price-row">
+                                                                        <span className="cmp-final-price">{formatCurrency(post.finalPrice)}</span>
+                                                                        {(() => {
+                                                                            const ratio = (post.originalPrice - post.finalPrice) / post.originalPrice;
+                                                                            const pct = Math.round(ratio * 100);
+                                                                            if (pct === 5) return <span className="cmp-discount-badge">Hạng Bạc -5%</span>;
+                                                                            if (pct === 10) return <span className="cmp-discount-badge">Hạng Vàng -10%</span>;
+                                                                            if (pct > 0) return <span className="cmp-discount-badge">-{pct}%</span>;
+                                                                            return null;
+                                                                        })()}
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <span className="cmp-normal-price">{formatCurrency(post.estimatedPrice)}</span>
+                                                            )}
+                                                        </div>
                                                     </div>
+
+                                                    {post.hasArrivalProof && (
+                                                        <div className="cmp-arrival-badge">
+                                                            Đã có ảnh địa điểm thợ gửi để xác minh đúng nhà.
+                                                        </div>
+                                                    )}
+
 
                                                     {hasApplicants ? (
                                                         <div
@@ -563,31 +606,34 @@ const CustomerManagePostsPage = () => {
                                                                 : (post.isDirect ? 'Hủy yêu cầu' : 'Hủy bài đăng')}
                                                         </button>
                                                     ) : null}
-                                                    
-                                                        <button
-                                                            className="cmp-btn-outline"
-                                                            style={{ borderColor: service.color, color: service.color, flex: 1, minWidth: 0, padding: '10px 4px' }}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                navigate(`/customer/manage-posts/${post.postId}`);
-                                                            }}
-                                                        >
-                                                            Xem chi tiết
-                                                        </button>
-                                                    {canOpenBooking && post.status !== 'CANCELLED' && post.status !== 'EXPIRED' && (
-                                                        <button
-                                                            type="button"
-                                                            className="cmp-btn-outline cmp-btn-action"
-                                                            style={{ margin: 0, flex: 1, minWidth: 0, maxWidth: 'none', padding: '10px 4px' }}
-                                                            onClick={() => navigate(`/customer/bookings/${post.bookingId}`)}
-                                                        >
-                                                            {shouldShowArrivalCta
-                                                                ? (post.customerArrivalConfirmed
-                                                                    ? 'Xác nhận'
-                                                                    : 'Chi tiết xác nhận')
-                                                                : 'Chi tiết booking'}
-                                                        </button>
-                                                    )}
+
+                                                    <button
+                                                        className="cmp-btn-outline"
+                                                        style={{ borderColor: service.color, color: service.color, flex: 1, minWidth: 0, padding: '10px 4px' }}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            navigate(`/customer/manage-posts/${post.postId}`);
+                                                        }}
+                                                    >
+                                                        Xem chi tiết
+                                                    </button>
+                                                    {canOpenBooking &&
+                                                        post.status !== 'CANCELLED' &&
+                                                        post.status !== 'EXPIRED' &&
+                                                        !(post.isDirect && bookingSt === 'PENDING_ACCEPTANCE') && (
+                                                            <button
+                                                                type="button"
+                                                                className="cmp-btn-outline cmp-btn-action"
+                                                                style={{ margin: 0, flex: 1, minWidth: 0, maxWidth: 'none', padding: '10px 4px' }}
+                                                                onClick={() => navigate(`/customer/bookings/${post.bookingId}`)}
+                                                            >
+                                                                {shouldShowArrivalCta
+                                                                    ? (post.customerArrivalConfirmed
+                                                                        ? 'Xác nhận'
+                                                                        : 'Chi tiết xác nhận')
+                                                                    : 'Chi tiết booking'}
+                                                            </button>
+                                                        )}
                                                 </div>
                                             </div>
                                         );

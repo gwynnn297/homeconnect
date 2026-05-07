@@ -228,17 +228,87 @@
 }
 
 .cmp-post-price {
-    margin-top: 15px;
-    font-size: 14px;
-    color: #555;
-    border-top: 1px solid #f0f0f0;
-    padding-top: 15px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end; /* Align with the bottom number */
 }
 
-.cmp-post-price strong {
-    font-size: 18px;
+.cmp-price-label {
+    font-size: 15px;
+    color: #64748b;
+    font-weight: 700;
+    padding-bottom: 3px; /* Fine-tune baseline alignment with large price */
+}
+
+.cmp-price-value-group {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+}
+
+.cmp-original-price {
+    text-decoration: line-through;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.cmp-final-price-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cmp-final-price {
+    font-size: 22px;
+    font-weight: 800;
+    color: #059669;
+    letter-spacing: -0.01em;
+}
+
+.cmp-normal-price {
+    font-size: 22px;
+    font-weight: 800;
     color: var(--primary);
-    float: right;
+    letter-spacing: -0.01em;
+}
+
+.cmp-discount-badge {
+    display: inline-flex;
+    align-items: center;
+    background-color: #ecfdf5;
+    color: #059669;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    box-shadow: 0 1px 2px rgba(16, 185, 129, 0.05);
+}
+
+.cmp-arrival-badge {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #eff6ff 0%, #e0f2fe 100%);
+    color: #0369a1;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid #bae6fd;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cmp-arrival-badge::before {
+    content: '📍';
+    font-size: 14px;
 }
 
 .cmp-applicant-preview {

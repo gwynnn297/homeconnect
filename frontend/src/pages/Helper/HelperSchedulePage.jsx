@@ -229,12 +229,14 @@ const HelperSchedulePage = () => {
             setIsLoading(true);
             setErrorMessage('');
 
-            const data = await HelperScheduleService.getMonthlySchedule({
+            const res = await HelperScheduleService.getMonthlySchedule({
                 month: currentMonth.getMonth() + 1,
                 year: currentMonth.getFullYear()
             });
 
-            setMonthlySchedules(Array.isArray(data) ? data : []);
+            // Extract list from res.data because of backend ApiResponse wrapper
+            const list = res?.data || (Array.isArray(res) ? res : []);
+            setMonthlySchedules(list);
         } catch (error) {
             setMonthlySchedules([]);
             const message = error?.message || 'Không thể tải lịch làm việc. Vui lòng thử lại.';
@@ -935,6 +937,8 @@ const HelperSchedulePage = () => {
                                     <input
                                         id="registerStartTime"
                                         type="time"
+                                        lang="en-GB"
+                                        step="60"
                                         value={registerForm.startTime}
                                         onChange={(event) => handleRegisterFormChange('startTime', event.target.value)}
                                     />
@@ -944,6 +948,8 @@ const HelperSchedulePage = () => {
                                     <input
                                         id="registerEndTime"
                                         type="time"
+                                        lang="en-GB"
+                                        step="60"
                                         value={registerForm.endTime}
                                         onChange={(event) => handleRegisterFormChange('endTime', event.target.value)}
                                     />
@@ -990,6 +996,8 @@ const HelperSchedulePage = () => {
                                     <input
                                         id="addShiftStartTime"
                                         type="time"
+                                        lang="en-GB"
+                                        step="60"
                                         value={addShiftForm.startTime}
                                         onChange={(event) => handleAddShiftFormChange('startTime', event.target.value)}
                                     />
@@ -999,6 +1007,8 @@ const HelperSchedulePage = () => {
                                     <input
                                         id="addShiftEndTime"
                                         type="time"
+                                        lang="en-GB"
+                                        step="60"
                                         value={addShiftForm.endTime}
                                         onChange={(event) => handleAddShiftFormChange('endTime', event.target.value)}
                                     />
@@ -1047,6 +1057,8 @@ const HelperSchedulePage = () => {
                                     <input
                                         id="updateShiftStartTime"
                                         type="time"
+                                        lang="en-GB"
+                                        step="60"
                                         value={updateShiftForm.startTime}
                                         onChange={(event) => handleUpdateShiftFormChange('startTime', event.target.value)}
                                     />
@@ -1056,6 +1068,8 @@ const HelperSchedulePage = () => {
                                     <input
                                         id="updateShiftEndTime"
                                         type="time"
+                                        lang="en-GB"
+                                        step="60"
                                         value={updateShiftForm.endTime}
                                         onChange={(event) => handleUpdateShiftFormChange('endTime', event.target.value)}
                                     />

@@ -21,17 +21,14 @@ public class DirectBookingRequest {
     private String description;
     private Integer addressId; // Nếu chọn từ danh sách
     private String addressDetail; // Nếu tạo mới
-    private String provinceId;
-    private String districtId;
-    private String wardId;
+    private String provinceCode;
+    private String districtCode;
+    private String wardCode;
     private String provinceName;
     private String districtName;
     private String wardName;
     private Double latitude;
     private Double longitude;
     private Double workSize;
-    private Boolean isPremium;
-    private Boolean bringTools;
-    private Boolean hasPets;
     private java.util.Map<String, Object> additionalData;
 }

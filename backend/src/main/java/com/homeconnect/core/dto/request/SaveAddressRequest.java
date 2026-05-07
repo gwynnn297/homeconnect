@@ -32,4 +32,13 @@ public class SaveAddressRequest {
 
     @Schema(description = "Đặt làm địa chỉ mặc định", example = "false")
     private Boolean isDefault;
+
+    @Schema(description = "Mã phường/xã chuẩn (GSO code)", example = "20182")
+    private String wardCode;
+
+    @Schema(description = "Mã quận/huyện chuẩn (GSO code)", example = "494")
+    private String districtCode;
+
+    @Schema(description = "Mã tỉnh/thành chuẩn (GSO code)", example = "48")
+    private String provinceCode;
 }

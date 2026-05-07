@@ -70,6 +70,9 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.security:spring-security-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+	// Real-time Communication
+	implementation("com.corundumstudio.socketio:netty-socketio:2.0.11")
 }
 
 tasks.withType<Test> {

@@ -39,6 +39,15 @@ public class AddressResponse {
     @Schema(description = "Địa chỉ mặc định", example = "false")
     private Boolean isDefault;
 
+    @Schema(description = "Mã phường/xã", example = "20182")
+    private String wardCode;
+
+    @Schema(description = "Mã quận/huyện", example = "494")
+    private String districtCode;
+
+    @Schema(description = "Mã tỉnh/thành", example = "48")
+    private String provinceCode;
+
     public static AddressResponse from(Address a) {
         return AddressResponse.builder()
                 .addressId(a.getAddressId())
@@ -46,6 +55,9 @@ public class AddressResponse {
                 .wardName(a.getWardName())
                 .districtName(a.getDistrictName())
                 .provinceName(a.getProvinceName())
+                .wardCode(a.getWardCode())
+                .districtCode(a.getDistrictCode())
+                .provinceCode(a.getProvinceCode())
                 .latitude(a.getLatitude())
                 .longitude(a.getLongitude())
                 .type(a.getType())

@@ -434,7 +434,7 @@ const CustomerBookingDetailPage = () => {
     const statusUpper = normalizedStatus;
     const showConfirmBanner = statusUpper === 'PENDING_COMPLETION';
     const showReviewSection = statusUpper === 'COMPLETED';
-    const REPORTABLE_STATUSES = ['CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'PENDING_COMPLETION', 'COMPLETED', 'DISPUTED'];
+    const REPORTABLE_STATUSES = ['PENDING_COMPLETION', 'COMPLETED', 'DISPUTED'];
     const canReportDispute = REPORTABLE_STATUSES.includes(statusUpper) && String(booking?.paymentStatus || '').toUpperCase() === 'HOLDING';
     const hasDisputeData = statusUpper === 'DISPUTED' || statusUpper === 'RESOLVED';
     const editableWindow = existingReview && canEditReviewByTime(existingReview);
@@ -637,9 +637,34 @@ const CustomerBookingDetailPage = () => {
                                     <div className="cbd-k">Dịch vụ</div>
                                     <div className="cbd-v">{booking?.serviceName || '---'}</div>
                                 </div>
-                                <div className="cbd-kv">
-                                    <div className="cbd-k">Tổng tiền</div>
-                                    <div className="cbd-v cbd-v--price">{formatCurrency(booking?.totalPrice)}</div>
+                                <div className="cbd-kv" style={{ alignItems: 'flex-end' }}>
+                                    <div className="cbd-k" style={{ fontSize: '15px', color: '#64748b', fontWeight: '700', paddingBottom: '3px' }}>Giá :</div>
+                                    <div className="cbd-v cbd-v--price" style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1px' }}>
+                                        {booking?.discountAmount > 0 && booking?.originalPrice ? (
+                                            <>
+                                                <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '12px', fontWeight: '600', opacity: '0.85' }}>
+                                                    {formatCurrency(booking.originalPrice)}
+                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ color: '#059669', fontSize: '22px', fontWeight: '800', letterSpacing: '-0.01em' }}>
+                                                        {formatCurrency(booking.finalPrice || booking.totalPrice)}
+                                                    </span>
+                                                    {(() => {
+                                                        const ratio = (Number(booking.originalPrice) - Number(booking.finalPrice || booking.totalPrice)) / Number(booking.originalPrice);
+                                                        const pct = Math.round(ratio * 100);
+                                                        if (pct === 5) return <span className="cmp-discount-badge">Hạng Bạc -5%</span>;
+                                                        if (pct === 10) return <span className="cmp-discount-badge">Hạng Vàng -10%</span>;
+                                                        if (pct > 0) return <span className="cmp-discount-badge">-{pct}%</span>;
+                                                        return null;
+                                                    })()}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <span style={{ fontSize: '20px', fontWeight: '800' }}>
+                                                {formatCurrency(booking?.finalPrice || booking?.totalPrice)}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 

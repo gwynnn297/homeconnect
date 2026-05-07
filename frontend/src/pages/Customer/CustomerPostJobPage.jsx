@@ -476,9 +476,6 @@ const CustomerPostJobPage = () => {
         title: '',
         description: '',
         workSize: undefined,
-        hasPets: false,
-        isPremium: false,
-        bringTools: false,
         additionalData: {}
     });
 
@@ -514,9 +511,6 @@ const CustomerPostJobPage = () => {
                 durationHours: jobData.durationHours,
                 title: jobData.title,
                 description: jobData.description,
-                hasPets: Boolean(jobData.hasPets),
-                isPremium: Boolean(jobData.isPremium),
-                bringTools: Boolean(jobData.bringTools),
                 ...(jobData.workSize != null && Number.isFinite(Number(jobData.workSize))
                     ? { workSize: Number(jobData.workSize) }
                     : {}),
@@ -642,9 +636,6 @@ const CustomerPostJobPage = () => {
                 ...(categoryChanged
                     ? {
                         workSize: undefined,
-                        hasPets: false,
-                        isPremium: false,
-                        bringTools: false,
                         additionalData: {},
                         title: '',
                         description: ''
@@ -1449,9 +1440,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
     const [showChildcareWorkDetail, setShowChildcareWorkDetail] = useState(false);
     const [showChildcareTermsDetail, setShowChildcareTermsDetail] = useState(false);
     const [showGardeningDetail, setShowGardeningDetail] = useState(false);
-    const [hasPets, setHasPets] = useState(Boolean(initialData.hasPets));
-    const [isPremium, setIsPremium] = useState(Boolean(initialData.isPremium));
-    const [bringTools, setBringTools] = useState(Boolean(initialData.bringTools));
     const [title, setTitle] = useState(initialData.title || `Cần tìm người ${serviceInfo.name.toLowerCase()}`);
     const [description, setDescription] = useState(initialData.description || '');
     const [selectedSubServiceIds, setSelectedSubServiceIds] = useState(
@@ -1729,9 +1717,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                     categoryId: initialData.categoryId,
                     serviceIds: selectedSubServiceIds.map((id) => Math.round(Number(id))).filter((id) => Number.isFinite(id)),
                     durationHours: Math.round(Number(baseDurationHours)),
-                    isPremium: Boolean(isPremium),
-                    hasPets: Boolean(hasPets),
-                    bringTools: Boolean(bringTools),
                     ...(ws != null && Number.isFinite(Number(ws)) ? { workSize: Number(ws) } : {}),
                     /* Giá category 2 chỉ phụ thuộc isTaskerShopping; không gửi full additionalData để tránh gọi lại API mỗi lần gõ tên món */
                     ...(cookingMode ? { additionalData: { isTaskerShopping: Boolean(isTaskerShopping) } } : {}),
@@ -1767,9 +1752,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
         shoppingMode,
         dishCount,
         isTaskerShopping,
-        isPremium,
-        bringTools,
-        hasPets,
         shoppingEstimateAdditionalData,
     ]);
 
@@ -1840,11 +1822,8 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                 workDate,
                 startTime,
                 durationHours: Number(baseDurationHours),
-                title,
-                description,
-                hasPets,
-                isPremium,
-                bringTools,
+                title: title,
+                description: description,
                 ...(cleaningMode && wsClean != null ? { workSize: wsClean } : {}),
                 ...(cookingMode ? { workSize: dishN } : {}),
                 ...(childcareMode
@@ -2215,18 +2194,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                             </div>
                                         ) : null}
                                     </div>
-
-                                    <label className="pj-switch-item pj-switch-item--block" style={{ marginTop: 16 }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={isPremium}
-                                            onChange={(e) => setIsPremium(e.target.checked)}
-                                        />
-                                        <span>
-                                            Gói cao cấp — phụ phí{' '}
-                                            <strong className="pj-cooking-fee-tag">+50.000 ₫</strong> (áp dụng mọi danh mục)
-                                        </span>
-                                    </label>
                                 </div>
                             ) : null}
 
@@ -2555,25 +2522,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                             <strong>tổng</strong> giờ (giờ phần chính hoặc điều chỉnh dịch vụ con).
                                         </div>
                                     ) : null}
-                                    <label className="pj-switch-item pj-switch-item--block" style={{ marginTop: 14 }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={bringTools}
-                                            onChange={(e) => setBringTools(e.target.checked)}
-                                        />
-                                        <span>Thợ mang theo dụng cụ làm vườn</span>
-                                    </label>
-                                    <label className="pj-switch-item pj-switch-item--block" style={{ marginTop: 8 }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={isPremium}
-                                            onChange={(e) => setIsPremium(e.target.checked)}
-                                        />
-                                        <span>
-                                            Gói cao cấp — phụ phí{' '}
-                                            <strong className="pj-cooking-fee-tag">+50.000 ₫</strong> (áp dụng mọi danh mục)
-                                        </span>
-                                    </label>
                                     {detailConfig ? (
                                         <div className="pj-form-group pj-cleaning-scope" style={{ marginTop: 16, marginBottom: 0 }}>
                                             <div className="pj-detail-head">
@@ -2794,18 +2742,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                             </div>
                                         ) : null}
                                     </div>
-
-                                    <label className="pj-switch-item pj-switch-item--block" style={{ marginTop: 14 }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={isPremium}
-                                            onChange={(e) => setIsPremium(e.target.checked)}
-                                        />
-                                        <span>
-                                            Gói cao cấp — phụ phí{' '}
-                                            <strong className="pj-cooking-fee-tag">+50.000 ₫</strong> (áp dụng mọi danh mục)
-                                        </span>
-                                    </label>
                                 </div>
                             ) : null}
 
@@ -2991,17 +2927,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                                 <strong className="pj-cooking-fee-tag">+50.000 ₫</strong>
                                             </span>
                                         </label>
-                                        <label className="pj-switch-item pj-switch-item--block" style={{ marginTop: 10 }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={isPremium}
-                                                onChange={(e) => setIsPremium(e.target.checked)}
-                                            />
-                                            <span>
-                                                Gói cao cấp — phụ phí{' '}
-                                                <strong className="pj-cooking-fee-tag">+50.000 ₫</strong> (áp dụng mọi danh mục)
-                                            </span>
-                                        </label>
                                     </div>
                                 </div>
                             ) : null}
@@ -3037,29 +2962,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                                                 : 'Bạn có thể ghi rõ yêu cầu riêng (hóa chất, dụng cụ sẵn có) trong phần ghi chú bên dưới.'}
                                             </p>
                                         </>
-                                    ) : null}
-                                    {paintRepairMode ? (
-                                        <div style={{ marginTop: 12 }}>
-                                            <label className="pj-switch-item pj-switch-item--block">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={bringTools}
-                                                    onChange={(e) => setBringTools(e.target.checked)}
-                                                />
-                                                <span>Thợ mang theo dụng cụ sơn sửa cơ bản</span>
-                                            </label>
-                                            <label className="pj-switch-item pj-switch-item--block" style={{ marginTop: 10 }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isPremium}
-                                                    onChange={(e) => setIsPremium(e.target.checked)}
-                                                />
-                                                <span>
-                                                    Gói cao cấp — phụ phí{' '}
-                                                    <strong className="pj-cooking-fee-tag">+50.000 ₫</strong> (áp dụng mọi danh mục)
-                                                </span>
-                                            </label>
-                                        </div>
                                     ) : null}
                                 </div>
                             ) : null}
@@ -3148,43 +3050,12 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                         </div>
                                     )}
                                     {!loadingSubServices && !subServiceError && subServices.length === 0 && (
-                                        <div className="pj-hint">ℹ️ Không có dịch vụ con cho danh mục này</div>
+                                        <div className="pj-hint">ℹ Không có dịch vụ con cho danh mục này</div>
                                     )}
                                 </div>
                             ) : null}
                             {cleaningMode ? (
                                 <>
-                                    {!officeCleaningMode ? (
-                                        <div className="pj-form-group">
-                                            <label className="pj-label">⚙️ Tùy chọn thêm</label>
-                                            <div className="pj-cleaning-switches">
-                                                <label className="pj-switch-item">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={hasPets}
-                                                        onChange={(e) => setHasPets(e.target.checked)}
-                                                    />
-                                                    <span>Nhà có vật nuôi (+30.000 đ)</span>
-                                                </label>
-                                                <label className="pj-switch-item">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={bringTools}
-                                                        onChange={(e) => setBringTools(e.target.checked)}
-                                                    />
-                                                    <span>Thợ mang theo dụng cụ vệ sinh (+30.000 đ)</span>
-                                                </label>
-                                                <label className="pj-switch-item">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isPremium}
-                                                        onChange={(e) => setIsPremium(e.target.checked)}
-                                                    />
-                                                    <span>Gói cao cấp (+50.000 ₫ — hóa chất/dụng cụ chuyên dụng)</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    ) : null}
                                     <div className="pj-form-group pj-cleaning-scope">
                                         <div className="pj-detail-head">
                                             <label className="pj-label">{detailConfig.scopeTitle}</label>
@@ -3371,10 +3242,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                         <span className="pj-sidebar-label">Nhờ thợ đi chợ</span>
                                         <span className="pj-sidebar-value">{isTaskerShopping ? 'Có (+50k)' : 'Không'}</span>
                                     </div>
-                                    <div className="pj-sidebar-item">
-                                        <span className="pj-sidebar-label">Gói cao cấp</span>
-                                        <span className="pj-sidebar-value">{isPremium ? 'Có (+50k)' : 'Không'}</span>
-                                    </div>
                                 </>
                             ) : null}
 
@@ -3409,10 +3276,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                                 : ''}
                                         </span>
                                     </div>
-                                    <div className="pj-sidebar-item">
-                                        <span className="pj-sidebar-label">Gói cao cấp</span>
-                                        <span className="pj-sidebar-value">{isPremium ? 'Có (+50k)' : 'Không'}</span>
-                                    </div>
                                 </>
                             ) : null}
 
@@ -3429,27 +3292,6 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                         <div className="pj-sidebar-sub">
                                             &gt;50 m² cần ≥3h tổng; &gt;80 m² cần ≥4h tổng. Hiện tại: {durationHours}h tổng.
                                         </div>
-                                    </div>
-                                    <div className="pj-sidebar-item">
-                                        <span className="pj-sidebar-label">Thợ mang dụng cụ</span>
-                                        <span className="pj-sidebar-value">{bringTools ? 'Có' : 'Không'}</span>
-                                    </div>
-                                    <div className="pj-sidebar-item">
-                                        <span className="pj-sidebar-label">Gói cao cấp</span>
-                                        <span className="pj-sidebar-value">{isPremium ? 'Có (+50k)' : 'Không'}</span>
-                                    </div>
-                                </>
-                            ) : null}
-
-                            {paintRepairMode ? (
-                                <>
-                                    <div className="pj-sidebar-item">
-                                        <span className="pj-sidebar-label">Thợ mang dụng cụ</span>
-                                        <span className="pj-sidebar-value">{bringTools ? 'Có' : 'Không'}</span>
-                                    </div>
-                                    <div className="pj-sidebar-item">
-                                        <span className="pj-sidebar-label">Gói cao cấp</span>
-                                        <span className="pj-sidebar-value">{isPremium ? 'Có (+50k)' : 'Không'}</span>
                                     </div>
                                 </>
                             ) : null}
@@ -3501,28 +3343,12 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                             </div>
                                         </>
                                     ) : null}
-                                    <div className="pj-sidebar-item">
-                                        <span className="pj-sidebar-label">Gói cao cấp</span>
-                                        <span className="pj-sidebar-value">{isPremium ? 'Có (+50k)' : 'Không'}</span>
-                                    </div>
                                 </>
                             ) : null}
 
                             <div className="pj-divider"></div>
                             {cleaningMode ? (
                                 <>
-                                    <div className="pj-sidebar-item">
-                                        <span className="pj-sidebar-label">Nhà có vật nuôi</span>
-                                        <span className="pj-sidebar-value">{hasPets ? 'Có' : 'Không'}</span>
-                                    </div>
-                                    <div className="pj-sidebar-item">
-                                        <span className="pj-sidebar-label">Thợ mang dụng cụ</span>
-                                        <span className="pj-sidebar-value">{bringTools ? 'Có' : 'Không'}</span>
-                                    </div>
-                                    <div className="pj-sidebar-item">
-                                        <span className="pj-sidebar-label">Gói cao cấp</span>
-                                        <span className="pj-sidebar-value">{isPremium ? 'Có (+50k)' : 'Không'}</span>
-                                    </div>
                                     <div className="pj-divider"></div>
                                 </>
                             ) : null}
@@ -3720,24 +3546,6 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                                     <div className="pj-summary-subvalue">{confirmOfficePackage.sub}</div>
                                 </div>
                             ) : null}
-                            {confirmHomeAreaMeta || confirmOfficePackage ? (
-                                <>
-                                    <div className="pj-summary-row">
-                                        <div className="pj-summary-label">Nhà có vật nuôi</div>
-                                        <div className="pj-summary-value">{jobData.hasPets ? 'Có' : 'Không'}</div>
-                                    </div>
-                                    <div className="pj-summary-row">
-                                        <div className="pj-summary-label">Thợ mang dụng cụ</div>
-                                        <div className="pj-summary-value">{jobData.bringTools ? 'Có' : 'Không'}</div>
-                                    </div>
-                                    <div className="pj-summary-row">
-                                        <div className="pj-summary-label">Gói cao cấp</div>
-                                        <div className="pj-summary-value">
-                                            {jobData.isPremium ? 'Có (+50.000 ₫)' : 'Không'}
-                                        </div>
-                                    </div>
-                                </>
-                            ) : null}
 
                             {confirmCooking ? (
                                 <>
@@ -3775,12 +3583,6 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                                         <div className="pj-summary-label">Nhờ thợ đi chợ</div>
                                         <div className="pj-summary-value">
                                             {jobData.additionalData?.isTaskerShopping ? 'Có (+50.000 ₫)' : 'Không'}
-                                        </div>
-                                    </div>
-                                    <div className="pj-summary-row">
-                                        <div className="pj-summary-label">Gói cao cấp</div>
-                                        <div className="pj-summary-value">
-                                            {jobData.isPremium ? 'Có (+50.000 ₫)' : 'Không'}
                                         </div>
                                     </div>
                                 </>
@@ -3842,12 +3644,6 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                                             })()}
                                         </div>
                                     </div>
-                                    <div className="pj-summary-row">
-                                        <div className="pj-summary-label">Gói cao cấp</div>
-                                        <div className="pj-summary-value">
-                                            {jobData.isPremium ? 'Có (+50.000 ₫)' : 'Không'}
-                                        </div>
-                                    </div>
                                 </>
                             ) : null}
 
@@ -3868,31 +3664,6 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                                         </div>
                                         <div className="pj-summary-subvalue">
                                             {jobData.durationHours} giờ tổng — đã kiểm tra khớp với diện tích (workSize).
-                                        </div>
-                                    </div>
-                                    <div className="pj-summary-row">
-                                        <div className="pj-summary-label">Thợ mang dụng cụ</div>
-                                        <div className="pj-summary-value">{jobData.bringTools ? 'Có' : 'Không'}</div>
-                                    </div>
-                                    <div className="pj-summary-row">
-                                        <div className="pj-summary-label">Gói cao cấp</div>
-                                        <div className="pj-summary-value">
-                                            {jobData.isPremium ? 'Có (+50.000 ₫)' : 'Không'}
-                                        </div>
-                                    </div>
-                                </>
-                            ) : null}
-
-                            {confirmPaintRepair ? (
-                                <>
-                                    <div className="pj-summary-row">
-                                        <div className="pj-summary-label">Thợ mang dụng cụ</div>
-                                        <div className="pj-summary-value">{jobData.bringTools ? 'Có' : 'Không'}</div>
-                                    </div>
-                                    <div className="pj-summary-row">
-                                        <div className="pj-summary-label">Gói cao cấp</div>
-                                        <div className="pj-summary-value">
-                                            {jobData.isPremium ? 'Có (+50.000 ₫)' : 'Không'}
                                         </div>
                                     </div>
                                 </>
@@ -3944,12 +3715,6 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                                             </div>
                                         </>
                                     ) : null}
-                                    <div className="pj-summary-row">
-                                        <div className="pj-summary-label">Gói cao cấp</div>
-                                        <div className="pj-summary-value">
-                                            {jobData.isPremium ? 'Có (+50.000 ₫)' : 'Không'}
-                                        </div>
-                                    </div>
                                 </>
                             ) : null}
 

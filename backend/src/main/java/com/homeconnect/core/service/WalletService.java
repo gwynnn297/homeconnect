@@ -1,5 +1,6 @@
 package com.homeconnect.core.service;
 
+import com.homeconnect.core.socket.SocketIOService;
 import com.homeconnect.core.dto.request.WebhookDepositRequest;
 import com.homeconnect.core.dto.response.VietQRResponse;
 import com.homeconnect.core.dto.response.WalletInfoResponse;
@@ -41,6 +42,7 @@ public class WalletService {
     private final com.homeconnect.core.repository.WithdrawAuditLogRepository auditLogRepository;
     private final com.homeconnect.core.repository.UserBankAccountRepository userBankAccountRepository;
     private final NotificationService notificationService;
+    private final SocketIOService socketIOService;
 
     @Value("${wallet.bank.code:MB}")
     private String bankCode;
@@ -51,7 +53,7 @@ public class WalletService {
     @Value("${wallet.bank.name:NGUYEN VAN A}")
     private String bankAccountName;
 
-    @Value("${wallet.commission.rate:0.05}")
+    @Value("${wallet.commission.rate:0.15}")
     private BigDecimal commissionRate; // Tỷ lệ hoa hồng sàn (mặc định 5%)
 
     /**
@@ -210,6 +212,8 @@ public class WalletService {
                 .build();
         transactionRepository.save(transaction);
 
+        // Real-time update
+        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
         log.info("💾 Đã lưu lịch sử giao dịch ID: {}", transaction.getTransactionId());
     }
 
@@ -269,6 +273,8 @@ public class WalletService {
                 .build();
         transactionRepository.save(transaction);
 
+        // Real-time update
+        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
         // 7. Gửi push notification cho Customer
         try {
             notificationService.createNotification(
@@ -328,6 +334,9 @@ public class WalletService {
                 .description(jobPostId != null ? "Giữ tiền cho JobPost #" + jobPostId : "Giữ tiền cho đặt thợ trực tiếp #" + referenceId)
                 .build();
         transactionRepository.save(transaction);
+
+        // Real-time update
+        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
     }
 
     // ===== Helper Methods =====
@@ -404,6 +413,9 @@ public class WalletService {
                 .description("Phạt hủy đơn #" + jobId + ": " + reason)
                 .build();
         transactionRepository.save(transaction);
+
+        // Real-time update
+        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
     }
 
     /**
@@ -427,6 +439,9 @@ public class WalletService {
                 .description("Bồi thường từ việc Helper hủy đơn #" + jobId)
                 .build();
         transactionRepository.save(transaction);
+
+        // Real-time update
+        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
     }
 
     /**
@@ -459,6 +474,9 @@ public class WalletService {
                 .description("Hoàn tiền #" + referenceId + ": " + reason)
                 .build();
         transactionRepository.save(transaction);
+
+        // Real-time update
+        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
         
         log.info("✅ Đã hoàn {} VNĐ về ví khả dụng.", amount);
     }
@@ -534,7 +552,13 @@ public class WalletService {
                     .description(String.format("Booking #%d (Giải ngân khiếu nại)", bookingId))
                     .build();
             transactionRepository.save(releaseTx);
+
+            // Real-time update for Helper
+            socketIOService.sendMessage(helperId.toString(), "wallet:updated", getWalletInfo(helperId));
         }
+
+        // Real-time update for Customer (refund or final payment)
+        socketIOService.sendMessage(customerId.toString(), "wallet:updated", getWalletInfo(customerId));
 
         return refundAmount;
     }
@@ -640,13 +664,17 @@ public class WalletService {
                     .type(TransactionType.REFUND)
                     .referenceType(ReferenceType.BOOKING)
                     .referenceId(bookingId.intValue())
-                    .description(String.format("Trợ giá Booking #%d", bookingId))
+                    .description(String.format("Hoàn tiền giảm giá Loyalty cho Booking #%d", bookingId))
                     .build();
             transactionRepository.save(subsidyTx);
         }
 
         log.info("Đã release {} VNĐ cho Helper ID: {}. Commission: {} VNĐ",
                 helperSalary, helperId, commission);
+
+        // Real-time update for both
+        socketIOService.sendMessage(customerId.toString(), "wallet:updated", getWalletInfo(customerId));
+        socketIOService.sendMessage(helperId.toString(), "wallet:updated", getWalletInfo(helperId));
 
         return helperSalary;
     }
@@ -718,6 +746,9 @@ public class WalletService {
                         request.getRequestId(), bankAccount.getBankName(), bankAccount.getAccountNumber()))
                 .build();
         transactionRepository.save(holdTx);
+
+        // Real-time update
+        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
 
         saveAudit(request.getRequestId(), "REQUEST", "USER", "Khởi tạo yêu cầu rút tiền về " + bankAccount.getBankName());
         
@@ -791,6 +822,9 @@ public class WalletService {
         Wallet wallet = request.getWallet();
         wallet.setHoldBalance(wallet.getHoldBalance().subtract(request.getAmount()));
         walletRepository.save(wallet);
+
+        // Real-time update
+        socketIOService.sendMessage(wallet.getUser().getId().toString(), "wallet:updated", getWalletInfo(wallet.getUser().getId()));
 
         // 4. Ghi lịch sử giao dịch loại WITHDRAWAL
         WalletTransaction withdrawTx = WalletTransaction.builder()

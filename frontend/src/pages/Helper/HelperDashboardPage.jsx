@@ -115,12 +115,85 @@ const HelperDashboardPage = () => {
         }
     }, [syncUserToLocalStorage]);
 
+    const loadMonthlyEarning = useCallback(async () => {
+        try {
+            const firstRes = await WalletService.getTransactions({
+                page: 0,
+                size: 100,
+                sortBy: 'createdAt',
+                sortDir: 'desc'
+            });
+            const firstData = extractPayload(firstRes) || {};
+            const totalPages = Number(firstData?.totalPages || 1);
+            let allTransactions = Array.isArray(firstData?.transactions) ? firstData.transactions : [];
+
+            if (totalPages > 1) {
+                const pageRequests = [];
+                for (let pageNum = 1; pageNum < Math.min(totalPages, 20); pageNum += 1) {
+                    pageRequests.push(
+                        WalletService.getTransactions({
+                            page: pageNum,
+                            size: 100,
+                            sortBy: 'createdAt',
+                            sortDir: 'desc'
+                        })
+                    );
+                }
+
+                if (pageRequests.length > 0) {
+                    try {
+                        const pageResults = await Promise.all(pageRequests);
+                        pageResults.forEach((res) => {
+                            const data = extractPayload(res) || {};
+                            const txs = Array.isArray(data?.transactions) ? data.transactions : [];
+                            allTransactions = allTransactions.concat(txs);
+                        });
+                    } catch (pErr) {
+                        console.error('[HelperDashboardPage] Failed to load some transaction pages', pErr);
+                    }
+                }
+            }
+
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            
+            const releaseTxs = (allTransactions || []).filter(
+                (tx) => tx && String(tx.type || '').toUpperCase() === 'RELEASE'
+            );
+            
+            const monthIncome = releaseTxs
+                .filter((tx) => {
+                    if (!tx?.createdAt) return false;
+                    const d = new Date(tx.createdAt);
+                    return !isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+                })
+                .reduce((sum, tx) => sum + Number(tx?.amount || 0), 0);
+                
+            const lifetimeRelease = releaseTxs.reduce((sum, tx) => sum + Number(tx?.amount || 0), 0);
+
+            setMonthlyEarning(monthIncome);
+            setTotalEarning(lifetimeRelease);
+        } catch (err) {
+            console.error('[HelperDashboardPage] loadMonthlyEarning failed:', err);
+        }
+    }, []);
+
     useEffect(() => {
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        const status = user.kycStatus || 'PENDING';
-        const name = user.fullName || user.name || 'Helper';
+        let user = {};
+        try {
+            const userJson = localStorage.getItem('user');
+            user = userJson ? JSON.parse(userJson) : {};
+        } catch (e) {
+            console.error('[HelperDashboardPage] Failed to parse user', e);
+        }
+        
+        const status = user?.kycStatus || 'PENDING';
+        const rawName = user?.fullName || user?.name || 'Helper';
+        const safeName = String(rawName);
+        
         setKycStatus(status);
-        setHelperName(name.split(' ').slice(-2).join(' '));
+        setHelperName(safeName.split(' ').slice(-2).join(' '));
 
         if (status === 'PENDING') {
             setShowKYCModal(true);
@@ -130,8 +203,6 @@ const HelperDashboardPage = () => {
     }, [fetchLatestProfileStatus]);
 
     useEffect(() => {
-        if (kycStatus !== 'WAITING_APPROVAL' && kycStatus !== 'IDENTITY_VERIFIED') return undefined;
-
         const poll = async () => {
             const latestStatus = await fetchLatestProfileStatus();
             if (
@@ -143,9 +214,31 @@ const HelperDashboardPage = () => {
             }
         };
 
-        const intervalId = setInterval(poll, 5000);
-        return () => clearInterval(intervalId);
-    }, [kycStatus, fetchLatestProfileStatus]);
+        let intervalId = null;
+        if (kycStatus === 'WAITING_APPROVAL' || kycStatus === 'IDENTITY_VERIFIED') {
+            intervalId = setInterval(poll, 5000);
+        }
+        
+        // Instant refresh on notification or socket update
+        const handleRefresh = () => {
+            if (kycStatus === 'WAITING_APPROVAL' || kycStatus === 'IDENTITY_VERIFIED') {
+                poll();
+            }
+        };
+
+        window.addEventListener('notification:received', handleRefresh);
+        window.addEventListener('booking:updated', handleRefresh);
+        window.addEventListener('job:new_available', handleRefresh);
+        window.addEventListener('wallet:updated', loadMonthlyEarning);
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+            window.removeEventListener('notification:received', handleRefresh);
+            window.removeEventListener('booking:updated', handleRefresh);
+            window.removeEventListener('job:new_available', handleRefresh);
+            window.removeEventListener('wallet:updated', loadMonthlyEarning);
+        };
+    }, [kycStatus, fetchLatestProfileStatus, loadMonthlyEarning]);
 
     useEffect(() => {
         let cancelled = false;
@@ -179,78 +272,14 @@ const HelperDashboardPage = () => {
         return () => { cancelled = true; };
     }, [kycStatus]);
 
+
+
     useEffect(() => {
-        let cancelled = false;
-
-        const loadMonthlyEarning = async () => {
-            try {
-                const firstRes = await WalletService.getTransactions({
-                    page: 0,
-                    size: 100,
-                    sortBy: 'createdAt',
-                    sortDir: 'desc'
-                });
-                const firstData = extractPayload(firstRes) || {};
-                const totalPages = Number(firstData?.totalPages || 1);
-                let allTransactions = Array.isArray(firstData?.transactions) ? firstData.transactions : [];
-
-                if (totalPages > 1) {
-                    const pageRequests = [];
-                    for (let page = 1; page < Math.min(totalPages, 20); page += 1) {
-                        pageRequests.push(
-                            WalletService.getTransactions({
-                                page,
-                                size: 100,
-                                sortBy: 'createdAt',
-                                sortDir: 'desc'
-                            })
-                        );
-                    }
-
-                    if (pageRequests.length > 0) {
-                        const pageResults = await Promise.all(pageRequests);
-                        pageResults.forEach((res) => {
-                            const data = extractPayload(res) || {};
-                            const txs = Array.isArray(data?.transactions) ? data.transactions : [];
-                            allTransactions = allTransactions.concat(txs);
-                        });
-                    }
-                }
-
-                const now = new Date();
-                const currentMonth = now.getMonth();
-                const currentYear = now.getFullYear();
-                const releaseTxs = allTransactions.filter(
-                    (tx) => String(tx?.type || '').toUpperCase() === 'RELEASE'
-                );
-                const monthIncome = releaseTxs
-                    .filter((tx) => {
-                        const d = tx?.createdAt ? new Date(tx.createdAt) : null;
-                        return d && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-                    })
-                    .reduce((sum, tx) => sum + Number(tx?.amount || 0), 0);
-                const lifetimeRelease = releaseTxs.reduce((sum, tx) => sum + Number(tx?.amount || 0), 0);
-
-                if (!cancelled) {
-                    setMonthlyEarning(monthIncome);
-                    setTotalEarning(lifetimeRelease);
-                }
-            } catch (err) {
-                if (isAccountBlockedError(err)) return;
-                console.error('[HelperDashboardPage] loadMonthlyEarning failed:', err);
-                if (!cancelled) {
-                    setMonthlyEarning(0);
-                    setTotalEarning(0);
-                }
-            }
-        };
-
         if (kycStatus === 'VERIFIED') {
             loadMonthlyEarning();
         }
+    }, [kycStatus, loadMonthlyEarning]);
 
-        return () => { cancelled = true; };
-    }, [kycStatus]);
 
     useEffect(() => {
         let cancelled = false;
@@ -275,10 +304,16 @@ const HelperDashboardPage = () => {
                 let completedThisMonthCount = 0;
                 let completedPrevMonthCount = 0;
 
-                const completedJobsList = jobs.filter(isCompletedJob);
+                const completedJobsList = (jobs || []).filter(job => job && isCompletedJob(job));
 
                 completedJobsList.forEach(job => {
-                    const d = new Date(job.updatedAt || job.completedAt || job.workDate || job.createdAt || 0);
+                    if (!job) return;
+                    const dateVal = job.updatedAt || job.completedAt || job.workDate || job.createdAt;
+                    if (!dateVal) return;
+                    
+                    const d = new Date(dateVal);
+                    if (isNaN(d.getTime())) return;
+
                     if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
                         completedThisMonthCount++;
                     } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
@@ -294,7 +329,7 @@ const HelperDashboardPage = () => {
                     }));
                 }
 
-                const latestCompleted = completedJobsList
+                const latestCompleted = [...completedJobsList]
                     .sort((a, b) => {
                         const aTime = new Date(a?.updatedAt || a?.completedAt || a?.workDate || a?.createdAt || 0).getTime();
                         const bTime = new Date(b?.updatedAt || b?.completedAt || b?.workDate || b?.createdAt || 0).getTime();

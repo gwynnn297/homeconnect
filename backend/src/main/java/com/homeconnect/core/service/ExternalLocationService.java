@@ -76,6 +76,63 @@ public class ExternalLocationService {
     }
 
     /**
+     * Tìm mã Tỉnh theo tên
+     */
+    public String findProvinceCodeByName(String provinceName) {
+        if (provinceName == null || provinceName.isBlank()) return null;
+        List<Map<String, Object>> provinces = getProvinces();
+        String cleanInput = cleanName(provinceName);
+        
+        for (Map<String, Object> p : provinces) {
+            String name = (String) p.get("name");
+            if (cleanName(name).equalsIgnoreCase(cleanInput)) {
+                return String.valueOf(p.get("code"));
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Tìm mã Quận theo tên trong Tỉnh
+     */
+    public String findDistrictCodeByName(String provinceCode, String districtName) {
+        if (provinceCode == null || districtName == null || districtName.isBlank()) return null;
+        Map<String, Object> provinceData = getDistrictsByProvince(provinceCode);
+        if (provinceData == null || !provinceData.containsKey("districts")) return null;
+        
+        List<Map<String, Object>> districts = (List<Map<String, Object>>) provinceData.get("districts");
+        String cleanInput = cleanName(districtName);
+        
+        for (Map<String, Object> d : districts) {
+            String name = (String) d.get("name");
+            if (cleanName(name).equalsIgnoreCase(cleanInput)) {
+                return String.valueOf(d.get("code"));
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Tìm mã Phường theo tên trong Quận
+     */
+    public String findWardCodeByName(String districtCode, String wardName) {
+        if (districtCode == null || wardName == null || wardName.isBlank()) return null;
+        Map<String, Object> districtData = getWardsByDistrict(districtCode);
+        if (districtData == null || !districtData.containsKey("wards")) return null;
+        
+        List<Map<String, Object>> wards = (List<Map<String, Object>>) districtData.get("wards");
+        String cleanInput = cleanName(wardName);
+        
+        for (Map<String, Object> w : wards) {
+            String name = (String) w.get("name");
+            if (cleanName(name).equalsIgnoreCase(cleanInput)) {
+                return String.valueOf(w.get("code"));
+            }
+        }
+        return null;
+    }
+
+    /**
      * Kiểm tra districtCode có hợp lệ không
      */
     @SuppressWarnings("unchecked")
@@ -98,5 +155,20 @@ public class ExternalLocationService {
             // Fail-fast rule: Nếu API lỗi thì coi như validate thất bại
             return false;
         }
+    }
+
+    private String cleanName(String name) {
+        if (name == null) return "";
+        return name.toLowerCase()
+                .replace("thành phố", "")
+                .replace("tỉnh", "")
+                .replace("quận", "")
+                .replace("huyện", "")
+                .replace("thị xã", "")
+                .replace("phường", "")
+                .replace("xã", "")
+                .replace("thị trấn", "")
+                .replace("tp.", "")
+                .trim();
     }
 }

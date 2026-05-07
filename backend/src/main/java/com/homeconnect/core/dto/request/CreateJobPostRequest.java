@@ -55,14 +55,6 @@ public class CreateJobPostRequest {
     @Schema(description = "Số lượng/Diện tích (m2, số bé, số máy...)", example = "60.5")
     private Double workSize;
 
-    @Schema(description = "Dịch vụ Premium (+50k)", example = "false")
-    private Boolean isPremium;
-
-    @Schema(description = "Nhà có thú cưng", example = "false")
-    private Boolean hasPets;
-
-    @Schema(description = "Thợ mang theo dụng cụ", example = "false")
-    private Boolean bringTools;
 
     @Schema(description = "Dữ liệu bổ sung (JSON) cho từng loại dịch vụ", example = "{\"dishCount\": 3, \"dishNames\": [[\"Cá kho\"]}")
     private java.util.Map<String, Object> additionalData;

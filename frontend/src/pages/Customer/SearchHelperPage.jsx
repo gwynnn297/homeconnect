@@ -21,7 +21,7 @@ const SearchHelperPage = () => {
     const [filters, setFilters] = useState({
         serviceId: '',
         provinceCode: '48', // Default to Đà Nẵng
-        district: '',
+        districtCode: '',
         minRating: '',
         hometownCode: ''
     });
@@ -62,13 +62,13 @@ const SearchHelperPage = () => {
                 const pCode = String(profileData.provinceCode);
                 const info = {
                     provinceCode: pCode,
-                    district: profileData.districtCode || profileData.districtName || ''
+                    districtCode: profileData.districtCode || ''
                 };
                 setUserHomeInfo(info);
                 setFilters(prev => ({
                     ...prev,
                     provinceCode: pCode,
-                    district: '' // Mặc định tìm tất cả thợ trong tỉnh thay vì lọc theo quận nhà
+                    districtCode: '' // Mặc định tìm tất cả thợ trong tỉnh
                 }));
                 fetchDistricts(pCode);
             }
@@ -82,7 +82,7 @@ const SearchHelperPage = () => {
         try {
             const params = {
                 serviceId: filters.serviceId || undefined,
-                district: filters.district || undefined,
+                district: filters.districtCode || undefined,
                 province: filters.provinceCode || undefined,
                 minRating: filters.minRating || undefined,
                 hometownCode: filters.hometownCode || undefined
@@ -125,7 +125,7 @@ const SearchHelperPage = () => {
 
         if (name === 'provinceCode') {
             fetchDistricts(value);
-            setFilters(prev => ({ ...prev, district: '' }));
+            setFilters(prev => ({ ...prev, districtCode: '' }));
         }
     };
 
@@ -133,7 +133,7 @@ const SearchHelperPage = () => {
         setFilters({
             serviceId: '',
             provinceCode: userHomeInfo.provinceCode,
-            district: userHomeInfo.district,
+            districtCode: userHomeInfo.districtCode,
             minRating: '',
             hometownCode: ''
         });
@@ -150,7 +150,7 @@ const SearchHelperPage = () => {
                     <div className="drawer-overlay" onClick={() => setShowDrawer(false)}>
                         <div className="drawer-content" onClick={e => e.stopPropagation()}>
                             <div className="drawer-header">
-                                <h3>Bộ lọc nâng cao</h3>
+                                <h3>Bộ lọc </h3>
                                 <button className="close-drawer-btn" onClick={() => setShowDrawer(false)}>×</button>
                             </div>
                             <div className="drawer-body">
@@ -171,13 +171,13 @@ const SearchHelperPage = () => {
                                 <div className="filter-group">
                                     <label>Quận/Huyện</label>
                                     <select
-                                        name="district"
-                                        value={filters.district}
+                                        name="districtCode"
+                                        value={filters.districtCode}
                                         onChange={handleFilterChange}
                                     >
                                         <option value="">Tất cả Quận/Huyện</option>
                                         {districts.map(d => (
-                                            <option key={d.code} value={d.name}>{d.name}</option>
+                                            <option key={d.code} value={d.code}>{d.name}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -237,7 +237,7 @@ const SearchHelperPage = () => {
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
                                 </svg>
-                                Bộ lọc nâng cao
+                                Bộ lọc 
                             </button>
                         </div>
                     </div>
@@ -320,7 +320,7 @@ const SearchHelperPage = () => {
                     <HelperProfileModal
                         helper={showProfileHelper}
                         onClose={() => setShowProfileHelper(null)}
-                        onBookNow={(h) => setSelectedHelperForBooking(h)}
+                        onBookNow={(h, slot) => setSelectedHelperForBooking({ ...h, selectedSlot: slot })}
                     />
                 )}
 

@@ -96,6 +96,35 @@
     color: #666;
 }
 
+.db-selected-schedule-info {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: #ffffff;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid #2F5D50;
+    animation: db-slide-up 0.4s ease-out;
+}
+
+.db-schedule-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #444;
+}
+
+.db-schedule-icon {
+    font-size: 16px;
+}
+
+.db-schedule-badge strong {
+    color: #2F5D50;
+    font-weight: 700;
+}
+
 /* ─── Form Sections ─────────────────────────────────── */
 .db-form {
     padding: 24px;
@@ -468,11 +497,39 @@
     color: #2F5D50;
 }
 
-.db-addr-check {
-    color: #2F5D50;
-    font-weight: 800;
-    font-size: 16px;
-    margin-left: 8px;
+.db-addr-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.db-addr-edit, .db-addr-delete {
+    background: none;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.db-addr-edit {
+    color: #007bff;
+}
+
+.db-addr-edit:hover {
+    background: #e7f1ff;
+    text-decoration: underline;
+}
+
+.db-addr-delete {
+    color: #dc3545;
+}
+
+.db-addr-delete:hover {
+    background: #fff0f1;
+    text-decoration: underline;
 }
 
 .db-no-addr {
