@@ -79,6 +79,19 @@ public class ScheduleController {
     }
 
     /**
+     * Cập nhật một ca đơn lẻ
+     */
+    @Operation(summary = "Cập nhật một ca làm việc", description = "Chỉ cập nhật ca được chọn theo id. Không ảnh hưởng các ca khác trong ngày hoặc chuỗi.")
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('HELPER')")
+    public ResponseEntity<RegisterScheduleSummaryResponse> updateSingleSchedule(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody ScheduleSlotRequest slot) {
+        return ResponseEntity.ok(scheduleService.updateSingleSchedule(getUserId(userDetails), id, slot));
+    }
+
+    /**
      * Lấy lịch làm việc theo tháng
      */
     @Operation(summary = "Lấy lịch theo tháng", description = "Trả về danh sách khung giờ của Helper. Nếu không truyền helperId, hệ thống tự lấy lịch của chính Helper đang đăng nhập.")

@@ -54,6 +54,16 @@ const HelperScheduleService = {
     },
 
     /**
+     * Cập nhật một ca đơn lẻ
+     * Endpoint: PATCH /api/v1/schedules/{id}
+     * @param {number} scheduleId - ID slot lịch
+     * @param {Object} slot - ScheduleSlotRequest
+     */
+    updateSingleSchedule: async (scheduleId, slot) => {
+        return apiClient.patch(`${SCHEDULE_BASE_URL}/${scheduleId}`, sanitizeSlotRequest(slot));
+    },
+
+    /**
      * Lấy lịch theo tháng
      * Endpoint: GET /api/v1/schedules/monthly
      * @param {Object} params

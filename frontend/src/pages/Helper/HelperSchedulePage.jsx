@@ -69,6 +69,10 @@ const convertJsDayToApiDay = (jsDay) => {
 const getTodayIsoDate = () => formatIsoDate(new Date());
 const LEAVE_LIMIT_MESSAGE = 'Bạn đã vượt quá giới hạn 3 ca nghỉ trong tháng này.';
 const LEAVE_LIMIT_PATTERN = /vượt quá giới hạn\s*3\s*ca nghỉ/i;
+const getCurrentTimeHHmm = () => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
 const getDefaultActiveDayIdx = (monthDate) => {
     const today = new Date();
     const isCurrentMonth = today.getFullYear() === monthDate.getFullYear()
@@ -206,6 +210,19 @@ const HelperSchedulePage = () => {
             .filter((item) => item.workDate === selectedDay.isoDate)
             .sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
     }, [visibleMonthlySchedules, selectedDay]);
+
+    const getShiftUpdateLockReason = (shift) => {
+        if (!shift) return 'Không thể cập nhật ca này.';
+        const shiftDate = String(shift.workDate || '');
+        const shiftStartTime = formatTime(shift.startTime);
+        const hasBooking = shift.bookingId !== null && shift.bookingId !== undefined;
+        const today = todayIsoDate;
+        const nowHHmm = getCurrentTimeHHmm();
+        const hasStartedOrPast = shiftDate < today || (shiftDate === today && shiftStartTime <= nowHHmm);
+        if (hasBooking) return 'Không thể sửa ca đã có đơn hàng.';
+        if (hasStartedOrPast) return 'Không thể sửa ca đã bắt đầu hoặc đã qua.';
+        return '';
+    };
 
     const showApiNotification = (message) => {
         const text = String(message || '');
@@ -549,14 +566,6 @@ const HelperSchedulePage = () => {
                     }
                 ]);
             } else {
-                const slotsOfDay = visibleMonthlySchedules
-                    .filter((item) => item.workDate === workDate && (item.status === 'AVAILABLE' || item.status === 'CANCELLED'))
-                    .map((item) => ({
-                        id: item.id,
-                        startTime: formatTime(item.startTime),
-                        endTime: formatTime(item.endTime)
-                    }));
-
                 const targetSlot = visibleMonthlySchedules.find((item) => item.id === updatingShiftId);
 
                 if (!targetSlot || (targetSlot.status !== 'AVAILABLE' && targetSlot.status !== 'CANCELLED')) {
@@ -564,22 +573,15 @@ const HelperSchedulePage = () => {
                     return;
                 }
 
-                const updatedSlots = slotsOfDay.map((slot) => {
-                    if (slot.id === updatingShiftId) {
-                        return {
-                            startTime: updateShiftForm.startTime,
-                            endTime: updateShiftForm.endTime
-                        };
-                    }
-                    return {
-                        startTime: slot.startTime,
-                        endTime: slot.endTime
-                    };
-                });
+                const lockReason = getShiftUpdateLockReason(targetSlot);
+                if (lockReason) {
+                    setUpdateShiftError(lockReason);
+                    return;
+                }
 
-                await HelperScheduleService.updateDaySchedule({
-                    date: workDate,
-                    slots: updatedSlots
+                await HelperScheduleService.updateSingleSchedule(updatingShiftId, {
+                    startTime: updateShiftForm.startTime,
+                    endTime: updateShiftForm.endTime
                 });
             }
 
@@ -796,6 +798,8 @@ const HelperSchedulePage = () => {
                                                     typeText: shift.status || 'Không xác định',
                                                     typeClass: 'unregistered'
                                                 };
+                                                const updateLockReason = getShiftUpdateLockReason(shift);
+                                                const isLockedForUpdate = Boolean(updateLockReason);
 
                                                 return (
                                                     <div key={shift.id} className="shift-item">
@@ -828,6 +832,8 @@ const HelperSchedulePage = () => {
                                                                     <button
                                                                         type="button"
                                                                         className="shift-action-dropdown-item"
+                                                                        disabled={isLockedForUpdate}
+                                                                        title={isLockedForUpdate ? updateLockReason : ''}
                                                                         onClick={() => openUpdateShiftModal(shift, false)}
                                                                     >
                                                                         Cập nhật ca này
