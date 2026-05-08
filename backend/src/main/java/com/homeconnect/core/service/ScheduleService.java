@@ -200,6 +200,70 @@ public class ScheduleService {
                 .build();
     }
 
+    @Transactional
+    public RegisterScheduleSummaryResponse updateSingleSchedule(Long helperId, Long slotId, ScheduleSlotRequest request) {
+        HelperSchedule targetSlot = helperScheduleRepository.findById(slotId)
+                .orElseThrow(() -> new ApiException("Slot không tồn tại", HttpStatus.NOT_FOUND));
+
+        if (!targetSlot.getHelper().getId().equals(helperId)) {
+            throw new ApiException("Không có quyền", HttpStatus.FORBIDDEN);
+        }
+
+        if (!request.getEndTime().isAfter(request.getStartTime())) {
+            throw new ApiException("Giờ kết thúc (" + request.getEndTime() + ") phải sau giờ bắt đầu (" + request.getStartTime() + ").", HttpStatus.BAD_REQUEST);
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+        if (targetSlot.getWorkDate().isBefore(today)
+                || (targetSlot.getWorkDate().isEqual(today) && !targetSlot.getStartTime().isAfter(now))) {
+            throw new ApiException("Không thể sửa ca đã bắt đầu hoặc đã qua.", HttpStatus.BAD_REQUEST);
+        }
+
+        if (targetSlot.getBooking() != null || targetSlot.getStatus() == ScheduleStatus.BUSY) {
+            throw new ApiException("Không thể sửa ca đã có đơn hàng.", HttpStatus.BAD_REQUEST);
+        }
+
+        List<HelperSchedule> busySchedules = helperScheduleRepository.findByHelperIdAndWorkDateAndStatusIn(
+                helperId, targetSlot.getWorkDate(), List.of(ScheduleStatus.BUSY));
+        for (HelperSchedule busy : busySchedules) {
+            if (busy.getId().equals(targetSlot.getId())) {
+                continue;
+            }
+            if (conflictEngine.checkConflict(request.getStartTime(), request.getEndTime(), busy)) {
+                throw new ApiException("Xung đột với đơn hàng đang nhận vào ngày " + targetSlot.getWorkDate(), HttpStatus.CONFLICT);
+            }
+        }
+
+        List<HelperSchedule> existingSchedules = helperScheduleRepository.findByHelperIdAndWorkDateAndStatusIn(
+                helperId, targetSlot.getWorkDate(), List.of(ScheduleStatus.AVAILABLE, ScheduleStatus.CANCELLED));
+        for (HelperSchedule existing : existingSchedules) {
+            if (existing.getId().equals(targetSlot.getId())) {
+                continue;
+            }
+            if (conflictEngine.checkConflictWithBuffer(
+                    request.getStartTime(), request.getEndTime(), existing,
+                    ConflictEngine.TRAVEL_BUFFER_MINUTES)) {
+                throw new ApiException(
+                        "Xung đột với lịch đã đăng ký vào ngày " + targetSlot.getWorkDate()
+                                + " (" + request.getStartTime() + " - " + request.getEndTime() + ")."
+                                + " Cần cách ít nhất 30 phút giữa các ca.",
+                        HttpStatus.CONFLICT);
+            }
+        }
+
+        targetSlot.setStartTime(request.getStartTime());
+        targetSlot.setEndTime(request.getEndTime());
+        helperScheduleRepository.save(targetSlot);
+
+        triggerRematchingAfterScheduleChange(helperId, Set.of(targetSlot.getWorkDate()));
+
+        return RegisterScheduleSummaryResponse.builder()
+                .created(1)
+                .message("Đã cập nhật ca làm việc thành công.")
+                .build();
+    }
+
     /**
      * Cập nhật theo chuỗi (Sync Group)
      * Logic: Tìm groupId -> Xóa hết AVAILABLE/CANCELLED trong group -> Tạo lại bộ slots mới cho tất cả các ngày cũ
@@ -246,17 +310,20 @@ public class ScheduleService {
             throw new ApiException("Tất cả các ngày trong chuỗi đã ở quá khứ, không thể cập nhật.", HttpStatus.BAD_REQUEST);
         }
 
-        // 1b. Nếu có ngày hôm nay trong chuỗi, kiểm tra startTime > giờ hiện tại
-        if (distinctDates.contains(today)) {
-            for (ScheduleSlotRequest slot : newSlots) {
-                if (!slot.getStartTime().isAfter(now)) {
-                    throw new ApiException("Không thể đăng ký khung giờ đã qua trong ngày hôm nay. Khung giờ " + slot.getStartTime() + " - " + slot.getEndTime() + " không hợp lệ.", HttpStatus.BAD_REQUEST);
-                }
-            }
+        // 1b. Chỉ cập nhật các ngày còn hiệu lực:
+        // - Ngày tương lai: luôn cập nhật
+        // - Ngày hôm nay: chỉ cập nhật khi toàn bộ khung giờ mới đều chưa bắt đầu
+        List<LocalDate> updatableDates = distinctDates.stream()
+                .filter(date -> date.isAfter(today)
+                        || (date.isEqual(today) && newSlots.stream().allMatch(slot -> slot.getStartTime().isAfter(now))))
+                .collect(Collectors.toList());
+
+        if (updatableDates.isEmpty()) {
+            throw new ApiException("Không có ca tương lai nào để cập nhật trong chuỗi này.", HttpStatus.BAD_REQUEST);
         }
 
         // 2. Kiểm tra conflict với BUSY trên TOÀN BỘ chuỗi
-        for (LocalDate date : distinctDates) {
+        for (LocalDate date : updatableDates) {
             List<HelperSchedule> busyOnDate = helperScheduleRepository.findByHelperIdAndWorkDateAndStatusIn(
                     helperId, date, List.of(ScheduleStatus.BUSY));
             for (ScheduleSlotRequest slot : newSlots) {
@@ -270,14 +337,14 @@ public class ScheduleService {
 
         // 3. Xóa toàn bộ AVAILABLE/CANCELLED trong group cho đúng "thứ" đó
         helperScheduleRepository.deleteByGroupIdAndWorkDateInAndStatusIn(
-                groupId, distinctDates, List.of(ScheduleStatus.AVAILABLE, ScheduleStatus.CANCELLED));
+                groupId, updatableDates, List.of(ScheduleStatus.AVAILABLE, ScheduleStatus.CANCELLED));
 
         // 4. Tạo lại chuỗi mới với groupId mới
         String newGroupId = generateGroupId();
         User helper = baseSlot.getHelper();
         int count = 0;
 
-        for (LocalDate date : distinctDates) {
+        for (LocalDate date : updatableDates) {
             for (ScheduleSlotRequest slot : newSlots) {
                 HelperSchedule schedule = HelperSchedule.builder()
                         .helper(helper)
@@ -292,11 +359,11 @@ public class ScheduleService {
             }
         }
 
-            triggerRematchingAfterScheduleChange(helperId, new HashSet<>(distinctDates));
+            triggerRematchingAfterScheduleChange(helperId, new HashSet<>(updatableDates));
 
         return RegisterScheduleSummaryResponse.builder()
                 .created(count)
-                .message("Đã cập nhật đồng bộ toàn bộ chuỗi lịch (" + distinctDates.size() + " ngày).")
+                .message("Đã cập nhật đồng bộ chuỗi lịch cho " + updatableDates.size() + " ngày còn hiệu lực.")
                 .build();
     }
 
