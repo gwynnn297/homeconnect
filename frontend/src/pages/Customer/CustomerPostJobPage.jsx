@@ -482,6 +482,7 @@ const CustomerPostJobPage = () => {
     const [estimateData, setEstimateData] = useState(null);
     const [loadingEstimate, setLoadingEstimate] = useState(false);
     const [loadingSubmit, setLoadingSubmit] = useState(false);
+    const submitLockRef = useRef(false);
 
     const handleSelectAddress = (addressPayload) => {
         setJobData(prev => ({
@@ -500,6 +501,10 @@ const CustomerPostJobPage = () => {
     };
 
     const handleConfirmAndPay = async () => {
+        // Chặn double-click / multi-trigger trong cùng tick render.
+        if (submitLockRef.current || loadingSubmit) return;
+        submitLockRef.current = true;
+        let shouldUnlock = true;
         try {
             setLoadingSubmit(true);
             const payload = {
@@ -589,6 +594,9 @@ const CustomerPostJobPage = () => {
             };
             const res = await apiClient.post('/api/v1/jobs', payload);
             setNotification({ type: 'success', message: res?.message || "Đăng tin thành công! Bạn có thể xem tin đã đăng ở phần Quản lý bài đăng." });
+            // Nếu đã đăng thành công thì giữ lock/disabled tới khi chuyển trang,
+            // tránh người dùng bấm thêm trong lúc chờ redirect (dễ tạo bài trùng).
+            shouldUnlock = false;
             setTimeout(() => {
                 navigate('/customer/manage-posts');
             }, 2000);
@@ -596,7 +604,10 @@ const CustomerPostJobPage = () => {
             console.error("Error creating job", error);
             setNotification({ type: 'error', message: error.message || "Có lỗi xảy ra khi thanh toán và đăng tin." });
         } finally {
-            setLoadingSubmit(false);
+            if (shouldUnlock) {
+                setLoadingSubmit(false);
+                submitLockRef.current = false;
+            }
         }
     };
 
@@ -623,6 +634,7 @@ const CustomerPostJobPage = () => {
         setEstimateData(null);
         setLoadingEstimate(false);
         setLoadingSubmit(false);
+        submitLockRef.current = false;
 
         setJobData((prev) => {
             const categoryChanged = prev.categoryId !== categoryId;

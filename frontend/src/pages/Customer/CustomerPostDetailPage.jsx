@@ -201,6 +201,55 @@ const CustomerPostDetailPage = () => {
         loadApplicants();
     }, [postId]);
 
+    // Realtime: thợ ứng tuyển / thông báo JOB_APPLICATION → cập nhật chi tiết + danh sách ứng viên không cần F5.
+    useEffect(() => {
+        if (!postId || String(postId).startsWith('DIR-')) return;
+        const key = String(postId);
+
+        const fetchApplicantsQuiet = async () => {
+            try {
+                const res = await BookingService.getApplicants(postId);
+                const list = extractPayload(res);
+                setApplicants(Array.isArray(list) ? list : []);
+                setApplicantsError('');
+            } catch {
+                /* giữ applicant cũ nếu lỗi tạm thời */
+            }
+        };
+
+        const fetchJobQuiet = async () => {
+            try {
+                const res = await apiClient.get(`/api/v1/jobs/${postId}`);
+                const job = extractPayload(res);
+                if (job) {
+                    setData(job);
+                    setError('');
+                }
+            } catch {
+                /* không ghi đè trạng thái lỗi đầy đủ của lần tải chính */
+            }
+        };
+
+        const onJobApplication = (e) => {
+            const d = e?.detail || {};
+            const pid = d.postId ?? d.jobId;
+            if (pid == null || String(pid) !== key) return;
+            void Promise.all([fetchJobQuiet(), fetchApplicantsQuiet()]);
+        };
+
+        const onNotificationReceived = (e) => {
+            if (String(e?.detail?.type || '').toUpperCase() !== 'JOB_APPLICATION') return;
+            void Promise.all([fetchJobQuiet(), fetchApplicantsQuiet()]);
+        };
+
+        window.addEventListener('job:new_application', onJobApplication);
+        window.addEventListener('notification:received', onNotificationReceived);
+        return () => {
+            window.removeEventListener('job:new_application', onJobApplication);
+            window.removeEventListener('notification:received', onNotificationReceived);
+        };
+    }, [postId]);
+
     const viewModel = useMemo(() => {
         const job = data || {};
         const addressText = [job?.addressDetail, job?.wardName, job?.districtName, job?.provinceName]

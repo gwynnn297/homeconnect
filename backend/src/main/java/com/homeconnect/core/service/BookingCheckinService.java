@@ -40,6 +40,8 @@ public class BookingCheckinService {
     private final BookingRepository bookingRepository;
     private final HelperProfileRepository helperProfileRepository;
     private final RestTemplate restTemplate;
+    private final NotificationService notificationService;
+    private final BookingService bookingService;
 
     private final Map<String, CheckinChallengeState> challengeStore = new ConcurrentHashMap<>();
 
@@ -262,6 +264,26 @@ public class BookingCheckinService {
                 shortChallenge(challenge.challengeId()),
                 BookingStatus.ARRIVED,
                 confidence);
+
+        // Realtime cho Customer: chuông + cập nhật màn quản lý bài đăng/chi tiết đơn không cần F5.
+        try {
+            Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : null;
+            if (customerId != null) {
+                notificationService.createNotification(
+                        customerId,
+                        "Thợ đã check-in",
+                        "Đơn #" + bookingId + ": Thợ đã xác nhận đến địa điểm. Vui lòng kiểm tra và xác nhận trên ứng dụng.",
+                        "HELPER_CHECKIN");
+            }
+        } catch (Exception e) {
+            log.warn("[CHECKIN] Skip customer notification: {}", e.getMessage());
+        }
+
+        try {
+            bookingService.pushBookingUpdate(bookingId);
+        } catch (Exception e) {
+            log.warn("[CHECKIN] Skip booking_update push: {}", e.getMessage());
+        }
 
         return CheckinVerifyResponse.builder()
                 .matched(true)

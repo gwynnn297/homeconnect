@@ -229,6 +229,7 @@ const HelperDashboardPage = () => {
         window.addEventListener('notification:received', handleRefresh);
         window.addEventListener('booking:updated', handleRefresh);
         window.addEventListener('job:new_available', handleRefresh);
+        window.addEventListener('job:post_cancelled', handleRefresh);
         window.addEventListener('wallet:updated', loadMonthlyEarning);
 
         return () => {
@@ -236,6 +237,7 @@ const HelperDashboardPage = () => {
             window.removeEventListener('notification:received', handleRefresh);
             window.removeEventListener('booking:updated', handleRefresh);
             window.removeEventListener('job:new_available', handleRefresh);
+            window.removeEventListener('job:post_cancelled', handleRefresh);
             window.removeEventListener('wallet:updated', loadMonthlyEarning);
         };
     }, [kycStatus, fetchLatestProfileStatus, loadMonthlyEarning]);

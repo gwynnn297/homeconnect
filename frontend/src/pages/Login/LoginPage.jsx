@@ -58,10 +58,15 @@ const LoginPage = () => {
             });
 
             if (response.accessToken) {
-                localStorage.setItem('user', JSON.stringify(response.user));
+                const normalizedUser = {
+                    ...(response.user || {}),
+                    id: response?.user?.id ?? response?.user?.userId ?? null,
+                };
+                localStorage.setItem('user', JSON.stringify(normalizedUser));
                 localStorage.setItem('token', response.accessToken);
+                window.dispatchEvent(new CustomEvent('auth:login'));
 
-                const role = response.user.role;
+                const role = normalizedUser.role;
                 if (role === 'CUSTOMER') {
                     navigate('/customer-dashboard');
                 } else if (role === 'HELPER') {

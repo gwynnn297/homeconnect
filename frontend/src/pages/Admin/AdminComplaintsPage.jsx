@@ -6,6 +6,8 @@ import './AdminSimplePage.css';
 import './AdminHelpersPage.css';
 import './AdminComplaintsPage.css';
 
+const DISPUTES_POLL_MS = 8000;
+
 const AdminComplaintsPage = () => {
   const [tab, setTab] = useState('disputes');
   const [loading, setLoading] = useState(true);
@@ -84,6 +86,24 @@ const AdminComplaintsPage = () => {
       setResolvingId(null);
     }
   };
+
+  // Poll nhẹ riêng tab tranh chấp để admin thấy cập nhật mà không cần F5.
+  useEffect(() => {
+    if (tab !== 'disputes') return undefined;
+    if (resolvingId != null) return undefined;
+
+    const pollDisputes = async () => {
+      try {
+        const dRes = await AdminService.getDisputes({ page: 0, size: 50 });
+        setDisputes(dRes.disputes || []);
+      } catch {
+        // bỏ qua lỗi polling để không spam toast
+      }
+    };
+
+    const id = setInterval(pollDisputes, DISPUTES_POLL_MS);
+    return () => clearInterval(id);
+  }, [tab, resolvingId]);
 
   return (
     <AdminLayout>

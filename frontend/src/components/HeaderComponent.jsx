@@ -341,6 +341,21 @@ const HeaderComponent = () => {
         return () => eventSource.close();
     }, [userInfo?.role]);
 
+    // Nhận notification realtime từ SocketContext bridge
+    useEffect(() => {
+        const handleSocketNotification = (event) => {
+            const newNotification = event?.detail;
+            if (!newNotification || typeof newNotification !== 'object') return;
+            setAllNotifications((prev) => {
+                const deduped = prev.filter((item) => item.notificationId !== newNotification.notificationId);
+                return [newNotification, ...deduped];
+            });
+        };
+
+        window.addEventListener('notification:received', handleSocketNotification);
+        return () => window.removeEventListener('notification:received', handleSocketNotification);
+    }, []);
+
     useEffect(() => {
         setUnreadCount(allNotifications.filter((n) => n?.isRead === false).length);
     }, [allNotifications]);

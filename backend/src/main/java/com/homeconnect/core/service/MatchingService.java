@@ -12,6 +12,7 @@ import com.homeconnect.core.repository.HelperWorkingDistrictRepository;
 import com.homeconnect.core.repository.UserRepository;
 import com.homeconnect.core.repository.NotificationRepository;
 import com.homeconnect.core.repository.ServiceRepository;
+import com.homeconnect.core.socket.SocketIOService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,6 +48,7 @@ public class MatchingService {
     private final ServiceRepository serviceRepository;
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final SocketIOService socketIOService;
 
     public enum MatchFailureReason {
         NONE,
@@ -223,13 +225,33 @@ public class MatchingService {
 
             int notifyCount = 0;
             for (Long helperId : finalHelperIds) {
+                // Luôn đẩy realtime feed để UI tự cập nhật, kể cả khi đã có application PENDING.
+                socketIOService.sendMessage(helperId.toString(), "new_job_available", Map.of(
+                        "postId", postId,
+                        "title", jobPost.getTitle(),
+                        "workDate", jobPost.getWorkDate() != null ? jobPost.getWorkDate().toString() : null,
+                        "startTime", jobPost.getStartTime() != null ? jobPost.getStartTime().toString() : null,
+                        "durationHours", jobPost.getDurationHours(),
+                        "districtName", jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : null,
+                        "provinceName", jobPost.getAddress() != null ? jobPost.getAddress().getProvinceName() : null
+                ));
+                socketIOService.sendMessage(helperId.toString(), "helper_feed_changed", Map.of(
+                        "postId", postId,
+                        "reason", "MATCHED"
+                ));
+
                 Optional<JobApplication> existingApp = jobApplicationRepository.findByPostIdAndHelperId(postId,
                         helperId);
 
                 if (existingApp.isPresent()) {
                     String status = existingApp.get().getStatus();
                     if ("PENDING".equals(status)) {
-                        // Đã có đơn chờ (thợ đã ứng tuyển hoặc bản ghi INVITED cũ) — không spam thêm
+                        // Đã có đơn chờ (thợ đã ứng tuyển hoặc INVITED cũ):
+                        // vẫn cho UI refresh realtime, và chỉ gửi chuông theo cooldown.
+                        if (shouldNotifyHelperForPost(helperId, postId)) {
+                            notificationService.createMatchingNotification(helperId, postId, jobPost);
+                            notifyCount++;
+                        }
                         continue;
                     }
                     if ("ACCEPTED".equals(status) || "ASSIGNED".equals(status)) {
@@ -240,6 +262,8 @@ public class MatchingService {
                 }
 
                 if (!shouldNotifyHelperForPost(helperId, postId)) {
+                    log.debug("[Matching] Job #{}: skip notification/email cho thợ #{} do cooldown, nhưng đã emit refresh feed",
+                            postId, helperId);
                     continue;
                 }
 
