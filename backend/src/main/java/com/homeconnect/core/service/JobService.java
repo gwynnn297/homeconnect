@@ -39,6 +39,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -280,7 +282,7 @@ public class JobService {
         eventPublisher.publishEvent(new JobPostCreatedEvent(jobPost.getPostId()));
 
         // --- 6. Real-time update: Thông báo cho các helper tiềm năng
-        socketIOService.broadcast("new_job_available", mapToJobPostResponse(jobPost, false));
+        socketIOService.broadcast("new_job_available", toSocketJobAvailablePayload(jobPost));
 
         return mapToJobPostResponse(jobPost, true);
     }
@@ -360,8 +362,10 @@ public class JobService {
     public List<JobPostResponse> getHelperJobsByTab(Long helperId, String tab) {
         String normalizedTab = tab == null ? "NEW" : tab.trim().toUpperCase();
 
+        // Tab NEW phải khớp điều kiện ứng tuyển: quận + danh mục + lịch AVAILABLE (giống applyForJob).
+        // Không dùng getAllPublishedJobs — tránh hiện việc mà thợ không có slot vẫn bị API từ chối.
         if ("NEW".equals(normalizedTab)) {
-            return getAllPublishedJobs(helperId);
+            return getHelperJobFeed(helperId);
         }
 
         List<String> applicationStatuses = switch (normalizedTab) {
@@ -448,6 +452,8 @@ public class JobService {
                 app.setType("APPLIED");
                 app.setStatus("PENDING");
                 jobApplicationRepository.save(app);
+
+                notifyCustomerHelperApplied(jobPost, helperId);
                 return;
             }
         }
@@ -471,16 +477,80 @@ public class JobService {
                 .build();
         jobApplicationRepository.save(application);
 
-        // --- Real-time update: Thông báo cho Customer
-        socketIOService.sendMessage(jobPost.getCustomerId().toString(), "new_job_application", Map.of(
-            "postId", jobId,
-            "jobTitle", jobPost.getTitle(),
-            "helperId", helperId
-        ));
+        notifyCustomerHelperApplied(jobPost, helperId);
+    }
+
+    /**
+     * Khách hàng nhận thông báo trong DB + chuông (new_notification) và tin nhắn riêng new_job_application.
+     * Socket gửi sau {@code afterCommit} để tránh khách refetch sớm trước khi application đã commit.
+     */
+    private void notifyCustomerHelperApplied(JobPost jobPost, Long helperId) {
+        Long customerId = jobPost.getCustomerId();
+        if (customerId == null) {
+            return;
+        }
+
+        String helperDisplay = userRepository.findById(helperId)
+                .map(u -> {
+                    if (u.getFullName() != null && !u.getFullName().isBlank()) {
+                        return u.getFullName();
+                    }
+                    return "Thợ #" + helperId;
+                })
+                .orElse("Thợ #" + helperId);
+
+        String title = jobPost.getTitle() != null ? jobPost.getTitle() : "Việc nhà";
+
+        notificationService.createNotification(
+                customerId,
+                "Thợ ứng tuyển",
+                String.format("\"%s\" — %s vừa gửi ứng tuyển. Vào Quản lý bài đăng để xem và chọn thợ.", title,
+                        helperDisplay),
+                "JOB_APPLICATION");
+
+        scheduleCustomerJobApplicationSocket(customerId, jobPost.getPostId(), jobPost.getTitle(), helperId);
+    }
+
+    private void scheduleCustomerJobApplicationSocket(Long customerUserId, Long postId, String jobTitle,
+            Long helperId) {
+        Runnable push = () -> {
+            try {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("postId", postId);
+                payload.put("jobTitle", jobTitle);
+                payload.put("helperId", helperId);
+                socketIOService.sendMessage(customerUserId.toString(), "new_job_application", payload);
+            } catch (Exception e) {
+                log.warn("Socket new_job_application skipped for customer {}: {}", customerUserId, e.getMessage());
+            }
+        };
+
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    push.run();
+                }
+            });
+        } else {
+            push.run();
+        }
     }
 
     private JobPostResponse mapToJobPostResponse(JobPost jobPost, boolean showAddressDetail) {
         return mapToJobPostResponse(jobPost, showAddressDetail, null);
+    }
+
+    private Map<String, Object> toSocketJobAvailablePayload(JobPost jobPost) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("postId", jobPost.getPostId());
+        payload.put("title", jobPost.getTitle());
+        payload.put("workDate", jobPost.getWorkDate() != null ? jobPost.getWorkDate().toString() : null);
+        payload.put("startTime", jobPost.getStartTime() != null ? jobPost.getStartTime().toString() : null);
+        payload.put("durationHours", jobPost.getDurationHours());
+        payload.put("districtName", jobPost.getAddress() != null ? jobPost.getAddress().getDistrictName() : null);
+        payload.put("provinceName", jobPost.getAddress() != null ? jobPost.getAddress().getProvinceName() : null);
+        return payload;
     }
 
     private JobPostResponse mapToJobPostResponse(JobPost jobPost, boolean showAddressDetail, Booking booking) {
@@ -1032,6 +1102,11 @@ public class JobService {
         jobPost.setStatus("CANCELLED");
         jobPostRepository.save(jobPost);
 
+        // Real-time update: thông báo để helper refresh feed và loại bỏ job đã hủy
+        socketIOService.broadcast("job_post_cancelled", java.util.Map.of(
+                "postId", jobId,
+                "status", "CANCELLED"));
+
         log.info(
                 "Khách hàng {} đã hủy Job Post #{} thành công. Tiền đã hoàn, các lời mời đã hủy và gửi thông báo cho thợ.",
                 customerId, jobId);
@@ -1115,6 +1190,12 @@ public class JobService {
             jobPost.setModeratedBy(adminUserId);
             jobPost.setModeratedAt(LocalDateTime.now());
             jobPostRepository.save(jobPost);
+
+            // Real-time update: thông báo để helper refresh feed và loại bỏ job đã hủy
+            socketIOService.broadcast("job_post_cancelled", java.util.Map.of(
+                    "postId", postId,
+                    "status", "CANCELLED"));
+
             log.info("Admin {} đã đóng tin ASSIGNED #{} sau khi xử lý booking liên quan", adminEmail, postId);
             adminAuditLogService.log(
                     adminUserId,

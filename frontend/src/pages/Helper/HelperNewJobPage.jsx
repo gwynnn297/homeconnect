@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import HelperLayout from '../../layouts/HelperLayout';
 import NotificationModal from '../../components/NotificationModal';
@@ -131,6 +131,15 @@ const buildLocationText = (job) => {
 const COMPLETED_BOOKING_STATUSES = new Set(['COMPLETED', 'DISPUTED', 'RESOLVED']);
 const CANCELLED_BOOKING_STATUSES = new Set(['CANCELLED', 'EXPIRED']);
 const HISTORY_BOOKING_STATUSES = new Set([...COMPLETED_BOOKING_STATUSES, ...CANCELLED_BOOKING_STATUSES]);
+
+// Một số môi trường dữ liệu cũ có thể để status=COMPLETED nhưng vẫn có disputeReason/disputedAt.
+// Chuẩn hóa để UI không hiển thị nhầm "Đã hoàn thành" khi đang bị khiếu nại.
+const normalizeBookingStatus = (rawStatus, jobLike) => {
+    const st = String(rawStatus || '').toUpperCase();
+    const hasDispute = Boolean(jobLike?.disputeReason) || Boolean(jobLike?.disputedAt);
+    if (hasDispute && st === 'COMPLETED') return 'DISPUTED';
+    return st;
+};
 
 const getTabMeta = (tabId) => TAB_UI[tabId] || TAB_UI.NEW;
 
@@ -301,7 +310,7 @@ const HelperNewJobPage = () => {
     const [tabCounts, setTabCounts] = useState({ NEW: 0, PENDING: 0, CONFIRMED: 0, CANCELLED: 0, COMPLETED: 0 });
     const handledNotificationTokenRef = useRef(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
-    const refreshForTokenRef = useRef(null);
+    const lastRealtimeRefreshAtRef = useRef(0);
     const pendingNotificationRef = useRef(null);
     const [showDisputeModal, setShowDisputeModal] = useState(false);
     const [disputeMessage, setDisputeMessage] = useState('');
@@ -589,17 +598,18 @@ const HelperNewJobPage = () => {
                     if (r.ok) {
                         if (r.tab === 'CONFIRMED') {
                             r.list.forEach(job => {
-                                const status = String(job?.bookingStatus || job?.status || '').toUpperCase();
+                                const status = normalizeBookingStatus(job?.bookingStatus || job?.status, job);
+                                const normalizedJob = { ...job, bookingStatus: status };
                                 const isDisputed = !!job.disputeReason || status === 'DISPUTED' || status === 'RESOLVED';
 
                                 if (isDisputed) {
-                                    listByTab.COMPLETED.push(job);
+                                    listByTab.COMPLETED.push(normalizedJob);
                                 } else if (CANCELLED_BOOKING_STATUSES.has(status)) {
-                                    listByTab.CANCELLED.push(job);
+                                    listByTab.CANCELLED.push(normalizedJob);
                                 } else if (COMPLETED_BOOKING_STATUSES.has(status)) {
-                                    listByTab.COMPLETED.push(job);
+                                    listByTab.COMPLETED.push(normalizedJob);
                                 } else {
-                                    listByTab.CONFIRMED.push(job);
+                                    listByTab.CONFIRMED.push(normalizedJob);
                                 }
                             });
                         } else {
@@ -616,7 +626,7 @@ const HelperNewJobPage = () => {
 
                 // Phân loại direct bookings (không có job_post)
                 directList.forEach(db => {
-                    const status = String(db.status || '').toUpperCase();
+                    const status = normalizeBookingStatus(db.status, db);
                     // Map data để khớp với JobPostResponse structure mà UI đang dùng
                     const jobWrap = {
                         ...db,
@@ -686,6 +696,90 @@ const HelperNewJobPage = () => {
         loadJobs();
         return () => { cancelled = true; };
     }, [activeTab, refreshTrigger]);
+
+    // Realtime: backend broadcasts `new_job_available` → SocketContext dispatches `job:new_available`
+    useEffect(() => {
+        const onNewJobAvailable = (evt) => {
+            const now = Date.now();
+            // tránh reload liên tục khi nhận nhiều event nhanh
+            if (now - lastRealtimeRefreshAtRef.current < 800) return;
+            lastRealtimeRefreshAtRef.current = now;
+
+            if (activeTab === 'NEW') {
+                try {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } catch {
+                    // ignore
+                }
+            }
+
+            // Reload lại danh sách theo rule backend (lọc theo khu vực/lịch rảnh)
+            setRefreshTrigger((v) => v + 1);
+        };
+
+        window.addEventListener('job:new_available', onNewJobAvailable);
+        return () => window.removeEventListener('job:new_available', onNewJobAvailable);
+    }, [activeTab]);
+
+    // Realtime: khi job bị hủy (customer/admin) thì refresh để loại khỏi feed
+    useEffect(() => {
+        const onJobPostCancelled = () => {
+            setRefreshTrigger((v) => v + 1);
+        };
+
+        window.addEventListener('job:post_cancelled', onJobPostCancelled);
+        return () => window.removeEventListener('job:post_cancelled', onJobPostCancelled);
+    }, []);
+
+    // Event trung tính cho các thay đổi feed từ backend (match/rematch/cancel/update...)
+    useEffect(() => {
+        const onJobFeedChanged = () => {
+            setRefreshTrigger((v) => v + 1);
+        };
+        window.addEventListener('job:feed_changed', onJobFeedChanged);
+        return () => window.removeEventListener('job:feed_changed', onJobFeedChanged);
+    }, []);
+
+    // Realtime fallback: notification marketplace + đặt trực tiếp + booking lifecycle
+    useEffect(() => {
+        const onNotificationReceived = (evt) => {
+            const n = evt?.detail;
+            const type = String(n?.type || '').toUpperCase();
+            const directOrBooking =
+                type.startsWith('DIRECT_BOOKING')
+                || type.startsWith('BOOKING_')
+                || type === 'WORK_COMPLETED'
+                || type === 'WORK_STARTED'
+                || type === 'PAYMENT_RECEIVED'
+                || type === 'ARRIVAL_CONFIRMED'
+                || type === 'PENDING_COMPLETION'
+                || type === 'DISPUTE_OPENED'
+                || type === 'DISPUTED'
+                || type === 'DISPUTE_REFUND'
+                || type === 'DISPUTE_REJECT'
+                || type === 'AUTO_COMPLETED';
+            if (
+                type === 'MATCHING'
+                || type === 'JOB_UPDATED'
+                || type === 'JOB_CANCELLED'
+                || type === 'INVITATION_CANCELLED'
+                || directOrBooking
+            ) {
+                setRefreshTrigger((v) => v + 1);
+            }
+        };
+        window.addEventListener('notification:received', onNotificationReceived);
+        return () => window.removeEventListener('notification:received', onNotificationReceived);
+    }, []);
+
+    // Mọi thay đổi booking qua socket (chấp nhận đơn, check-in, checkout, hoàn thành…)
+    useEffect(() => {
+        const onBookingUpdated = () => {
+            setRefreshTrigger((v) => v + 1);
+        };
+        window.addEventListener('booking:updated', onBookingUpdated);
+        return () => window.removeEventListener('booking:updated', onBookingUpdated);
+    }, []);
 
     useEffect(() => {
         const state = location?.state;

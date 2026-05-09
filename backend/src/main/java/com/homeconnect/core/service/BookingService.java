@@ -36,6 +36,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -82,6 +84,24 @@ public class BookingService {
 
     @Value("${app.checkout.max-distance-meters:500}")
     private double maxCheckoutDistanceMeters;
+
+    /**
+     * Dùng cho các luồng ở service khác (vd: check-in) để đẩy realtime update cho cả 2 phía
+     * mà không lặp lại logic build payload JSON-safe.
+     */
+    @Transactional(readOnly = true)
+    public void pushBookingUpdate(Long bookingId) {
+        if (bookingId == null) return;
+        Booking booking = bookingRepository.findById(bookingId).orElse(null);
+        if (booking == null || booking.getCustomer() == null || booking.getHelper() == null) return;
+
+        Long customerId = booking.getCustomer().getId();
+        Long helperId = booking.getHelper().getId();
+        if (customerId == null || helperId == null) return;
+
+        socketIOService.sendMessage(customerId.toString(), "booking_update", toSocketBookingPayload(booking, customerId));
+        socketIOService.sendMessage(helperId.toString(), "booking_update", toSocketBookingPayload(booking, helperId));
+    }
 
     /**
      * Xác nhận đơn hàng và cập nhật lịch của Helper sang BUSY
@@ -281,11 +301,19 @@ public class BookingService {
         // 7. Thông báo cho các bên
         notificationService.createNotification(helper.getId(), "Chúc mừng! Bạn đã được chọn",
                 "Công việc #" + jobId + ": Bạn đã được chọn cho công việc: " + jobPost.getTitle(), "BOOKING_ACCEPTED");
+        socketIOService.sendMessage(helper.getId().toString(), "helper_feed_changed", Map.of(
+                "jobId", jobId,
+                "bookingId", booking.getId(),
+                "reason", "BOOKING_ACCEPTED"));
 
         for (JobApplication other : others) {
             if (!other.getApplicationId().equals(applicationId)) {
                 notificationService.createNotification(other.getHelperId(), "Rất tiếc!",
                         "Công việc #" + jobId + " (" + jobPost.getTitle() + ") đã có người khác nhận.", "BOOKING_REJECTED");
+                socketIOService.sendMessage(other.getHelperId().toString(), "helper_feed_changed", Map.of(
+                        "jobId", jobId,
+                        "bookingId", booking.getId(),
+                        "reason", "BOOKING_REJECTED"));
             }
         }
 
@@ -476,6 +504,14 @@ public class BookingService {
                 customerContent,
                 "DIRECT_BOOKING");
 
+        // Realtime: đơn trực tiếp vừa tạo — cả hai bên refetch UI không cần F5
+        socketIOService.sendMessage(helper.getId().toString(), "booking_update", toSocketBookingPayload(booking, helper.getId()));
+        socketIOService.sendMessage(customerId.toString(), "booking_update", toSocketBookingPayload(booking, customerId));
+        socketIOService.sendMessage(helper.getId().toString(), "helper_feed_changed", Map.of(
+                "bookingId", booking.getId(),
+                "reason", "DIRECT_BOOKING_CREATED"
+        ));
+
         // Trả về response với address đầy đủ
         return mapToBookingResponse(booking, customerId);
     }
@@ -619,10 +655,6 @@ public class BookingService {
                     "Đơn đặt #" + booking.getId() + ": Thợ " + booking.getHelper().getFullName() + " đã đồng ý nhận yêu cầu trực tiếp của bạn.",
                     "DIRECT_BOOKING_ACCEPTED"
             );
-            
-            // Real-time update for both parties
-            socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getCustomer().getId()));
-            socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getHelper().getId()));
         } else {
             booking.setStatus(BookingStatus.CANCELLED);
             booking.setCancelSource("HELPER");
@@ -650,9 +682,16 @@ public class BookingService {
         bookingRepository.save(booking);
         helperScheduleRepository.save(schedule);
 
-        if (!accept) {
-            // Real-time update for rejection
-            socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getCustomer().getId()));
+        if (accept) {
+            socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+            socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        } else {
+            socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+            socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+            socketIOService.sendMessage(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
+                    "bookingId", booking.getId(),
+                    "reason", "DIRECT_BOOKING_REJECTED"
+            ));
         }
     }
 
@@ -720,10 +759,9 @@ public class BookingService {
         notificationService.createNotification(booking.getHelper().getId(),
                 "Công việc đã bắt đầu!",
                 "Đơn hàng #" + bookingId + ": Khách hàng đã xác nhận. Bạn có thể bắt đầu làm việc ngay.", "WORK_STARTED");
-        
-        // Real-time update
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getHelper().getId()));
-        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getCustomer().getId()));
+
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
     }
 
     /**
@@ -799,10 +837,9 @@ public class BookingService {
 
         notificationService.createNotification(booking.getCustomer().getId(),
                 "Thợ báo đã hoàn thành!", notifContent, "WORK_DONE_BY_HELPER");
-        
-        // Real-time update
-        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getCustomer().getId()));
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getHelper().getId()));
+
+        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
     }
 
     private void validateCheckoutLocation(Booking booking, BigDecimal latitude, BigDecimal longitude) {
@@ -859,10 +896,74 @@ public class BookingService {
         notificationService.createNotification(booking.getHelper().getId(),
                 "Khách đã xác nhận hoàn thành!",
                 "Đơn hàng #" + bookingId + ": Tuyệt vời! Khách hàng đã xác nhận. Lương sẽ được giải ngân sau 24h.", "WORK_COMPLETED");
-        
-        // Real-time update
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getHelper().getId()));
-        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", mapToBookingResponse(booking, booking.getCustomer().getId()));
+
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+    }
+
+    /**
+     * Payload JSON-safe cho netty-socketio (ObjectMapper mặc định không serialize Java Time).
+     */
+    private Map<String, Object> toSocketBookingPayload(Booking b, Long viewerId) {
+        return bookingResponseToSocketMap(mapToBookingResponse(b, viewerId));
+    }
+
+    private Map<String, Object> bookingResponseToSocketMap(BookingResponse r) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("bookingId", r.getBookingId());
+        m.put("customerId", r.getCustomerId());
+        m.put("customerName", r.getCustomerName());
+        m.put("helperId", r.getHelperId());
+        m.put("helperName", r.getHelperName());
+        m.put("categoryId", r.getCategoryId());
+        m.put("serviceName", r.getServiceName());
+        m.put("scheduledStartTime", r.getScheduledStartTime() != null ? r.getScheduledStartTime().toString() : null);
+        m.put("scheduledEndTime", r.getScheduledEndTime() != null ? r.getScheduledEndTime().toString() : null);
+        m.put("workDate", r.getWorkDate() != null ? r.getWorkDate().toString() : null);
+        m.put("startTime", r.getStartTime() != null ? r.getStartTime().toString() : null);
+        m.put("durationHours", r.getDurationHours());
+        m.put("arrivedAt", r.getArrivedAt() != null ? r.getArrivedAt().toString() : null);
+        m.put("arrivalProofImage", r.getArrivalProofImage());
+        m.put("customerArrivalConfirmed", r.getCustomerArrivalConfirmed());
+        m.put("customerArrivalConfirmedAt", r.getCustomerArrivalConfirmedAt() != null ? r.getCustomerArrivalConfirmedAt().toString() : null);
+        m.put("checkoutPhotoUrl", r.getCheckoutPhotoUrl());
+        m.put("checkoutReason", r.getCheckoutReason());
+        m.put("checkedOutAt", r.getCheckedOutAt() != null ? r.getCheckedOutAt().toString() : null);
+        m.put("confirmedStartAt", r.getConfirmedStartAt() != null ? r.getConfirmedStartAt().toString() : null);
+        m.put("confirmedDoneAt", r.getConfirmedDoneAt() != null ? r.getConfirmedDoneAt().toString() : null);
+        m.put("isFlagged", r.getIsFlagged());
+        m.put("status", r.getStatus() != null ? r.getStatus().name() : null);
+        m.put("totalPrice", r.getTotalPrice() != null ? r.getTotalPrice().toPlainString() : null);
+        m.put("originalPrice", r.getOriginalPrice() != null ? r.getOriginalPrice().toPlainString() : null);
+        m.put("discountRate", r.getDiscountRate() != null ? r.getDiscountRate().toPlainString() : null);
+        m.put("discountAmount", r.getDiscountAmount() != null ? r.getDiscountAmount().toPlainString() : null);
+        m.put("finalPrice", r.getFinalPrice() != null ? r.getFinalPrice().toPlainString() : null);
+        m.put("tierAtBooking", r.getTierAtBooking());
+        m.put("address", r.getAddress());
+        m.put("paymentStatus", r.getPaymentStatus() != null ? r.getPaymentStatus().name() : null);
+        m.put("disputeReason", r.getDisputeReason());
+        m.put("evidenceUrl", r.getEvidenceUrl());
+        m.put("disputedAt", r.getDisputedAt() != null ? r.getDisputedAt().toString() : null);
+        m.put("disputeResolvedAt", r.getDisputeResolvedAt() != null ? r.getDisputeResolvedAt().toString() : null);
+        m.put("disputeResolutionAction", r.getDisputeResolutionAction());
+        m.put("createdAt", r.getCreatedAt() != null ? r.getCreatedAt().toString() : null);
+        m.put("workSize", r.getWorkSize());
+        m.put("description", r.getDescription());
+        m.put("serviceIds", r.getServiceIds());
+        m.put("subServiceNames", r.getSubServiceNames());
+        m.put("isVipCustomer", r.getIsVipCustomer());
+        m.put("canCheckin", r.getCanCheckin());
+        m.put("cancelReason", r.getCancelReason());
+        m.put("cancelSource", r.getCancelSource());
+        m.put("wardName", r.getWardName());
+        m.put("districtName", r.getDistrictName());
+        m.put("provinceName", r.getProvinceName());
+        if (r.getAdditionalData() != null && !r.getAdditionalData().isEmpty()) {
+            m.put("additionalData", new HashMap<>(r.getAdditionalData()));
+        } else {
+            m.put("additionalData", Map.of());
+        }
+        return m;
     }
 
     private BookingResponse mapToBookingResponse(Booking b, Long viewerId) {
@@ -1271,6 +1372,7 @@ public class BookingService {
 
         booking.setIsFlagged(false);
         bookingRepository.save(booking);
+
         log.info("Admin {} đã gỡ cờ bất thường cho booking {}", adminEmail, bookingId);
         adminAuditLogService.log(
                 adminUserId,
@@ -1603,6 +1705,9 @@ public class BookingService {
         booking.setDisputeResolvedByAdminId(adminId);
         booking.setDisputeAdminNote(adminNote != null && adminNote.isBlank() ? null : adminNote);
         bookingRepository.save(booking);
+
+        // Realtime cho cả customer/helper để trang chi tiết đơn tự cập nhật, không cần F5.
+        pushBookingUpdate(booking.getId());
     }
 
     private AdminDisputeItemResponse mapToAdminDisputeItem(Booking booking) {

@@ -5,7 +5,8 @@ import ProfileService from '../../services/ProfileService';
 import apiClient, { isAccountBlockedError } from '../../services/apiClient';
 import './CustomerDashboardPage.css';
 
-const JOB_LIST_ENDPOINTS = ['/api/v1/jobs/my', '/api/v1/jobs/customer', '/api/v1/jobs'];
+/** Backend chỉ có GET /api/v1/jobs cho danh sách của khách; /my,/customer không tồn tại và bị ánh xạ thành /{jobId}. */
+const JOB_LIST_ENDPOINT = '/api/v1/jobs';
 const TIER_DISCOUNT_PERCENT = {
     GOLD: 15,
     SILVER: 10,
@@ -207,21 +208,18 @@ const CustomerDashboardPage = () => {
             let fetched = null;
             let lastErr = null;
 
-            for (const endpoint of JOB_LIST_ENDPOINTS) {
-                try {
-                    const res = await apiClient.get(endpoint);
-                    const list = res?.data ?? res;
-                    if (Array.isArray(list)) {
-                        fetched = list;
-                        break;
-                    }
-                } catch (err) {
-                    if (isAccountBlockedError(err)) {
-                        setIsLoadingJobs(false);
-                        return;
-                    }
-                    lastErr = err;
+            try {
+                const res = await apiClient.get(JOB_LIST_ENDPOINT);
+                const list = res?.data ?? res;
+                if (Array.isArray(list)) {
+                    fetched = list;
                 }
+            } catch (err) {
+                if (isAccountBlockedError(err)) {
+                    setIsLoadingJobs(false);
+                    return;
+                }
+                lastErr = err;
             }
 
             if (!Array.isArray(fetched)) {

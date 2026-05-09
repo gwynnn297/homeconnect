@@ -84,7 +84,7 @@ public class HelperJobController {
                 .build());
     }
 
-    @Operation(summary = "Lấy danh sách việc làm theo trạng thái", description = "Lấy danh sách việc làm dựa trên tab: NEW (mới), PENDING (đang chờ), CONFIRMED (đã xác nhận/đang làm).")
+    @Operation(summary = "Lấy danh sách việc làm theo trạng thái", description = "Tab NEW: việc có thể ứng tuyển ngay (quận + danh mục + lịch AVAILABLE). PENDING/CONFIRMED: theo application.")
     @GetMapping("/by-tab")
     @PreAuthorize("hasRole('HELPER')")
     public ResponseEntity<ApiResponse<List<JobPostResponse>>> getJobsByTab(

@@ -242,6 +242,24 @@ const CustomerBookingDetailPage = () => {
         loadBooking();
     }, [bookingId, reloadBooking]);
 
+    // Realtime: backend emit `booking_update` -> SocketContext dispatch `booking:updated`.
+    // Khi booking này thay đổi (check-in, checkout, confirm complete...), tự reload để khỏi cần F5.
+    useEffect(() => {
+        if (!bookingId) return;
+        const idNum = Number(bookingId);
+        if (!Number.isFinite(idNum)) return;
+
+        const onBookingUpdated = (e) => {
+            const bid = e?.detail?.bookingId;
+            if (bid == null) return;
+            if (Number(bid) !== idNum) return;
+            reloadBooking();
+        };
+
+        window.addEventListener('booking:updated', onBookingUpdated);
+        return () => window.removeEventListener('booking:updated', onBookingUpdated);
+    }, [bookingId, reloadBooking]);
+
     useEffect(() => {
         const st = String(booking?.status || '').toUpperCase();
         if (st !== 'COMPLETED') {

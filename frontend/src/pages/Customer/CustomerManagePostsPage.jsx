@@ -54,6 +54,12 @@ const getInitial = (name = '') => {
     return trimmed ? trimmed.charAt(0).toUpperCase() : 'H';
 };
 
+/** Khóa thống nhất cho applicantsByPostId (tránh lệch number vs string so với postId API). */
+const applicantKey = (postId) => {
+    if (postId === undefined || postId === null || postId === '') return '';
+    return String(postId);
+};
+
 const resolveUnifiedStatus = (post) => {
     const bookingStatus = String(post?.bookingStatus || '').toUpperCase();
     const rawStatus = String(post?.status || 'PUBLISHED').toUpperCase();
@@ -166,17 +172,50 @@ const CustomerManagePostsPage = () => {
             loadPosts(true);
         }, 10000);
 
-        // Instant refresh on notification or socket update
-        const handleRefresh = () => loadPosts(true);
-        window.addEventListener('notification:received', handleRefresh);
-        window.addEventListener('job:new_application', handleRefresh);
-        window.addEventListener('booking:updated', handleRefresh);
+        const invalidateApplicantCaches = (rawIds) => {
+            if (!Array.isArray(rawIds)) return;
+            const keys = [...new Set(rawIds.map(applicantKey).filter(Boolean))];
+            if (keys.length === 0) return;
+            setApplicantsByPostId((prev) => {
+                const next = { ...prev };
+                keys.forEach((k) => {
+                    delete next[k];
+                });
+                return next;
+            });
+        };
+
+        const invalidateApplicantsForJobs = () => setApplicantsByPostId({});
+
+        const handleBookingUpdated = () => loadPosts(true);
+
+        /** Thông báo chuông (JOB_APPLICATION) không kèm postId — xóa cache để refetch applicants mở. */
+        const handleNotificationReceived = (e) => {
+            loadPosts(true);
+            const type = String(e?.detail?.type || '').toUpperCase();
+            if (type === 'JOB_APPLICATION') {
+                invalidateApplicantsForJobs();
+            }
+        };
+
+        const handleJobApplication = (e) => {
+            loadPosts(true);
+            const d = e?.detail || {};
+            const pid = d.postId ?? d.jobId ?? d.post_id ?? d.job_id;
+            if (pid !== undefined && pid !== null && String(pid) !== '') {
+                invalidateApplicantCaches([pid]);
+            }
+        };
+
+        window.addEventListener('notification:received', handleNotificationReceived);
+        window.addEventListener('job:new_application', handleJobApplication);
+        window.addEventListener('booking:updated', handleBookingUpdated);
 
         return () => {
             clearInterval(interval);
-            window.removeEventListener('notification:received', handleRefresh);
-            window.removeEventListener('job:new_application', handleRefresh);
-            window.removeEventListener('booking:updated', handleRefresh);
+            window.removeEventListener('notification:received', handleNotificationReceived);
+            window.removeEventListener('job:new_application', handleJobApplication);
+            window.removeEventListener('booking:updated', handleBookingUpdated);
         };
     }, [loadPosts]);
 
@@ -328,23 +367,23 @@ const CustomerManagePostsPage = () => {
     useEffect(() => {
         const openPostIds = normalizedPosts
             .filter((post) => ['PENDING', 'PUBLISHED'].includes(post.status))
-            .map((post) => post.postId)
+            .map((post) => applicantKey(post.postId))
             .filter(Boolean);
 
-        const pendingIds = openPostIds.filter((postId) => !(postId in applicantsByPostId));
-        if (pendingIds.length === 0) return;
+        const pendingKeys = openPostIds.filter((k) => !(k in applicantsByPostId));
+        if (pendingKeys.length === 0) return;
 
         let cancelled = false;
 
         const fetchApplicantsForPosts = async () => {
             const entries = await Promise.all(
-                pendingIds.map(async (postId) => {
+                pendingKeys.map(async (key) => {
                     try {
-                        const res = await BookingService.getApplicants(postId);
+                        const res = await BookingService.getApplicants(key);
                         const list = extractPayload(res);
-                        return [postId, Array.isArray(list) ? list : []];
+                        return [key, Array.isArray(list) ? list : []];
                     } catch {
-                        return [postId, []];
+                        return [key, []];
                     }
                 })
             );
@@ -352,8 +391,8 @@ const CustomerManagePostsPage = () => {
             if (cancelled) return;
             setApplicantsByPostId((prev) => {
                 const next = { ...prev };
-                entries.forEach(([postId, list]) => {
-                    next[postId] = list;
+                entries.forEach(([key, list]) => {
+                    next[key] = list;
                 });
                 return next;
             });
@@ -429,7 +468,7 @@ const CustomerManagePostsPage = () => {
                                         };
                                         const statusConf = getStatusConfig(post.status);
                                         const isAssigned = isAssignedPost(post.status);
-                                        const applicants = applicantsByPostId[post.postId] || [];
+                                        const applicants = applicantsByPostId[applicantKey(post.postId)] || [];
                                         const hasApplicants = ['PENDING', 'PUBLISHED'].includes(post.status) && applicants.length > 0;
                                         const previewApplicants = applicants.slice(0, 3);
                                         const canOpenBooking = Number(post?.bookingId) > 0;

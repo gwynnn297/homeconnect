@@ -9,6 +9,7 @@ import com.homeconnect.core.repository.NotificationRepository;
 import com.homeconnect.core.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.http.HttpStatus;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,6 +41,8 @@ public class NotificationService {
     private static final int MAX_NOTIFICATION_TYPE_LENGTH = 20;
     private final NotificationRepository notificationRepository;
     private final SocketIOService socketIOService;
+    @Value("${app.notification.sse.enabled:false}")
+    private boolean sseEnabled;
 
     // Danh sách kết nối SSE theo từng userId (1 user có thể mở nhiều tab)
     private final Map<Long, CopyOnWriteArrayList<SseEmitter>> emittersByUserId = new ConcurrentHashMap<>();
@@ -120,7 +124,12 @@ public class NotificationService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    pushRealtime(helperId, response);
+                    try {
+                        pushRealtime(helperId, response);
+                    } catch (Exception e) {
+                        // Tuyệt đối không để exception realtime làm fail luồng nghiệp vụ chính
+                        log.warn("Skip realtime push afterCommit for helper {}: {}", helperId, e.getMessage());
+                    }
                 }
             });
         } else {
@@ -152,7 +161,12 @@ public class NotificationService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    pushRealtime(userId, response);
+                    try {
+                        pushRealtime(userId, response);
+                    } catch (Exception e) {
+                        // Tuyệt đối không để exception realtime làm fail luồng nghiệp vụ chính
+                        log.warn("Skip realtime push afterCommit for user {}: {}", userId, e.getMessage());
+                    }
                 }
             });
         } else {
@@ -210,16 +224,25 @@ public class NotificationService {
      * Nếu emitter lỗi thì remove khỏi danh sách để tránh leak.
      */
 private void pushRealtime(Long userId, NotificationResponse payload) {
-        // 1. Gửi qua Socket.IO (Room user_ID)
-        socketIOService.sendMessage(userId.toString(), "new_notification", payload);
+        try {
+            // 1. Gửi qua Socket.IO (Room user_ID)
+            socketIOService.sendMessage(userId.toString(), "new_notification", toSocketPayload(payload));
+        } catch (Exception e) {
+            log.warn("Socket push failed for user {}: {}", userId, e.getMessage());
+        }
 
-        // 2. Gửi qua SSE (Duy trì cho backward compatibility)
+        // 2. Gửi qua SSE (tùy chọn - mặc định tắt để tránh spam IOException khi client ngắt stream)
+        if (!sseEnabled) {
+            return;
+        }
+
+        // Duy trì cho backward compatibility khi bật app.notification.sse.enabled=true
         List<SseEmitter> emitters = emittersByUserId.get(userId);
         if (emitters == null || emitters.isEmpty()) {
             return;
         }
 
-        emitters.forEach(emitter -> {
+        for (SseEmitter emitter : emitters) {
             try {
                 emitter.send(SseEmitter.event().name("notification").data(payload));
             } catch (IOException e) {
@@ -227,11 +250,34 @@ private void pushRealtime(Long userId, NotificationResponse payload) {
                 // Ta chỉ cần log nhẹ nhàng và gỡ emitter đó đi
                 log.debug("SSE connection for user {} aborted: {}", userId, e.getMessage());
                 removeEmitter(userId, emitter);
+                try {
+                    emitter.complete();
+                } catch (Exception ignored) {
+                    // ignore
+                }
             } catch (Exception e) {
-                log.error("Error sending SSE for user {}: {}", userId, e.getMessage());
+                log.warn("Error sending SSE for user {}: {}", userId, e.getMessage());
                 removeEmitter(userId, emitter);
+                try {
+                    emitter.completeWithError(e);
+                } catch (Exception ignored) {
+                    // ignore
+                }
             }
-        });
+        }
+    }
+
+    // Payload cho netty-socketio phải tránh Java time object trực tiếp
+    // vì mapper mặc định của thư viện không hỗ trợ LocalDateTime.
+    private Map<String, Object> toSocketPayload(NotificationResponse payload) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("notificationId", payload.getNotificationId());
+        data.put("title", payload.getTitle());
+        data.put("content", payload.getContent());
+        data.put("type", payload.getType());
+        data.put("isRead", payload.getIsRead());
+        data.put("createdAt", payload.getCreatedAt() != null ? payload.getCreatedAt().toString() : null);
+        return data;
     }
 
     // Gỡ emitter ra khỏi map khi kết nối đã đóng hoặc lỗi
