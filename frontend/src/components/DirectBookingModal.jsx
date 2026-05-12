@@ -359,7 +359,7 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
             setToast({ type: 'success', message: 'Đã xóa địa chỉ.' });
         } catch (err) {
             console.error("Delete address error:", err);
-            setToast({ type: 'error', message: 'Không thể xóa địa chỉ.' });
+            setToast({ type: 'error', message: err?.message || 'Không thể xóa địa chỉ. Vui lòng thử lại.' });
         }
     };
 
@@ -431,7 +431,6 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
             setToast({ type: 'error', message: 'Vui lòng điền đầy đủ thông tin!' });
             return;
         }
-
         const selectedMaxDur = helper?.selectedSlot?.maxDuration || 0;
         const totalRequestedDur = parseInt(durationHours, 10) + (catId === CAT_HOME_CLEAN ? selectedSubs.length : 0);
 
@@ -441,6 +440,18 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
                 message: `Thợ chỉ rảnh ${selectedMaxDur} tiếng trong khung giờ này. Tổng thời gian đặt (${totalRequestedDur}h) vượt quá lịch rảnh!` 
             });
             return;
+        }
+
+        // Kiểm tra thời gian tối thiểu 30 phút nếu đặt cho hôm nay
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (workDate === todayStr) {
+            const now = new Date();
+            const slotMinutes = startHour * 60 + startMinute;
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+            if (slotMinutes - nowMinutes < 30) {
+                setToast({ type: 'error', message: 'Vui lòng chọn khung giờ cách hiện tại ít nhất 30 phút để thợ có thời gian chuẩn bị.' });
+                return;
+            }
         }
 
         setLoading(true);

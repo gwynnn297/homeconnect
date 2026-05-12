@@ -183,7 +183,7 @@ public class AddressService {
         }
 
         if (jobPostRepository.existsByAddress_AddressId(addressId) || bookingRepository.existsByAddress_AddressId(addressId)) {
-            throw new com.homeconnect.core.exception.ApiException("Không thể xóa địa chỉ đang được sử dụng trong các đơn hàng hoặc tin đăng.", org.springframework.http.HttpStatus.BAD_REQUEST);
+            throw new com.homeconnect.core.exception.ApiException("Không thể xóa địa chỉ này vì đang có lịch đặt (đơn hàng) hoặc bài đăng đang sử dụng địa chỉ này. Vui lòng hoàn thành hoặc hủy chúng trước khi xóa.", org.springframework.http.HttpStatus.BAD_REQUEST);
         }
 
         addressRepository.delete(address);

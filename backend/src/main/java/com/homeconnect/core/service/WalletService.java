@@ -419,11 +419,11 @@ public class WalletService {
     }
 
     /**
-     * [BE-Wallet-08] Cộng tiền bồi thường cho Khách hàng
+     * [BE-Wallet-08] Cộng tiền bồi thường cho người dùng (Khách hoặc Thợ)
      */
     @Transactional
-    public void compensateCustomer(Long userId, BigDecimal amount, Long jobId) {
-        log.info("🎁 Cộng tiền bồi thường User ID: {}, Amount: {}, Job ID: {}", userId, amount, jobId);
+    public void compensateCustomer(Long userId, BigDecimal amount, Long jobId, String reason) {
+        log.info("🎁 Cộng tiền bồi thường User ID: {}, Amount: {}, Job ID: {}, Reason: {}", userId, amount, jobId, reason);
         Wallet wallet = walletRepository.findByUserIdWithLock(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng"));
 
@@ -436,7 +436,7 @@ public class WalletService {
                 .type(TransactionType.DEPOSIT)
                 .referenceType(ReferenceType.BOOKING)
                 .referenceId(jobId.intValue())
-                .description("Bồi thường từ việc Helper hủy đơn #" + jobId)
+                .description(reason)
                 .build();
         transactionRepository.save(transaction);
 

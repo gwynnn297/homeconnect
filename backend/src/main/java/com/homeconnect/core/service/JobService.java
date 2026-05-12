@@ -324,12 +324,12 @@ public class JobService {
                     // 2. Lọc theo Lịch rảnh (Phải có slot AVAILABLE bao trùm Job)
                     int duration = (jp.getDurationHours() != null && jp.getDurationHours() > 0) ? jp.getDurationHours()
                             : 1;
-                    java.time.LocalTime endTime = jp.getStartTime().plusHours(duration);
+                    long durationSecs = (long) duration * 3600;
                     long availableCount = helperScheduleRepository.countAvailableSchedules(
                             helperId,
                             jp.getWorkDate(),
                             jp.getStartTime(),
-                            endTime);
+                            durationSecs);
                     return availableCount > 0;
                 })
                 .sorted(java.util.Comparator.comparing((JobPost jp) -> isVipCustomer(jp)).reversed()
@@ -807,7 +807,7 @@ public class JobService {
 
             // Trích 50% bồi thường cho khách hàng
             BigDecimal compensation = penaltyAmount.multiply(new BigDecimal("0.5"));
-            walletService.compensateCustomer(jobPost.getCustomerId(), compensation, postId);
+            walletService.compensateCustomer(jobPost.getCustomerId(), compensation, postId, "Bồi thường do thợ hủy đơn #" + postId);
 
             log.info("⚠ Đã phạt thợ {} số tiền {} VNĐ và bồi thường Khách {} số tiền {} VNĐ",
                     helperId, penaltyAmount, jobPost.getCustomerId(), compensation);
@@ -1393,12 +1393,12 @@ public class JobService {
         int duration = (jobPost.getDurationHours() != null && jobPost.getDurationHours() > 0)
                 ? jobPost.getDurationHours()
                 : 1;
-        java.time.LocalTime endTime = jobPost.getStartTime().plusHours(duration);
+        long durationSecs = (long) duration * 3600;
         long availableCount = helperScheduleRepository.countAvailableSchedules(
                 helperId,
                 jobPost.getWorkDate(),
                 jobPost.getStartTime(),
-                endTime);
+                durationSecs);
 
         if (availableCount == 0) {
             throw new ApiException(

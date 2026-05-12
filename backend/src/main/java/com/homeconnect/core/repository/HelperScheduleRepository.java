@@ -53,16 +53,28 @@ public interface HelperScheduleRepository extends JpaRepository<HelperSchedule, 
 
     long countByHelperIdAndStatusAndWorkDateBetween(Long helperId, ScheduleStatus status, LocalDate startDate, LocalDate endDate);
 
-    @Query("SELECT COUNT(hs) FROM HelperSchedule hs " +
-           "WHERE hs.helper.id = :helperId " +
-           "AND hs.workDate = :workDate " +
-           "AND hs.status = 'AVAILABLE' " +
-           "AND hs.startTime <= :startTime " +
-           "AND hs.endTime >= :endTime ")
+    @Query(value = """
+            SELECT COUNT(hs.schedule_id) FROM helper_schedules hs
+            WHERE hs.helper_id = :helperId
+              AND hs.work_date = :workDate
+              AND hs.status = 'AVAILABLE'
+              AND hs.start_time <= :startTime
+              AND ADDTIME(:startTime, SEC_TO_TIME(:durationSecs)) <= hs.end_time
+              AND NOT EXISTS (
+                  SELECT 1 FROM bookings b
+                  WHERE b.helper_id = hs.helper_id
+                    AND DATE(b.scheduled_start_time) = :workDate
+                    AND b.status IN ('CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'PENDING_COMPLETION')
+                    AND (
+                        (TIME(b.scheduled_start_time) < ADDTIME(:startTime, SEC_TO_TIME(:durationSecs))
+                         AND TIME(b.scheduled_end_time) > :startTime)
+                    )
+              )
+            """, nativeQuery = true)
     long countAvailableSchedules(@Param("helperId") Long helperId,
                                  @Param("workDate") java.time.LocalDate workDate,
                                  @Param("startTime") java.time.LocalTime startTime,
-                                 @Param("endTime") java.time.LocalTime endTime);
+                                 @Param("durationSecs") long durationSecs);
 
     List<HelperSchedule> findByBooking(com.homeconnect.core.entity.Booking booking);
 }

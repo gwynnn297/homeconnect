@@ -725,7 +725,6 @@ const CustomerManagePostsPage = () => {
                         <h3>Hủy yêu cầu đặt trực tiếp</h3>
                         <p>
                             Bạn chắc chắn muốn hủy yêu cầu <strong>{pendingCancelDirectPost.title || `#${pendingCancelDirectPost.bookingId}`}</strong>?
-                            Nếu hủy sát giờ (dưới 2 giờ), hệ thống có thể trừ 30% tiền giữ và hoàn 70% về ví.
                         </p>
                         <label className="cmp-modal-label" htmlFor="cmp-cancel-direct-reason">
                             Nhập lý do hủy (tối thiểu 5 ký tự):

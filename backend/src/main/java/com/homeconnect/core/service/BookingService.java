@@ -30,6 +30,8 @@ import java.util.Optional;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.math.BigDecimal;
@@ -59,7 +61,8 @@ public class BookingService {
             BookingStatus.CONFIRMED,
             BookingStatus.ARRIVED);
     private static final List<BookingStatus> CUSTOMER_CANCEL_ALLOWED_STATUSES = List.of(
-            BookingStatus.PENDING_ACCEPTANCE);
+            BookingStatus.PENDING_ACCEPTANCE,
+            BookingStatus.CONFIRMED);
 
     private final BookingRepository bookingRepository;
     private final AddressRepository addressRepository;
@@ -517,7 +520,7 @@ public class BookingService {
     }
 
     /**
-     * Validate workSize &amp; duration cho direct booking — khớp JobService rules
+     * Validate workSize & duration cho direct booking — khớp JobService rules
      */
     private void validateDirectBookingWorkSize(Integer categoryId, Integer hours, Double workSize) {
         if (workSize == null || workSize <= 0 || categoryId == null) return;
@@ -683,15 +686,42 @@ public class BookingService {
         helperScheduleRepository.save(schedule);
 
         if (accept) {
-            socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
-            socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+            sendSocketAfterCommit(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+            sendSocketAfterCommit(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
         } else {
-            socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
-            socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
-            socketIOService.sendMessage(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
+            sendSocketAfterCommit(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+            sendSocketAfterCommit(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+            sendSocketAfterCommit(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
                     "bookingId", booking.getId(),
                     "reason", "DIRECT_BOOKING_REJECTED"
             ));
+        }
+        broadcastAfterCommit("helper_schedule_updated", Map.of("helperId", booking.getHelper().getId()));
+    }
+
+    private void sendSocketAfterCommit(String userId, String eventName, Object data) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    socketIOService.sendMessage(userId, eventName, data);
+                }
+            });
+        } else {
+            socketIOService.sendMessage(userId, eventName, data);
+        }
+    }
+
+    private void broadcastAfterCommit(String eventName, Object data) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    socketIOService.broadcast(eventName, data);
+                }
+            });
+        } else {
+            socketIOService.broadcast(eventName, data);
         }
     }
 
@@ -1228,7 +1258,7 @@ public class BookingService {
 
         if (!CUSTOMER_CANCEL_ALLOWED_STATUSES.contains(booking.getStatus())) {
             throw new ApiException(
-                    "Khách hàng chỉ có thể hủy booking ở trạng thái PENDING_ACCEPTANCE",
+                    "Khách hàng chỉ có thể hủy booking khi đang chờ chấp nhận hoặc đã xác nhận (trước khi bắt đầu làm).",
                     HttpStatus.BAD_REQUEST);
         }
 
@@ -1241,15 +1271,28 @@ public class BookingService {
         booking.setCancelledAt(LocalDateTime.now());
         bookingRepository.save(booking);
 
+        // Realtime update
+        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
+                "bookingId", booking.getId(),
+                "reason", "DIRECT_BOOKING_CANCELLED"
+        ));
+
+        // Notify both parties
+        String msg = String.format("Đơn đặt #%d đã được hủy. Lý do: %s", bookingId, normalizedReason);
+        notificationService.createNotification(booking.getCustomer().getId(), "Bạn đã hủy đơn hàng", msg, "BOOKING_CANCEL");
+        notificationService.createNotification(booking.getHelper().getId(), "Đơn hàng đã bị hủy", msg, "BOOKING_CANCEL");
+
         long diffInMinutes = java.time.Duration.between(LocalDateTime.now(), booking.getScheduledStartTime()).toMinutes();
-        if (diffInMinutes < 120) {
+        if (diffInMinutes < 120 && booking.getStatus() != BookingStatus.PENDING_ACCEPTANCE) {
             UserViolation violation = UserViolation.builder()
                     .user(booking.getCustomer())
                     .bookingId(bookingId)
                     .violationType("CUSTOMER_LATE_CANCEL")
                     .severity("MEDIUM")
                     .penaltyAmount(booking.getPenaltyAmount())
-                    .note("Khách hàng hủy sát giờ")
+                    .note("Khách hàng hủy sát giờ đơn đã xác nhận")
                     .build();
             userViolationRepository.save(violation);
         }
@@ -1267,15 +1310,25 @@ public class BookingService {
         if (booking.getPaymentStatus() == PaymentStatus.HOLDING) {
             long diffInMinutes = java.time.Duration.between(now, startTime).toMinutes();
 
+            // Nếu thợ CHƯA chấp nhận (PENDING_ACCEPTANCE) thì luôn hoàn 100%, không phạt
+            if (booking.getStatus() == BookingStatus.PENDING_ACCEPTANCE) {
+                booking.setPenaltyAmount(BigDecimal.ZERO);
+                booking.setRefundAmount(booking.getTotalPrice());
+                walletService.refundHold(customerId, booking.getTotalPrice(), bookingId, "Hủy yêu cầu chưa được chấp nhận (Hoàn 100%)");
+                booking.setPaymentStatus(PaymentStatus.REFUNDED);
+                return;
+            }
+
+            // Nếu đã chấp nhận (CONFIRMED) thì mới áp dụng luật phạt 2h
             if (diffInMinutes < 120) {
-                BigDecimal penalty = booking.getTotalPrice().multiply(BigDecimal.valueOf(0.3));
+                BigDecimal penalty = booking.getTotalPrice().multiply(BigDecimal.valueOf(0.05));
                 BigDecimal refund = booking.getTotalPrice().subtract(penalty);
                 booking.setPenaltyAmount(penalty);
                 booking.setRefundAmount(refund);
 
                 walletService.deductPenalty(customerId, penalty, bookingId, "Hủy đơn sát giờ (< 2h)");
-                walletService.compensateCustomer(booking.getHelper().getId(), penalty, bookingId);
-                walletService.refundHold(customerId, refund, bookingId, "Hoàn lại 70% sau phí hủy đơn");
+                walletService.compensateCustomer(booking.getHelper().getId(), penalty, bookingId, "Bồi thường khách hủy đơn sát giờ #" + bookingId);
+                walletService.refundHold(customerId, refund, bookingId, "Hoàn lại 95% sau phí hủy đơn");
                 booking.setPaymentStatus(PaymentStatus.RELEASED);
             } else {
                 booking.setPenaltyAmount(BigDecimal.ZERO);
@@ -1292,6 +1345,9 @@ public class BookingService {
             schedule.setStatus(ScheduleStatus.AVAILABLE);
             schedule.setBooking(null);
             helperScheduleRepository.save(schedule);
+        }
+        if (booking.getHelper() != null) {
+            socketIOService.broadcast("helper_schedule_updated", java.util.Map.of("helperId", booking.getHelper().getId()));
         }
     }
 
@@ -1415,7 +1471,7 @@ public class BookingService {
                     HttpStatus.BAD_REQUEST);
         }
 
-        BigDecimal penalty = booking.getTotalPrice().multiply(BigDecimal.valueOf(0.3));
+        BigDecimal penalty = booking.getTotalPrice().multiply(BigDecimal.valueOf(0.05));
         if (booking.getPaymentStatus() == PaymentStatus.HOLDING) {
             walletService.refundHold(booking.getCustomer().getId(), booking.getTotalPrice(), bookingId,
                     "Helper no-show, hoàn tiền 100%");
@@ -1431,6 +1487,14 @@ public class BookingService {
         booking.setPenaltyAmount(penalty);
         booking.setRefundAmount(booking.getTotalPrice());
         bookingRepository.save(booking);
+
+        // Realtime update
+        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
+                "bookingId", booking.getId(),
+                "reason", "HELPER_NO_SHOW"
+        ));
 
         if (!reviewRepository.existsByBookingId(bookingId)) {
             reviewRepository.save(Review.builder()
@@ -1501,7 +1565,7 @@ public class BookingService {
         BigDecimal refund = booking.getTotalPrice().subtract(partialPay);
 
         if (booking.getPaymentStatus() == PaymentStatus.HOLDING) {
-            walletService.compensateCustomer(booking.getHelper().getId(), partialPay, bookingId);
+            walletService.compensateCustomer(booking.getHelper().getId(), partialPay, bookingId, "Thanh toán một phần do khách không đến #" + bookingId);
             walletService.refundHold(booking.getCustomer().getId(), refund, bookingId,
                     "Customer no-show, hoàn phần còn lại");
         }
@@ -1515,6 +1579,14 @@ public class BookingService {
         booking.setPenaltyAmount(partialPay);
         booking.setRefundAmount(refund);
         bookingRepository.save(booking);
+
+        // Realtime update
+        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        socketIOService.sendMessage(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
+                "bookingId", booking.getId(),
+                "reason", "CUSTOMER_NO_SHOW"
+        ));
 
         userViolationRepository.save(UserViolation.builder()
                 .user(booking.getCustomer())
