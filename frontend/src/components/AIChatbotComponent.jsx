@@ -929,6 +929,15 @@ const AIChatbotComponent = () => {
                                                     <div className="ai-chatbot-helper-list">
                                                         {message.helpers.map((helper) => (
                                                             <div key={helper.helperId} className="ai-chatbot-helper-card">
+                                                                {(() => {
+                                                                    const discountRate = Number(helper.discountRate ?? 0);
+                                                                    const discountPercent = Number.isFinite(discountRate)
+                                                                        ? (discountRate * 100).toFixed(0)
+                                                                        : '0';
+                                                                    const originalPrice = helper.originalPrice ?? helper.estimatedPrice ?? 0;
+                                                                    const finalPrice = helper.finalPrice ?? helper.estimatedPrice ?? 0;
+                                                                    return (
+                                                                        <>
                                                                 <div className="ai-chatbot-helper-header">
                                                                     <button
                                                                         type="button"
@@ -963,13 +972,14 @@ const AIChatbotComponent = () => {
                                                                     ⭐ {helper.ratingAverage ?? 0} ({helper.totalReviews ?? 0} đánh giá)
                                                                 </div>
                                                                 <div className="ai-chatbot-helper-meta">
-                                                                    Giá dự kiến: {helper.estimatedPrice ?? 0} VNĐ
+                                                                    Giá gốc: {originalPrice} VNĐ
                                                                 </div>
-                                                                {helper.basePrice != null && (
-                                                                    <div className="ai-chatbot-helper-meta">
-                                                                        Cơ bản: {helper.basePrice} VNĐ
-                                                                    </div>
-                                                                )}
+                                                                <div className="ai-chatbot-helper-meta">
+                                                                    % ưu đãi theo hạng hiện tại: {discountPercent}%{helper.customerTierLabel ? ` (${helper.customerTierLabel})` : ''}
+                                                                </div>
+                                                                <div className="ai-chatbot-helper-meta">
+                                                                    Giá sau ưu đãi: {finalPrice} VNĐ
+                                                                </div>
                                                                 {helper.premiumFee != null && Number(helper.premiumFee) > 0 && (
                                                                     <div className="ai-chatbot-helper-meta">
                                                                         Premium: {helper.premiumFee} VNĐ
@@ -1011,6 +1021,9 @@ const AIChatbotComponent = () => {
                                                                 >
                                                                     Chọn helper
                                                                 </button>
+                                                                        </>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         ))}
                                                     </div>

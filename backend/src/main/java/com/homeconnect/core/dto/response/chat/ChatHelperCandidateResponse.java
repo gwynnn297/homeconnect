@@ -20,6 +20,12 @@ public class ChatHelperCandidateResponse {
     private BigDecimal ratingAverage;
     private Integer totalReviews;
     private BigDecimal estimatedPrice;
+    private BigDecimal originalPrice;
+    private BigDecimal discountRate;
+    private BigDecimal discountAmount;
+    private BigDecimal finalPrice;
+    private String customerTier;
+    private String customerTierLabel;
     private String districtName;
     private BigDecimal distanceKm;
     private LocalTime availableStartTime;
