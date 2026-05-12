@@ -59,6 +59,25 @@ services:
       DB_NAME: ${DB_NAME:-homeconnect}
       DB_USERNAME: ${DB_USERNAME:-homeconnect}
       DB_PASSWORD: ${DB_PASSWORD:?set in .env}
+
+      # Email OTP (set either EMAIL_* or GMAIL_*)
+      EMAIL_USERNAME: ${EMAIL_USERNAME:-}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      GMAIL_USERNAME: ${GMAIL_USERNAME:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+
+      # Third-party integrations (optional, but required for related features)
+      GOONG_API_KEY: ${GOONG_API_KEY:-}
+      FACEPP_API_KEY: ${FACEPP_API_KEY:-}
+      FACEPP_API_SECRET: ${FACEPP_API_SECRET:-}
+      FACEPP_COMPARE_URL: ${FACEPP_COMPARE_URL:-}
+      FACEPP_MIN_CONFIDENCE: ${FACEPP_MIN_CONFIDENCE:-}
+      FPT_AI_API_KEY: ${FPT_AI_API_KEY:-}
+      FPT_AI_OCR_URL: ${FPT_AI_OCR_URL:-}
+      XGATE_API_KEY: ${XGATE_API_KEY:-}
+      XGATE_API_URL: ${XGATE_API_URL:-}
+      XGATE_WEBHOOK_SECRET: ${XGATE_WEBHOOK_SECRET:-}
+
       JWT_SECRET: ${JWT_SECRET:-change-me}
       AI_PARSER_URL: http://ai:8000/api/v1/chat/parse
       SOCKET_SERVER_HOST: 0.0.0.0
@@ -75,6 +94,12 @@ services:
       args:
         VITE_API_URL: ${PUBLIC_BASE_URL:-http://localhost}
         VITE_SOCKET_URL: ${PUBLIC_BASE_URL:-http://localhost}
+        VITE_CLOUDINARY_CLOUD_NAME: ${VITE_CLOUDINARY_CLOUD_NAME:-}
+        VITE_CLOUDINARY_UPLOAD_PRESET: ${VITE_CLOUDINARY_UPLOAD_PRESET:-}
+        VITE_GOONG_JS_KEY: ${VITE_GOONG_JS_KEY:-}
+        VITE_GOONG_REST_API_KEY: ${VITE_GOONG_REST_API_KEY:-}
+        VITE_GOONG_MAPTILES_KEY: ${VITE_GOONG_MAPTILES_KEY:-}
+        VITE_GOONG_API_KEY: ${VITE_GOONG_API_KEY:-}
     container_name: homeconnect-web
     restart: unless-stopped
     depends_on:
