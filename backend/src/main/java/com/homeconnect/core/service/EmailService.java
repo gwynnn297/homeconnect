@@ -42,10 +42,10 @@ public class EmailService {
             return true;
 
         } catch (MessagingException e) {
-            log.error("Lỗi gửi email OTP đến {}: {}", toEmail, e.getMessage());
+            log.error("Lỗi gửi email OTP đến {}: {}", toEmail, e.getMessage(), e);
             return false;
         } catch (Exception e) {
-            log.error("Lỗi không xác định khi gửi email: {}", e.getMessage());
+            log.error("Lỗi không xác định khi gửi email OTP đến {}: {}", toEmail, e.getMessage(), e);
             return false;
         }
     }
@@ -70,10 +70,10 @@ public class EmailService {
             return true;
 
         } catch (MessagingException e) {
-            log.error("Lỗi gửi email đến {}: {}", toEmail, e.getMessage());
+            log.error("Lỗi gửi email đến {}: {}", toEmail, e.getMessage(), e);
             return false;
         } catch (Exception e) {
-            log.error("Lỗi không xác định khi gửi email: {}", e.getMessage());
+            log.error("Lỗi không xác định khi gửi email đến {}: {}", toEmail, e.getMessage(), e);
             return false;
         }
     }

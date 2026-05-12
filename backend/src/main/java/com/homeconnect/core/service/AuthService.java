@@ -110,7 +110,10 @@ public class AuthService {
         securityTokenRepository.save(securityToken);
 
         // Send Email OTP
-        emailService.sendOtp(user.getEmail(), otp, user.getFullName());
+        boolean emailSent = emailService.sendOtp(user.getEmail(), otp, user.getFullName());
+        if (!emailSent) {
+            throw new RuntimeException("Không thể gửi OTP qua email lúc này. Vui lòng thử lại sau.");
+        }
     }
 
     public User registerVerify(RegisterVerifyRequest request) {
@@ -243,7 +246,10 @@ public class AuthService {
         securityTokenRepository.save(securityToken);
 
         // Send Email
-        emailService.sendOtp(user.getEmail(), otp, user.getFullName());
+        boolean emailSent = emailService.sendOtp(user.getEmail(), otp, user.getFullName());
+        if (!emailSent) {
+            throw new RuntimeException("Không thể gửi OTP qua email lúc này. Vui lòng thử lại sau.");
+        }
     }
 
     public String verifyForgotOtp(VerifyOtpRequest request) {
