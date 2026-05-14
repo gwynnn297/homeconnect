@@ -572,8 +572,8 @@ public class AdminService {
                         case "ADMIN_USER_STATUS_UPDATE" -> "Cập nhật trạng thái tài khoản người dùng";
                         case "ADMIN_BOOKING_CANCEL" -> "Hủy booking bởi quản trị viên";
                         case "ADMIN_BOOKING_UNFLAG" -> "Gỡ cờ cảnh báo booking";
-                        case "ADMIN_BOOKING_HELPER_NO_SHOW" -> "Xử lý helper không đến (no-show)";
-                        case "ADMIN_BOOKING_CUSTOMER_NO_SHOW" -> "Xử lý khách hàng không có mặt (no-show)";
+                        case "ADMIN_BOOKING_HELPER_NO_SHOW" -> "Xử lý thợ vắng mặt";
+                        case "ADMIN_BOOKING_CUSTOMER_NO_SHOW" -> "Xử lý khách hàng vắng mặt";
                         case "ADMIN_HELPER_LOCK_BOOKING_REVIEW" -> "Chuyển booking sang xử lý vận hành khi khóa helper";
                         case "ADMIN_HELPER_LOCK_REOPEN_POST" -> "Mở lại tin đăng do helper bị khóa";
                         case "ADMIN_CUSTOMER_LOCK_BOOKING_REVIEW" -> "Chuyển booking sang xử lý vận hành khi khóa khách hàng";

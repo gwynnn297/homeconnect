@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 📝 DTO cho bước 1: Đăng ký tài khoản (Gửi OTP)
+ * DTO cho bước 1: Đăng ký tài khoản (Gửi OTP)
  */
 @Data
 public class RegisterInitRequest {

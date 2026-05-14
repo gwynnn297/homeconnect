@@ -43,7 +43,7 @@ public class WalletController {
     @Operation(summary = "Lấy thông tin ví của tôi", description = "Xem số dư khả dụng, số tiền đang giữ, và trạng thái ví", security = @SecurityRequirement(name = "bearerAuth"))
     public ResponseEntity<WalletInfoResponse> getMyWallet(HttpServletRequest request) {
         Long userId = getUserIdFromToken(request);
-        log.info("📊 User ID: {} đang xem thông tin ví", userId);
+        log.info("User ID: {} đang xem thông tin ví", userId);
 
         WalletInfoResponse response = walletService.getWalletInfo(userId);
         return ResponseEntity.ok(response);
@@ -60,7 +60,7 @@ public class WalletController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Long userId = getUserIdFromToken(request);
-        log.info("📜 User ID: {} đang xem lịch sử giao dịch - Page: {}, Size: {}", userId, page, size);
+        log.info("User ID: {} đang xem lịch sử giao dịch - Page: {}, Size: {}", userId, page, size);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         WalletTransactionListResponse response = walletService.getTransactionHistory(userId, pageable);
@@ -78,7 +78,7 @@ public class WalletController {
             HttpServletRequest request,
             @Valid @RequestBody GenerateQRRequest qrRequest) {
         Long userId = getUserIdFromToken(request);
-        log.info("🔗 User ID: {} yêu cầu sinh QR Code với số tiền: {}", userId, qrRequest.getAmount());
+        log.info("User ID: {} yêu cầu sinh QR Code với số tiền: {}", userId, qrRequest.getAmount());
 
         VietQRResponse response = walletService.generateVietQRUrl(userId, qrRequest.getAmount());
         return ResponseEntity.ok(response);
@@ -95,14 +95,14 @@ public class WalletController {
             +
             "Tự động cộng tiền vào ví user dựa trên nội dung chuyển khoản.")
     public ResponseEntity<String> handleDepositWebhook(@RequestBody WebhookDepositRequest request) {
-        log.info("💰 Nhận webhook deposit - TransactionID: {}, Amount: {}",
+        log.info("Nhận webhook deposit - TransactionID: {}, Amount: {}",
                 request.getTransactionId(), request.getAmount());
 
         try {
             walletService.processWebhookDeposit(request);
             return ResponseEntity.ok("OK");
         } catch (Exception e) {
-            log.error("❌ Lỗi xử lý webhook: {}", e.getMessage(), e);
+            log.error("Lỗi xử lý webhook: {}", e.getMessage(), e);
             // Vẫn trả về 200 OK để webhook provider không retry
             return ResponseEntity.ok("ERROR");
         }

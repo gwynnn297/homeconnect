@@ -69,25 +69,25 @@ const PublicHelperDetailPage = () => {
                                 <div className="hp-basic-info">
                                     <div className="hp-name-row">
                                         <h1 className="hp-name">{helper.fullName}</h1>
-                                        {helper.kycStatus === 'VERIFIED' && <span className="hp-verified-badge" title="Đã xác minh danh tính">🛡️</span>}
+                                        {helper.kycStatus === 'VERIFIED' && <span className="hp-verified-badge" title="Đã xác minh danh tính"></span>}
                                     </div>
                                     <div className="hp-stats-row">
-                                        <span className="hp-stat-item">⭐ <strong>{helper.ratingAverage || '5.0'}</strong> ({helper.totalReviews || 0} đánh giá)</span>
+                                        <span className="hp-stat-item"><strong>{helper.ratingAverage || '5.0'}</strong> ({helper.totalReviews || 0} đánh giá)</span>
                                         <span className="hp-stat-divider">|</span>
                                         <span className="hp-stat-item">💼 <strong>{helper.experienceYears || 0}</strong> năm kinh nghiệm</span>
                                     </div>
-                                    <p className="hp-hometown">🏠 Quê quán: {helper.hometownName || 'N/A'}</p>
+                                    <p className="hp-hometown">Quê quán: {helper.hometownName || 'N/A'}</p>
                                 </div>
                             </div>
                         </header>
 
                         <section className="hp-section">
-                            <h3 className="hp-section-title">✨ Giới thiệu</h3>
+                            <h3 className="hp-section-title">Giới thiệu</h3>
                             <p className="hp-bio">{helper.bio || 'Thợ chưa cập nhật lời giới thiệu...'}</p>
                         </section>
 
                         <section className="hp-section">
-                            <h3 className="hp-section-title">🛠 Kỹ năng & Dịch vụ</h3>
+                            <h3 className="hp-section-title">Kỹ năng & Dịch vụ</h3>
                             <div className="hp-cat-tags">
                                 {helper.categories?.map(cat => (
                                     <div key={cat.id || cat.categoryId} className="hp-cat-pill">
@@ -98,11 +98,11 @@ const PublicHelperDetailPage = () => {
                         </section>
 
                         <section className="hp-section">
-                            <h3 className="hp-section-title">📍 Khu vực làm việc</h3>
+                            <h3 className="hp-section-title">Khu vực làm việc</h3>
                             <div className="hp-dist-list">
                                 {helper.workingDistricts?.length > 0 ? (
                                     helper.workingDistricts.map(dist => (
-                                        <span key={dist.code} className="hp-dist-tag">📍 {dist.name}</span>
+                                        <span key={dist.code} className="hp-dist-tag">{dist.name}</span>
                                     ))
                                 ) : (
                                     <p className="hp-empty-hint">Chưa cập nhật khu vực làm việc cụ thể.</p>
@@ -124,10 +124,10 @@ const PublicHelperDetailPage = () => {
                         <div className="hp-trust-card">
                             <h4>Tại sao chọn {helper.fullName}?</h4>
                             <ul>
-                                <li>✅ Đã xác minh danh tính (KYC)</li>
-                                <li>✅ Hồ sơ kinh nghiệm rõ ràng</li>
-                                <li>✅ Đã qua đào tạo kỹ năng</li>
-                                <li>✅ Bảo hiểm dịch vụ HomieConnect</li>
+                                <li>Đã xác minh danh tính (KYC)</li>
+                                <li>Hồ sơ kinh nghiệm rõ ràng</li>
+                                <li>Đã qua đào tạo kỹ năng</li>
+                                <li>Bảo hiểm dịch vụ HomieConnect</li>
                             </ul>
                         </div>
                     </aside>

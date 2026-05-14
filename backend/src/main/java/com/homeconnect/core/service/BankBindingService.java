@@ -79,7 +79,7 @@ public class BankBindingService {
 
     @Transactional
     public void setDefaultAccount(Long userId, Integer bankAccountId) {
-        log.info("⭐ Đặt tài khoản mặc định: User {}, BankID {}", userId, bankAccountId);
+        log.info("Đặt tài khoản mặc định: User {}, BankID {}", userId, bankAccountId);
         
         UserBankAccount account = bankAccountRepository.findById(bankAccountId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ngân hàng"));
@@ -137,7 +137,7 @@ public class BankBindingService {
                 UserBankAccount newDefault = remaining.get(0);
                 newDefault.setIsDefault(true);
                 bankAccountRepository.save(newDefault);
-                log.info("⭐ Đã tự động đặt thẻ ID: {} làm mặc định mới.", newDefault.getBankAccountId());
+                log.info("Đã tự động đặt thẻ ID: {} làm mặc định mới.", newDefault.getBankAccountId());
             }
         }
     }

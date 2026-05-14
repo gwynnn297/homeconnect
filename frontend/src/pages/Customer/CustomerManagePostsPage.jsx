@@ -46,7 +46,7 @@ const getCategoryEmoji = (categoryName) => {
         return '🛒';
     }
 
-    return '✨';
+    return '';
 };
 
 const getInitial = (name = '') => {
@@ -68,6 +68,11 @@ const resolveUnifiedStatus = (post) => {
     if (['CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'PENDING_COMPLETION'].includes(bookingStatus)) return 'CONFIRMED';
     if (bookingStatus === 'PENDING_ACCEPTANCE') return 'PENDING_ACCEPTANCE';
     return rawStatus;
+};
+
+const translateNoShow = (reason) => {
+    if (!reason) return reason;
+    return reason.replace(/No-Show/gi, 'Vắng mặt');
 };
 
 const CustomerManagePostsPage = () => {
@@ -422,13 +427,13 @@ const CustomerManagePostsPage = () => {
                         </div>
                     ) : error ? (
                         <div className="cmp-empty-state">
-                            <div className="cmp-empty-icon">⚠️</div>
+                            <div className="cmp-empty-icon"></div>
                             <h3>Không tải được bài đăng</h3>
                             <p>{error}</p>
                         </div>
                     ) : normalizedPosts.length === 0 ? (
                         <div className="cmp-empty-state">
-                            <div className="cmp-empty-icon">📝</div>
+                            <div className="cmp-empty-icon"></div>
                             <h3>Bạn chưa có bài đăng nào</h3>
                             <p>Hãy đặt dịch vụ để trải nghiệm tiện ích tuyệt vời của chúng tôi nhé!</p>
                             <button className="cmp-btn-outline cmp-btn-action" onClick={() => navigate('/customer-dashboard')}>
@@ -453,7 +458,7 @@ const CustomerManagePostsPage = () => {
 
                             {visiblePosts.length === 0 ? (
                                 <div className="cmp-empty-state">
-                                    <div className="cmp-empty-icon">📭</div>
+                                    <div className="cmp-empty-icon"></div>
                                     <h3>Không có bài đăng trong nhóm này</h3>
                                     <p>Hãy chọn nhóm trạng thái khác để xem thêm dữ liệu.</p>
                                 </div>
@@ -514,7 +519,7 @@ const CustomerManagePostsPage = () => {
                                                                 <line x1="12" y1="16" x2="12" y2="12" />
                                                                 <line x1="12" y1="8" x2="12.01" y2="8" />
                                                             </svg>
-                                                            {post.cancelReason}
+                                                            {translateNoShow(post.cancelReason)}
                                                         </div>
                                                     )}
 

@@ -275,7 +275,7 @@ const AdminBookingsPage = () => {
                                                 {STATUS_OPTIONS.find((o) => o.value === b.status)?.label || b.status}
                                             </span>
                                         </td>
-                                        <td>{b.isFlagged ? '⚠️' : '—'}</td>
+                                        <td>{b.isFlagged ? 'Flagged' : '—'}</td>
                                         <td>
                                             <button
                                                 type="button"

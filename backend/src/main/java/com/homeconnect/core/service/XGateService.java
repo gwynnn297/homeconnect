@@ -34,7 +34,7 @@ public class XGateService {
      * Gọi API Payout của xGate với cơ chế RETRY + EXPONENTIAL BACKOFF
      */
     public String payout(WithdrawRequest request) {
-        log.info("🚀 [xGate-Pro] Đang khởi tạo Payout cho Request #{} - {} VNĐ", 
+        log.info("[xGate-Pro] Đang khởi tạo Payout cho Request #{} - {} VNĐ", 
                 request.getRequestId(), request.getAmount());
 
         int maxRetries = 3;
@@ -47,7 +47,7 @@ public class XGateService {
             } catch (Exception e) {
                 attempt++;
                 lastException = e;
-                log.warn("⚠️ [xGate Retry] Lần {} thất bại: {}. Đang thử lại...", attempt, e.getMessage());
+                log.warn("[xGate Retry] Lần {} thất bại: {}. Đang thử lại...", attempt, e.getMessage());
                 
                 try {
                     Thread.sleep(1000L * (long) Math.pow(2, attempt - 1));
@@ -55,13 +55,13 @@ public class XGateService {
             }
         }
 
-        log.error("❌ [xGate Fatal] Payout #{} thất bại sau {} lần thử.", request.getRequestId(), maxRetries);
+        log.error("[xGate Fatal] Payout #{} thất bại sau {} lần thử.", request.getRequestId(), maxRetries);
         throw new RuntimeException("XGate payout failed after retries: " + 
                 (lastException != null ? lastException.getMessage() : "Unknown error"));
     }
 
     public String checkStatus(String externalId) {
-        log.info("🔍 [xGate-Reconcile] Đang kiểm tra trạng thái GD: {}", externalId);
+        log.info("[xGate-Reconcile] Đang kiểm tra trạng thái GD: {}", externalId);
         // Logic: Gọi GET /api/v1/payout/status/{externalId}
         return "SUCCESS"; 
     }
@@ -82,7 +82,7 @@ public class XGateService {
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
         try {
-            log.info("📡 [xGate] Calling Payout API: {}/payout", apiUrl);
+            log.info("[xGate] Calling Payout API: {}/payout", apiUrl);
             ResponseEntity<Map> response = restTemplate.postForEntity(apiUrl + "/payout", entity, Map.class);
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
@@ -90,13 +90,13 @@ public class XGateService {
                 String externalId = (String) resBody.get("external_id");
                 if (externalId == null) externalId = (String) resBody.get("id");
                 
-                log.info("✅ [xGate] Payout success. External ID: {}", externalId);
+                log.info("[xGate] Payout success. External ID: {}", externalId);
                 return externalId;
             } else {
                 throw new Exception("xGate API error: " + response.getStatusCode());
             }
         } catch (Exception e) {
-            log.error("❌ [xGate] API Request failed: {}", e.getMessage());
+            log.error("[xGate] API Request failed: {}", e.getMessage());
             throw e;
         }
     }

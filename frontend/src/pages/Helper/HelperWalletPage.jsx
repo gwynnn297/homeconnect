@@ -599,7 +599,7 @@ const HelperWalletPage = () => {
                                     onChange={(e) => setNewBankAccount(p => ({ ...p, accountHolderName: e.target.value.toUpperCase() }))}
                                 />
                                 <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                                    ⚠️ Tên chủ tài khoản phải khớp với tên của bạn trên hệ thống (không dấu, chữ hoa).
+                                    Tên chủ tài khoản phải khớp với tên của bạn trên hệ thống (không dấu, chữ hoa).
                                 </p>
                             </div>
 

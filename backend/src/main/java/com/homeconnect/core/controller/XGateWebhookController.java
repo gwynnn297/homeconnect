@@ -26,7 +26,7 @@ public class XGateWebhookController {
             @RequestHeader(value = "X-XGate-Signature", required = false) String signature,
             @RequestBody Map<String, Object> payload) {
         
-        log.info("🔔 Nhận Webhook biến động số dư: {}", payload);
+        log.info("Nhận Webhook biến động số dư: {}", payload);
 
         // 1. Parse payload từ xGate/PayOS/Casso (Giả định format chung)
         String description = (String) payload.get("description");
@@ -61,7 +61,7 @@ public class XGateWebhookController {
             walletService.processXGateDepositWebhook(description, amount.abs(), transactionId);
 
         } else {
-            log.warn("⚠️ Webhook không khớp định dạng HOMIE/HOMIRT. Description: {}", description);
+            log.warn("Webhook không khớp định dạng HOMIE/HOMIRT. Description: {}", description);
         }
 
         return ResponseEntity.ok("OK");

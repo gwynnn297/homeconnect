@@ -102,8 +102,8 @@ public class BookingService {
         Long helperId = booking.getHelper().getId();
         if (customerId == null || helperId == null) return;
 
-        socketIOService.sendMessage(customerId.toString(), "booking_update", toSocketBookingPayload(booking, customerId));
-        socketIOService.sendMessage(helperId.toString(), "booking_update", toSocketBookingPayload(booking, helperId));
+        sendSocketAfterCommit(customerId.toString(), "booking_update", toSocketBookingPayload(booking, customerId));
+        sendSocketAfterCommit(helperId.toString(), "booking_update", toSocketBookingPayload(booking, helperId));
     }
 
     /**
@@ -304,7 +304,7 @@ public class BookingService {
         // 7. Thông báo cho các bên
         notificationService.createNotification(helper.getId(), "Chúc mừng! Bạn đã được chọn",
                 "Công việc #" + jobId + ": Bạn đã được chọn cho công việc: " + jobPost.getTitle(), "BOOKING_ACCEPTED");
-        socketIOService.sendMessage(helper.getId().toString(), "helper_feed_changed", Map.of(
+        sendSocketAfterCommit(helper.getId().toString(), "helper_feed_changed", Map.of(
                 "jobId", jobId,
                 "bookingId", booking.getId(),
                 "reason", "BOOKING_ACCEPTED"));
@@ -313,7 +313,7 @@ public class BookingService {
             if (!other.getApplicationId().equals(applicationId)) {
                 notificationService.createNotification(other.getHelperId(), "Rất tiếc!",
                         "Công việc #" + jobId + " (" + jobPost.getTitle() + ") đã có người khác nhận.", "BOOKING_REJECTED");
-                socketIOService.sendMessage(other.getHelperId().toString(), "helper_feed_changed", Map.of(
+                sendSocketAfterCommit(other.getHelperId().toString(), "helper_feed_changed", Map.of(
                         "jobId", jobId,
                         "bookingId", booking.getId(),
                         "reason", "BOOKING_REJECTED"));
@@ -397,7 +397,7 @@ public class BookingService {
 
             if (existing.isPresent()) {
                 bookingAddress = existing.get();
-                log.info("♻️ Reusing existing address ID: {} for direct booking", bookingAddress.getAddressId());
+                log.info("Reusing existing address ID: {} for direct booking", bookingAddress.getAddressId());
             } else {
                 bookingAddress = Address.builder()
                         .user(customer)
@@ -490,7 +490,7 @@ public class BookingService {
                 request.getDurationHours(),
                 category.getName());
         notificationService.createNotification(helper.getId(),
-                "📋 Yêu cầu đặt trực tiếp mới",
+                "Yêu cầu đặt trực tiếp mới",
                 helperContent,
                 "DIRECT_BOOKING");
 
@@ -503,14 +503,14 @@ public class BookingService {
                 String.format("%02d:%02d", request.getStartTime().getHour(), request.getStartTime().getMinute()),
                 request.getDurationHours());
         notificationService.createNotification(customerId,
-                "✅ Đã gửi yêu cầu đặt thợ",
+                "Đã gửi yêu cầu đặt thợ",
                 customerContent,
                 "DIRECT_BOOKING");
 
         // Realtime: đơn trực tiếp vừa tạo — cả hai bên refetch UI không cần F5
-        socketIOService.sendMessage(helper.getId().toString(), "booking_update", toSocketBookingPayload(booking, helper.getId()));
-        socketIOService.sendMessage(customerId.toString(), "booking_update", toSocketBookingPayload(booking, customerId));
-        socketIOService.sendMessage(helper.getId().toString(), "helper_feed_changed", Map.of(
+        sendSocketAfterCommit(helper.getId().toString(), "booking_update", toSocketBookingPayload(booking, helper.getId()));
+        sendSocketAfterCommit(customerId.toString(), "booking_update", toSocketBookingPayload(booking, customerId));
+        sendSocketAfterCommit(helper.getId().toString(), "helper_feed_changed", Map.of(
                 "bookingId", booking.getId(),
                 "reason", "DIRECT_BOOKING_CREATED"
         ));
@@ -790,8 +790,8 @@ public class BookingService {
                 "Công việc đã bắt đầu!",
                 "Đơn hàng #" + bookingId + ": Khách hàng đã xác nhận. Bạn có thể bắt đầu làm việc ngay.", "WORK_STARTED");
 
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
-        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+        sendSocketAfterCommit(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        sendSocketAfterCommit(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
     }
 
     /**
@@ -868,8 +868,8 @@ public class BookingService {
         notificationService.createNotification(booking.getCustomer().getId(),
                 "Thợ báo đã hoàn thành!", notifContent, "WORK_DONE_BY_HELPER");
 
-        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        sendSocketAfterCommit(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+        sendSocketAfterCommit(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
     }
 
     private void validateCheckoutLocation(Booking booking, BigDecimal latitude, BigDecimal longitude) {
@@ -927,8 +927,8 @@ public class BookingService {
                 "Khách đã xác nhận hoàn thành!",
                 "Đơn hàng #" + bookingId + ": Tuyệt vời! Khách hàng đã xác nhận. Lương sẽ được giải ngân sau 24h.", "WORK_COMPLETED");
 
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
-        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+        sendSocketAfterCommit(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        sendSocketAfterCommit(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
     }
 
     /**
@@ -1272,9 +1272,9 @@ public class BookingService {
         bookingRepository.save(booking);
 
         // Realtime update
-        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
+        sendSocketAfterCommit(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+        sendSocketAfterCommit(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        sendSocketAfterCommit(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
                 "bookingId", booking.getId(),
                 "reason", "DIRECT_BOOKING_CANCELLED"
         ));
@@ -1454,7 +1454,7 @@ public class BookingService {
 
         if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED
             || booking.getStatus() == BookingStatus.DISPUTED || booking.getStatus() == BookingStatus.RESOLVED) {
-            throw new ApiException("Không thể xử lý no-show với đơn đã hoàn tất/hủy", HttpStatus.BAD_REQUEST);
+            throw new ApiException("Không thể xử lý vắng mặt với đơn đã hoàn tất/hủy", HttpStatus.BAD_REQUEST);
         }
         if (!ADMIN_NO_SHOW_ALLOWED_STATUSES.contains(booking.getStatus())) {
             adminAuditLogService.log(
@@ -1464,18 +1464,18 @@ public class BookingService {
                     "BOOKING",
                     bookingId,
                     "BLOCKED",
-                    "Từ chối xử lý helper no-show do trạng thái không hợp lệ",
+                    "Từ chối xử lý thợ vắng mặt do trạng thái không hợp lệ",
                     "{\"bookingStatus\":\"" + booking.getStatus().name() + "\"}");
             throw new ApiException(
-                    "Chỉ xử lý helper no-show khi booking ở trạng thái CONFIRMED hoặc ARRIVED.",
+                    "Chỉ xử lý thợ vắng mặt khi booking ở trạng thái CONFIRMED hoặc ARRIVED.",
                     HttpStatus.BAD_REQUEST);
         }
 
         BigDecimal penalty = booking.getTotalPrice().multiply(BigDecimal.valueOf(0.05));
         if (booking.getPaymentStatus() == PaymentStatus.HOLDING) {
             walletService.refundHold(booking.getCustomer().getId(), booking.getTotalPrice(), bookingId,
-                    "Helper no-show, hoàn tiền 100%");
-            walletService.deductPenalty(booking.getHelper().getId(), penalty, bookingId, "Helper no-show");
+                    "Thợ vắng mặt, hoàn tiền 100%");
+            walletService.deductPenalty(booking.getHelper().getId(), penalty, bookingId, "Thợ vắng mặt");
         }
 
         booking.setStatus(BookingStatus.CANCELLED);
@@ -1489,9 +1489,9 @@ public class BookingService {
         bookingRepository.save(booking);
 
         // Realtime update
-        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
+        sendSocketAfterCommit(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+        sendSocketAfterCommit(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        sendSocketAfterCommit(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
                 "bookingId", booking.getId(),
                 "reason", "HELPER_NO_SHOW"
         ));
@@ -1502,7 +1502,7 @@ public class BookingService {
                     .customer(booking.getCustomer())
                     .helper(booking.getHelper())
                     .rating(1)
-                    .comment("System-generated: Helper không đến đúng hẹn (no-show)")
+                    .comment("Hệ thống: Thợ không đến đúng hẹn (vắng mặt)")
                     .tags("SYSTEM_GENERATED,HELPER_NO_SHOW")
                     .isVisible(true)
                     .build());
@@ -1540,7 +1540,7 @@ public class BookingService {
 
         if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.COMPLETED
             || booking.getStatus() == BookingStatus.DISPUTED || booking.getStatus() == BookingStatus.RESOLVED) {
-            throw new ApiException("Không thể xử lý no-show với đơn đã hoàn tất/hủy", HttpStatus.BAD_REQUEST);
+            throw new ApiException("Không thể xử lý vắng mặt với đơn đã hoàn tất/hủy", HttpStatus.BAD_REQUEST);
         }
         if (!ADMIN_NO_SHOW_ALLOWED_STATUSES.contains(booking.getStatus())) {
             adminAuditLogService.log(
@@ -1550,10 +1550,10 @@ public class BookingService {
                     "BOOKING",
                     bookingId,
                     "BLOCKED",
-                    "Từ chối xử lý customer no-show do trạng thái không hợp lệ",
+                    "Từ chối xử lý khách vắng mặt do trạng thái không hợp lệ",
                     "{\"bookingStatus\":\"" + booking.getStatus().name() + "\"}");
             throw new ApiException(
-                    "Chỉ xử lý customer no-show khi booking ở trạng thái CONFIRMED hoặc ARRIVED.",
+                    "Chỉ xử lý khách vắng mặt khi booking ở trạng thái CONFIRMED hoặc ARRIVED.",
                     HttpStatus.BAD_REQUEST);
         }
         BigDecimal ratio = BigDecimal.valueOf(payoutRatio);
@@ -1565,9 +1565,9 @@ public class BookingService {
         BigDecimal refund = booking.getTotalPrice().subtract(partialPay);
 
         if (booking.getPaymentStatus() == PaymentStatus.HOLDING) {
-            walletService.compensateCustomer(booking.getHelper().getId(), partialPay, bookingId, "Thanh toán một phần do khách không đến #" + bookingId);
+            walletService.compensateCustomer(booking.getHelper().getId(), partialPay, bookingId, "Thanh toán một phần do khách vắng mặt #" + bookingId);
             walletService.refundHold(booking.getCustomer().getId(), refund, bookingId,
-                    "Customer no-show, hoàn phần còn lại");
+                    "Khách vắng mặt, hoàn phần còn lại");
         }
 
         booking.setStatus(BookingStatus.CANCELLED);
@@ -1581,9 +1581,9 @@ public class BookingService {
         bookingRepository.save(booking);
 
         // Realtime update
-        socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
-        socketIOService.sendMessage(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
+        sendSocketAfterCommit(booking.getCustomer().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getCustomer().getId()));
+        sendSocketAfterCommit(booking.getHelper().getId().toString(), "booking_update", toSocketBookingPayload(booking, booking.getHelper().getId()));
+        sendSocketAfterCommit(booking.getHelper().getId().toString(), "helper_feed_changed", Map.of(
                 "bookingId", booking.getId(),
                 "reason", "CUSTOMER_NO_SHOW"
         ));

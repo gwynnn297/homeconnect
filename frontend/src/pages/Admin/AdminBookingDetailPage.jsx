@@ -115,14 +115,14 @@ const AdminBookingDetailPage = () => {
     };
 
     const handleHelperNoShow = async () => {
-        if (!window.confirm('Xác nhận helper no-show? Đơn sẽ bị hủy, hoàn tiền full và phạt helper.')) return;
+        if (!window.confirm('Xác nhận thợ vắng mặt? Đơn sẽ bị hủy, hoàn tiền full và phạt thợ.')) return;
         setActionLoading(true);
         try {
-            const res = await AdminService.markHelperNoShow(bookingId, 'Admin xác nhận helper no-show');
-            setToast({ type: 'success', message: res?.message || 'Đã xử lý helper no-show' });
+            const res = await AdminService.markHelperNoShow(bookingId, 'Admin xác nhận thợ vắng mặt');
+            setToast({ type: 'success', message: res?.message || 'Đã xử lý thợ vắng mặt' });
             await load();
         } catch (err) {
-            setToast({ type: 'error', message: err?.message || 'Không thể xử lý helper no-show' });
+            setToast({ type: 'error', message: err?.message || 'Không thể xử lý thợ vắng mặt' });
         } finally {
             setActionLoading(false);
         }
@@ -138,11 +138,11 @@ const AdminBookingDetailPage = () => {
         }
         setActionLoading(true);
         try {
-            const res = await AdminService.markCustomerNoShow(bookingId, ratio, 'Admin xác nhận customer no-show');
-            setToast({ type: 'success', message: res?.message || 'Đã xử lý customer no-show' });
+            const res = await AdminService.markCustomerNoShow(bookingId, ratio, 'Admin xác nhận khách vắng mặt');
+            setToast({ type: 'success', message: res?.message || 'Đã xử lý khách vắng mặt' });
             await load();
         } catch (err) {
-            setToast({ type: 'error', message: err?.message || 'Không thể xử lý customer no-show' });
+            setToast({ type: 'error', message: err?.message || 'Không thể xử lý khách vắng mặt' });
         } finally {
             setActionLoading(false);
         }
@@ -359,7 +359,7 @@ const AdminBookingDetailPage = () => {
                                 disabled={actionLoading}
                                 onClick={handleHelperNoShow}
                             >
-                                Xử lý Helper no-show
+                                Xử lý Thợ vắng mặt
                             </button>
                         )}
                         {canMarkNoShow && (

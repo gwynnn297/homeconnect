@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * 📝 Response cho các API đăng ký
+ * Response cho các API đăng ký
  */
 @Data
 @Builder

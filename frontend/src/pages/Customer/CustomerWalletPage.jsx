@@ -456,14 +456,14 @@ const CustomerWalletPage = () => {
                                 style={{ flex: 1 }}
                                 onClick={() => setActiveTab('deposit')}
                             >
-                                💰 Nạp tiền
+                                Nạp tiền
                             </button>
                             <button
                                 className={`vw-btn ${activeTab === 'withdraw' ? 'vw-btn-primary' : 'vw-btn-outline'}`}
                                 style={{ flex: 1 }}
                                 onClick={() => setActiveTab('withdraw')}
                             >
-                                🏦 Rút tiền
+                                Rút tiền
                             </button>
                         </div>
 
@@ -553,7 +553,7 @@ const CustomerWalletPage = () => {
                                                             <span className="vw-transfer-code">{qrInfo.transferContent}</span>
                                                             <button className="vw-btn-copy" onClick={() => handleCopy(qrInfo.transferContent)}>Copy</button>
                                                         </div>
-                                                        <div className="vw-alert-warn">⚠️ Phải nhập chính xác nội dung này để được tự động cộng tiền.</div>
+                                                        <div className="vw-alert-warn">Phải nhập chính xác nội dung này để được tự động cộng tiền.</div>
                                                     </div>
                                                 </div>
                                                 <div className="vw-polling-indicator">
@@ -849,7 +849,7 @@ const CustomerWalletPage = () => {
                                     onChange={(e) => setNewAccount(p => ({ ...p, accountHolderName: e.target.value.toUpperCase() }))}
                                 />
                                 <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                                    ⚠️ Tên chủ tài khoản phải khớp với tên của bạn trên hệ thống (không dấu, chữ hoa).
+                                    Tên chủ tài khoản phải khớp với tên của bạn trên hệ thống (không dấu, chữ hoa).
                                 </p>
                             </div>
 

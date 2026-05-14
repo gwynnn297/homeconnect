@@ -64,7 +64,7 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class JobService {
 
-    private static final int MIN_LEAD_TIME_HOURS = 2;
+    private static final int MIN_LEAD_TIME_HOURS = 0;
     /** Danh mục 1 — Dọn dẹp nhà: thời lượng job (tính phí) tối đa */
     private static final int MAX_CLEANING_DURATION_HOURS = 4;
     /**
@@ -1177,7 +1177,7 @@ public class JobService {
                     throw new ApiException(
                             "Không thể hủy tin vì booking #" + booking.getId() + " đang ở trạng thái "
                                     + booking.getStatus()
-                                    + ". Vui lòng xử lý vận hành booking trước (no-show/hoàn thành).",
+                                    + ". Vui lòng xử lý vận hành booking trước (vắng mặt/hoàn thành).",
                             HttpStatus.BAD_REQUEST);
                 }
                 if (booking.getStatus() != BookingStatus.CANCELLED) {
