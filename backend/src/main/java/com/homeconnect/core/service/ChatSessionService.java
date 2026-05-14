@@ -23,6 +23,7 @@ import com.homeconnect.core.entity.HelperSchedule;
 import com.homeconnect.core.entity.JobApplication;
 import com.homeconnect.core.entity.ServiceCategory;
 import com.homeconnect.core.entity.Wallet;
+import com.homeconnect.core.enums.CustomerTier;
 import com.homeconnect.core.enums.ScheduleStatus;
 import com.homeconnect.core.exception.ApiException;
 import com.homeconnect.core.exception.InsufficientBalanceException;
@@ -76,6 +77,7 @@ public class ChatSessionService {
     private final MatchingService matchingService;
     private final JobService jobService;
     private final BookingService bookingService;
+    private final LoyaltyService loyaltyService;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
@@ -582,9 +584,14 @@ public class ChatSessionService {
         }
 
         EstimatePriceResponse estimate = estimatePriceDetails(context);
-        BigDecimal estimatedPrice = estimate != null && estimate.getEstimatedPrice() != null
+        BigDecimal originalPrice = estimate != null && estimate.getEstimatedPrice() != null
                 ? estimate.getEstimatedPrice()
                 : calculateEstimatedPrice(context);
+        long monthlyCompletedCount = loyaltyService.getMonthlyCompletedCount(customerId);
+        CustomerTier customerTier = loyaltyService.resolveTierByCompletedCount((int) monthlyCompletedCount);
+        BigDecimal discountRate = loyaltyService.resolveDiscountRate(customerTier);
+        BigDecimal discountAmount = originalPrice.multiply(discountRate).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal finalPrice = originalPrice.subtract(discountAmount).setScale(2, RoundingMode.HALF_UP);
         BigDecimal basePrice = estimate != null && estimate.getBasePrice() != null ? estimate.getBasePrice()
                 : BigDecimal.ZERO;
         List<EstimatePriceResponse.ServiceFee> subFees = estimate != null && estimate.getServiceFees() != null
@@ -593,7 +600,7 @@ public class ChatSessionService {
         BigDecimal subServiceTotal = subFees.stream()
                 .map(fee -> fee.getPrice() != null ? fee.getPrice() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal rawOtherFee = estimatedPrice.subtract(basePrice).subtract(subServiceTotal);
+        BigDecimal rawOtherFee = originalPrice.subtract(basePrice).subtract(subServiceTotal);
         final BigDecimal otherFee = rawOtherFee.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : rawOtherFee;
         Map<Long, HelperProfile> profileMap = helperProfileRepository.findByUser_IdIn(helperIds).stream()
                 .collect(Collectors.toMap(h -> h.getUser().getId(), h -> h));
@@ -624,7 +631,13 @@ public class ChatSessionService {
                             .avatarUrl(profile.getUser().getAvatarUrl())
                             .ratingAverage(profile.getRatingAverage())
                             .totalReviews(profile.getTotalReviews())
-                            .estimatedPrice(estimatedPrice)
+                            .estimatedPrice(finalPrice)
+                            .originalPrice(originalPrice)
+                            .discountRate(discountRate)
+                            .discountAmount(discountAmount)
+                            .finalPrice(finalPrice)
+                            .customerTier(customerTier.name())
+                            .customerTierLabel(loyaltyService.toDisplayLabel(customerTier))
                             .districtName(districtName)
                             .distanceKm(distanceKm)
                             .availableStartTime(matchedSlot != null ? matchedSlot.getStartTime() : null)

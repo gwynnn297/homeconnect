@@ -49,6 +49,7 @@ public class ScheduleService {
     private final JobApplicationRepository jobApplicationRepository;
     private final MatchingService matchingService;
     private final ConflictEngine conflictEngine;
+    private final com.homeconnect.core.socket.SocketIOService socketIOService;
 
     /**
      * Đăng ký lịch làm việc hàng loạt (Periodic Register)
@@ -137,6 +138,7 @@ public class ScheduleService {
         }
 
         triggerRematchingAfterScheduleChange(helperId, affectedDates);
+        socketIOService.broadcast("helper_schedule_updated", java.util.Map.of("helperId", helperId));
 
         return RegisterScheduleSummaryResponse.builder()
                 .created(createdCount)
@@ -193,6 +195,7 @@ public class ScheduleService {
         }
 
         triggerRematchingAfterScheduleChange(helperId, Set.of(request.getDate()));
+        socketIOService.broadcast("helper_schedule_updated", java.util.Map.of("helperId", helperId));
 
         return RegisterScheduleSummaryResponse.builder()
                 .created(request.getSlots().size())
@@ -255,6 +258,7 @@ public class ScheduleService {
         targetSlot.setStartTime(request.getStartTime());
         targetSlot.setEndTime(request.getEndTime());
         helperScheduleRepository.save(targetSlot);
+        socketIOService.broadcast("helper_schedule_updated", java.util.Map.of("helperId", helperId));
 
         triggerRematchingAfterScheduleChange(helperId, Set.of(targetSlot.getWorkDate()));
 
@@ -524,6 +528,7 @@ public class ScheduleService {
         }
 
         helperScheduleRepository.delete(schedule);
+        socketIOService.broadcast("helper_schedule_updated", java.util.Map.of("helperId", helperId));
     }
 
   

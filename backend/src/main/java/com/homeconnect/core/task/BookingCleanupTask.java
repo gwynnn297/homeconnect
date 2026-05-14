@@ -30,6 +30,7 @@ public class BookingCleanupTask {
     private final WalletService walletService;
     private final NotificationService notificationService;
     private final NoShowBookingProcessor noShowBookingProcessor;
+    private final com.homeconnect.core.socket.SocketIOService socketIOService;
 
     /**
      * Tự động hủy các đơn đặt trực tiếp quá 10 phút chưa phản hồi
@@ -80,6 +81,14 @@ public class BookingCleanupTask {
                         "Timeout 15 phút: tự động hủy và hoàn tiền hold");
             }
             
+            // Thông báo realtime
+            socketIOService.sendMessage(booking.getCustomer().getId().toString(), "booking_update", 
+                java.util.Map.of("bookingId", booking.getId(), "status", "EXPIRED"));
+            socketIOService.sendMessage(booking.getHelper().getId().toString(), "booking_update", 
+                java.util.Map.of("bookingId", booking.getId(), "status", "EXPIRED"));
+            socketIOService.sendMessage(booking.getHelper().getId().toString(), "helper_feed_changed", 
+                java.util.Map.of("bookingId", booking.getId(), "reason", "EXPIRED"));
+
             // Thông báo cho Khách hàng
             notificationService.createNotification(
                     booking.getCustomer().getId(),

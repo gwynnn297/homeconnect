@@ -200,15 +200,16 @@ public class BookingController {
                                 .message("Đã xác nhận hoàn thành! Cảm ơn bạn đã sử dụng dịch vụ.")
                                 .build());
         }
-        @Operation(summary = "Hủy đơn hàng (PB-31)", description = "Khách hàng hủy đơn. Nếu hủy sát giờ (< 2h) sẽ bị phạt 30% tiền ví Hold.")
+        @Operation(summary = "Hủy đơn hàng (PB-31)", description = "Khách hàng hủy đơn. Nếu hủy sát giờ (< 2h) sẽ bị phạt 5% tiền ví Hold.")
         @PostMapping("/{bookingId}/cancel")
         @PreAuthorize("hasRole('CUSTOMER')")
         public ResponseEntity<ApiResponse<Void>> cancelBooking(
                         @PathVariable Long bookingId,
+                        @Valid @RequestBody com.homeconnect.core.dto.request.CancelBookingRequest request,
                         Authentication authentication) {
 
                 Long customerId = securityUtil.getCurrentUserId(authentication);
-                bookingService.cancelBooking(bookingId, customerId, null);
+                bookingService.cancelBooking(bookingId, customerId, request.getReason());
 
                 return ResponseEntity.ok(ApiResponse.<Void>builder()
                                 .message("Hủy đơn hàng thành công!")

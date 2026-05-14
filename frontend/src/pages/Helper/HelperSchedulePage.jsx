@@ -3,6 +3,7 @@ import './HelperSchedulePage.css';
 import HelperLayout from '../../layouts/HelperLayout';
 import HelperScheduleService from '../../services/HelperScheduleService';
 import NotificationModal from '../../components/NotificationModal';
+import { useSocket } from '../../contexts/SocketContext';
 
 const formatMonthYear = (date) =>
     `Tháng ${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
@@ -270,6 +271,33 @@ const HelperSchedulePage = () => {
     useEffect(() => {
         setActiveDayIdx(getDefaultActiveDayIdx(currentMonth));
     }, [currentMonth]);
+
+    const { socket } = useSocket();
+
+    // Real-time listener for schedule updates
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleScheduleUpdate = (data) => {
+            // Get current user from localStorage
+            let currentUser = null;
+            try {
+                currentUser = JSON.parse(localStorage.getItem('user'));
+            } catch (e) {}
+            
+            const myId = currentUser?.id || currentUser?.userId;
+            
+            if (myId && String(data.helperId) === String(myId)) {
+                console.log("[HelperSchedulePage] Schedule updated real-time, refreshing...");
+                loadMonthlySchedule();
+            }
+        };
+
+        socket.on('helper_schedule_updated', handleScheduleUpdate);
+        return () => {
+            socket.off('helper_schedule_updated', handleScheduleUpdate);
+        };
+    }, [socket, currentMonth]); // Refresh when month changes or socket update arrives
 
     useEffect(() => {
         if (!selectedDay) return;

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ProfileService from '../services/ProfileService';
+import { useSocket } from '../contexts/SocketContext';
 import './HelperProfileModal.css';
 
 const HelperProfileModal = ({ helper, onClose, onBookNow }) => {
@@ -8,49 +9,75 @@ const HelperProfileModal = ({ helper, onClose, onBookNow }) => {
     const [loadingSchedule, setLoadingSchedule] = useState(false);
     const [imgError, setImgError] = useState(false);
 
-    useEffect(() => {
+    const { socket } = useSocket();
+
+    const fetchData = useCallback(async () => {
         if (!helper?.id) return;
-        
-        const fetchData = async () => {
-            try {
-                const [reviewsRes, scheduleRes] = await Promise.all([
-                    ProfileService.getHelperReviews(helper.id),
-                    ProfileService.getHelperSchedule(helper.id, new Date().getMonth() + 1, new Date().getFullYear())
-                ]);
-                
-                setReviews(reviewsRes?.data?.data || reviewsRes?.data || []);
+        setLoadingSchedule(true);
+        try {
+            const [reviewsRes, scheduleRes] = await Promise.all([
+                ProfileService.getHelperReviews(helper.id),
+                ProfileService.getHelperSchedule(helper.id, new Date().getMonth() + 1, new Date().getFullYear())
+            ]);
+            
+            setReviews(reviewsRes?.data?.data || reviewsRes?.data || []);
 
-                // scheduleRes.data contains the list because of backend ApiResponse wrapper
-                const rawList = scheduleRes?.data || (Array.isArray(scheduleRes) ? scheduleRes : []);
-                
-                const now = new Date();
-                const todayStr = now.toISOString().split('T')[0];
-                const currentHour = now.getHours();
-                const currentMinute = now.getMinutes();
+            const rawList = scheduleRes?.data || (Array.isArray(scheduleRes) ? scheduleRes : []);
+            
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
 
-                const availableSlots = rawList
-                    .filter(slot => {
-                        if (slot.status !== 'AVAILABLE') return false;
-                        if (slot.workDate < todayStr) return false;
+            const availableSlots = rawList
+                .filter(slot => {
+                    if (slot.status !== 'AVAILABLE') return false;
+                    if (slot.workDate < todayStr) return false;
+                    
+                    // Nếu là ngày hôm nay, chỉ hiện các khung giờ bắt đầu sau ít nhất 30 phút nữa
+                    if (slot.workDate === todayStr && slot.startTime) {
+                        const [h, m] = slot.startTime.split(':').map(Number);
+                        const slotMinutes = h * 60 + m;
+                        const nowMinutes = currentHour * 60 + currentMinute;
                         
-                        // If it's today, only show slots that haven't started yet
-                        if (slot.workDate === todayStr && slot.startTime) {
-                            const [h, m] = slot.startTime.split(':').map(Number);
-                            if (h < currentHour || (h === currentHour && m <= currentMinute)) {
-                                return false;
-                            }
+                        // Nếu thời gian bắt đầu cách hiện tại ít hơn 30 phút thì ẩn đi
+                        if (slotMinutes - nowMinutes < 30) {
+                            return false;
                         }
-                        return true;
-                    })
-                    .sort((a, b) => a.workDate.localeCompare(b.workDate) || a.startTime.localeCompare(b.startTime));
-                
-                setSchedule(availableSlots);
-            } catch (err) {
-                console.error("Error fetching helper data:", err);
+                    }
+                    return true;
+                })
+                .sort((a, b) => a.workDate.localeCompare(b.workDate) || a.startTime.localeCompare(b.startTime));
+            
+            setSchedule(availableSlots);
+        } catch (err) {
+            console.error("Error fetching helper data:", err);
+        } finally {
+            setLoadingSchedule(false);
+        }
+    }, [helper?.id]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // Real-time listener for schedule updates
+    useEffect(() => {
+        if (!socket || !helper?.id) return;
+
+        const handleScheduleUpdate = (data) => {
+            // data.helperId matches the current helper
+            if (String(data.helperId) === String(helper.id)) {
+                console.log("[HelperProfileModal] Schedule updated real-time for helper:", helper.id);
+                fetchData();
             }
         };
-        fetchData();
-    }, [helper?.id]);
+
+        socket.on('helper_schedule_updated', handleScheduleUpdate);
+        return () => {
+            socket.off('helper_schedule_updated', handleScheduleUpdate);
+        };
+    }, [socket, helper?.id, fetchData]);
 
     const groupContiguousSlots = (slots) => {
         if (!slots || slots.length === 0) return {};

@@ -1011,7 +1011,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
     const handleDeleteAddress = async (addressId) => {
         if (!addressId) return;
         if (inUseAddressIds.includes(Number(addressId))) {
-            setEditError('Không thể xóa địa chỉ này vì đang được dùng trong bài đăng hiện có.');
+            setEditError('Không thể xóa địa chỉ này vì đang có lịch đặt hoặc bài đăng sử dụng địa chỉ này.');
             return;
         }
         const ok = window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này không?');

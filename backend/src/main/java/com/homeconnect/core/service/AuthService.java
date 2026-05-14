@@ -110,8 +110,8 @@ public class AuthService {
         securityTokenRepository.save(securityToken);
 
         // Send Email OTP
-        boolean sent = emailService.sendOtp(user.getEmail(), otp, user.getFullName());
-        if (!sent) {
+        boolean emailSent = emailService.sendOtp(user.getEmail(), otp, user.getFullName());
+        if (!emailSent) {
             throw new RuntimeException("Không thể gửi OTP qua email. Vui lòng kiểm tra cấu hình SMTP và thử lại.");
         }
     }
@@ -246,8 +246,8 @@ public class AuthService {
         securityTokenRepository.save(securityToken);
 
         // Send Email
-        boolean sent = emailService.sendOtp(user.getEmail(), otp, user.getFullName());
-        if (!sent) {
+        boolean emailSent = emailService.sendOtp(user.getEmail(), otp, user.getFullName());
+        if (!emailSent) {
             throw new RuntimeException("Không thể gửi OTP qua email. Vui lòng kiểm tra cấu hình SMTP và thử lại.");
         }
     }

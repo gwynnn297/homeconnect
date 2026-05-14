@@ -42,6 +42,21 @@ public interface JobPostRepository extends JpaRepository<JobPost, Long>, JpaSpec
     List<JobPost> findExpiredJobPosts(@Param("today") LocalDate today, 
                                       @Param("currentTime") LocalTime currentTime,
                                       @Param("nowDateTime") LocalDateTime nowDateTime);
+
+    @Query("SELECT jp FROM JobPost jp WHERE jp.status = 'PUBLISHED' " +
+           "AND (" +
+           "  (jp.workDate = :today AND jp.startTime > :nowTime AND (:crossMidnight = false AND jp.startTime <= :twoHoursFromNowTime OR :crossMidnight = true)) " +
+           "  OR " +
+           "  (jp.workDate = :tomorrow AND :crossMidnight = true AND jp.startTime <= :twoHoursFromNowTime)" +
+           ") " +
+           "AND NOT EXISTS (SELECT ja FROM JobApplication ja WHERE ja.jobPost = jp)")
+    List<JobPost> findJobsNeedingReminder(
+            @Param("today") java.time.LocalDate today, 
+            @Param("tomorrow") java.time.LocalDate tomorrow,
+            @Param("nowTime") java.time.LocalTime nowTime,
+            @Param("twoHoursFromNowTime") java.time.LocalTime twoHoursFromNowTime,
+            @Param("crossMidnight") boolean crossMidnight);
+
     List<JobPost> findByPostIdInOrderByCreatedAtDesc(Collection<Long> postIds);
     boolean existsByAddress_AddressId(Integer addressId);
 

@@ -76,7 +76,7 @@ public interface HelperProfileRepository extends JpaRepository<HelperProfile, In
                   SELECT 1 FROM bookings b
                   WHERE b.helper_id = hp.user_id
                     AND DATE(b.scheduled_start_time) = :workDate
-                    AND b.status IN ('CONFIRMED', 'IN_PROGRESS')
+                    AND b.status IN ('CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'PENDING_COMPLETION')
                     AND (
                         (TIME(b.scheduled_start_time) < ADDTIME(:startTime, SEC_TO_TIME(:durationSecs)) 
                          AND TIME(b.scheduled_end_time) > :startTime)

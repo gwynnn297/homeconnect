@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import logoHomieConnect from '../assets/LogoHomieConnect.png';
 import ProfileService from '../services/ProfileService';
 import NotificationService from '../services/NotificationService';
+import NotificationModal from './NotificationModal';
 import { getTabForNotification, getTabsForRole } from '../constants/notificationRoleConfig';
 import './HeaderComponent.css';
 
@@ -28,6 +29,7 @@ const HeaderComponent = () => {
     });
     const [activeNotificationTab, setActiveNotificationTab] = useState('ALL');
     const [unreadCount, setUnreadCount] = useState(0);
+    const [toast, setToast] = useState(null);
 
     // Reactive user info state
     const [userInfo, setUserInfo] = useState(() => {
@@ -346,10 +348,20 @@ const HeaderComponent = () => {
         const handleSocketNotification = (event) => {
             const newNotification = event?.detail;
             if (!newNotification || typeof newNotification !== 'object') return;
+            
+            // Cập nhật danh sách thông báo
             setAllNotifications((prev) => {
                 const deduped = prev.filter((item) => item.notificationId !== newNotification.notificationId);
                 return [newNotification, ...deduped];
             });
+
+            // Hiển thị toast popup nếu chưa mở dropdown thông báo
+            if (!showNotifications) {
+                setToast({
+                    message: newNotification.content || newNotification.title,
+                    type: 'info'
+                });
+            }
         };
 
         window.addEventListener('notification:received', handleSocketNotification);
@@ -533,6 +545,14 @@ const HeaderComponent = () => {
                     </div>
                 </div>
             </header>
+            
+            {toast && (
+                <NotificationModal
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
         </>
     );
 };
