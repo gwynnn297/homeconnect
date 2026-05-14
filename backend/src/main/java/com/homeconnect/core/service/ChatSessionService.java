@@ -736,7 +736,7 @@ public class ChatSessionService {
     }
 
     private List<Map<String, Object>> getAddressOptions(Long customerId) {
-        return addressRepository.findByUser_Id(customerId).stream()
+        return addressRepository.findByUser_IdAndIsDeletedFalse(customerId).stream()
                 .map(addr -> {
                     Map<String, Object> item = new HashMap<>();
                     item.put("addressId", addr.getAddressId());

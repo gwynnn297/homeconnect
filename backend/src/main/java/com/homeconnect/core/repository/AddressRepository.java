@@ -11,9 +11,9 @@ import java.util.Optional;
 
 @Repository
 public interface AddressRepository extends JpaRepository<Address, Integer> {
-    List<Address> findByUser_Id(Long userId);
+    List<Address> findByUser_IdAndIsDeletedFalse(Long userId);
 
-    long countByUser_Id(Long userId);
+    long countByUser_IdAndIsDeletedFalse(Long userId);
 
     Optional<Address> findByUser_IdAndIsDefaultTrue(Long userId);
 
@@ -22,7 +22,7 @@ public interface AddressRepository extends JpaRepository<Address, Integer> {
     @Query("SELECT a FROM Address a WHERE a.user.id IN :userIds AND a.isDefault = true")
     List<Address> findDefaultAddressesByUserIds(@Param("userIds") List<Long> userIds);
 
-    boolean existsByUser_IdAndAddressDetailIgnoreCaseAndWardNameAndDistrictNameAndProvinceName(
+    boolean existsByUser_IdAndAddressDetailIgnoreCaseAndWardNameAndDistrictNameAndProvinceNameAndIsDeletedFalse(
             Long userId, String addressDetail, String wardName, String districtName, String provinceName);
 
     boolean existsByUser_IdAndAddressDetailIgnoreCaseAndWardNameAndDistrictNameAndProvinceNameAndAddressIdNot(

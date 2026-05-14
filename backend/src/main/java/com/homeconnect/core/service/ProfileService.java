@@ -38,6 +38,8 @@ public class ProfileService {
     private final ExternalLocationService externalLocationService;
     private final GeocodingService geocodingService;
     private final LoyaltyService loyaltyService;
+    private final JobPostRepository jobPostRepository;
+    private final BookingRepository bookingRepository;
 
     private static final Pattern PHONE_PATTERN = Pattern.compile(".*\\d{8,}.*");
 
@@ -63,12 +65,51 @@ public class ProfileService {
         user.setGender(request.getGender());
         User savedUser = userRepository.save(user);
 
+        BigDecimal lat = request.getLatitude();
+        BigDecimal lng = request.getLongitude();
+
+        if (lat == null || lng == null || (lat.compareTo(BigDecimal.ZERO) == 0 && lng.compareTo(BigDecimal.ZERO) == 0)) {
+            try {
+                GeocodingService.GeoResult geo = geocodingService.geocode(
+                        request.getAddressDetail(),
+                        request.getWardName(),
+                        request.getDistrictName(),
+                        request.getProvinceName());
+                lat = geo.getLatitude();
+                lng = geo.getLongitude();
+            } catch (Exception e) {
+                log.error("Geocoding failed for profile update of user {}: {}", user.getEmail(), e.getMessage());
+                throw new ApiException("Không thể tìm thấy vị trí chính xác của địa chỉ này. Vui lòng nhập chi tiết hơn (Số nhà, Tên đường, Phường, Quận).", HttpStatus.BAD_REQUEST);
+            }
+        }
+
         Address address = addressRepository.findByUser_IdAndIsDefaultTrue(user.getId())
                 .orElse(Address.builder()
                         .user(user)
                         .isDefault(true)
                         .type("HOME")
                         .build());
+
+        boolean isUsed = (address.getAddressId() != null) && 
+                         (jobPostRepository.existsByAddress_AddressId(address.getAddressId()) 
+                          || bookingRepository.existsByAddress_AddressId(address.getAddressId()));
+
+        if (isUsed) {
+            // Chặn sửa nếu đang có đơn hoạt động
+            validateNoActiveOrders(address.getAddressId());
+
+            // Soft-delete bản cũ (đang là default)
+            address.setIsDeleted(true);
+            address.setIsDefault(false);
+            addressRepository.save(address);
+
+            // Tạo bản mới làm default
+            address = Address.builder()
+                    .user(user)
+                    .isDefault(true)
+                    .type(request.getAddressLabel() != null ? request.getAddressLabel() : "HOME")
+                    .build();
+        }
 
         address.setAddressDetail(request.getAddressDetail());
         address.setProvinceName(request.getProvinceName());
@@ -77,27 +118,8 @@ public class ProfileService {
         address.setDistrictCode(request.getDistrictCode());
         address.setWardName(request.getWardName());
         address.setWardCode(request.getWardCode());
-
-        BigDecimal lat = request.getLatitude();
-        BigDecimal lng = request.getLongitude();
-
-        if (lat != null && lng != null && (lat.compareTo(BigDecimal.ZERO) != 0 || lng.compareTo(BigDecimal.ZERO) != 0)) {
-            address.setLatitude(lat);
-            address.setLongitude(lng);
-        } else {
-            try {
-                GeocodingService.GeoResult geo = geocodingService.geocode(
-                        request.getAddressDetail(),
-                        request.getWardName(),
-                        request.getDistrictName(),
-                        request.getProvinceName());
-                address.setLatitude(geo.getLatitude());
-                address.setLongitude(geo.getLongitude());
-            } catch (Exception e) {
-                log.error("Geocoding failed for profile update of user {}: {}", user.getEmail(), e.getMessage());
-                throw new ApiException("Không thể tìm thấy vị trí chính xác của địa chỉ này. Vui lòng nhập chi tiết hơn (Số nhà, Tên đường, Phường, Quận).", HttpStatus.BAD_REQUEST);
-            }
-        }
+        address.setLatitude(lat != null ? lat : address.getLatitude());
+        address.setLongitude(lng != null ? lng : address.getLongitude());
 
         if (request.getAddressLabel() != null) {
             address.setType(request.getAddressLabel());
@@ -229,6 +251,26 @@ public class ProfileService {
         HelperProfile profile = helperProfileRepository.findByUser_Id(id)
                 .orElseThrow(() -> new ApiException("Không tìm thấy thông tin người giúp việc", HttpStatus.NOT_FOUND));
         return mapToHelperResponse(profile);
+    }
+
+    private void validateNoActiveOrders(Integer addressId) {
+        if (addressId == null) return;
+        boolean hasActiveBooking = bookingRepository.existsByAddress_AddressIdAndStatusIn(addressId, 
+            List.of(com.homeconnect.core.enums.BookingStatus.PENDING, 
+                    com.homeconnect.core.enums.BookingStatus.PENDING_ACCEPTANCE, 
+                    com.homeconnect.core.enums.BookingStatus.CONFIRMED, 
+                    com.homeconnect.core.enums.BookingStatus.ARRIVED, 
+                    com.homeconnect.core.enums.BookingStatus.IN_PROGRESS, 
+                    com.homeconnect.core.enums.BookingStatus.DISPUTED));
+        
+        boolean hasActiveJob = jobPostRepository.existsByAddress_AddressIdAndStatusIn(addressId, 
+            List.of("PUBLISHED"));
+
+        if (hasActiveBooking || hasActiveJob) {
+            throw new ApiException(
+                "Không thể cập nhật địa chỉ mặc định vì đang có đơn hàng hoặc bài đăng đang hoạt động sử dụng địa chỉ này.", 
+                HttpStatus.BAD_REQUEST);
+        }
     }
 
     private UserProfileResponse mapToUserResponse(User user, Address address) {

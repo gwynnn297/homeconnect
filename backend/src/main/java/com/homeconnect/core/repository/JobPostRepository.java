@@ -59,6 +59,7 @@ public interface JobPostRepository extends JpaRepository<JobPost, Long>, JpaSpec
 
     List<JobPost> findByPostIdInOrderByCreatedAtDesc(Collection<Long> postIds);
     boolean existsByAddress_AddressId(Integer addressId);
+    boolean existsByAddress_AddressIdAndStatusIn(Integer addressId, Collection<String> statuses);
 
     @Query("SELECT jp.status, COUNT(jp) FROM JobPost jp GROUP BY jp.status")
     List<Object[]> countGroupedByStatus();

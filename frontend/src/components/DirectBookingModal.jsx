@@ -945,7 +945,7 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
                         </div>
                         {!isDistrictSupported && (
                             <div className="db-addr-error">
-                                ⚠️ Rất tiếc, thợ không nhận việc tại {unsupportedDistrict || 'khu vực này'}.
+                                Rất tiếc, thợ không nhận việc tại {unsupportedDistrict || 'khu vực này'}.
                             </div>
                         )}
                     </div>
@@ -953,7 +953,7 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
                     <div className="db-options-section">
 
                         <div className="db-notes-wrap">
-                            <label className="db-notes-label">📝 Ghi chú thêm cho thợ</label>
+                            <label className="db-notes-label">Ghi chú thêm cho thợ</label>
                             <textarea
                                 className="db-field db-notes-area"
                                 placeholder="Ví dụ: Mang theo nước tẩy rửa, Nhà có người già..."

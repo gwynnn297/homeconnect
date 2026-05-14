@@ -727,19 +727,33 @@
 }
 
 .db-btn-primary {
-    background: #2F5D50;
+    background: linear-gradient(135deg, #2F5D50, #458B74);
     color: #fff;
-    padding: 12px 24px;
-    border-radius: 10px;
+    padding: 12px 28px;
+    border-radius: 12px;
     font-weight: 700;
     border: none;
     cursor: pointer;
-    transition: 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(47, 93, 80, 0.2);
 }
 
-.db-btn-primary:hover {
+.db-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #1e4037, #2F5D50);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(47, 93, 80, 0.3);
+    box-shadow: 0 6px 20px rgba(47, 93, 80, 0.3);
+}
+
+.db-btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.db-btn-primary:disabled {
+    background: #e5e7eb;
+    color: #9ca3af;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
 }
 
 .db-btn-secondary {

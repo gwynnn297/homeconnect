@@ -94,6 +94,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
 
        boolean existsByAddress_AddressId(Integer addressId);
 
+    boolean existsByAddress_AddressIdAndStatusIn(Integer addressId, java.util.Collection<com.homeconnect.core.enums.BookingStatus> statuses);
+
        /**
         * Tìm các booking đã COMPLETED, tiền vẫn đang HOLDING,
         * và thời gian checkout (scheduledEndTime) đã qua cutoff.

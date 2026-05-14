@@ -120,7 +120,7 @@ wallet.bank.name=NGUYEN VAN A
 ```
 
 **Logic xử lý**:
-1. ✅ **Validate signature** (TODO: Implement theo payment gateway)
+1. ✅ **Validate signature**
 2. ✅ **Chỉ xử lý transaction SUCCESS**
 3. ✅ **Parse userId từ description** bằng Regex: `HOMIE(\d+)`
 4. ✅ **Idempotency check**: Kiểm tra `referenceId` đã tồn tại chưa (chống duplicate)

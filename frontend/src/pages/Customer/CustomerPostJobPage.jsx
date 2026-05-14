@@ -1074,9 +1074,9 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                                     onChange={(e) => setAddressType(e.target.value)}
                                     disabled={isSaving}
                                 >
-                                    <option value="HOME">🏠 Nhà riêng</option>
-                                    <option value="OFFICE">🏢 Văn phòng</option>
-                                    <option value="OTHER">📍 Khác</option>
+                                    <option value="HOME">Nhà riêng</option>
+                                    <option value="OFFICE">Văn phòng</option>
+                                    <option value="OTHER">Khác</option>
                                 </select>
                             </div>
 
@@ -1116,7 +1116,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                     <div className="pj-column">
                         <div className="pj-section">
                             <div className="pj-section-header">
-                                <h3 className="pj-section-title">📌 Địa chỉ đã lưu</h3>
+                                <h3 className="pj-section-title">Địa chỉ đã lưu</h3>
                                 <span className="pj-count">{savedAddresses.length}</span>
                             </div>
 
@@ -1131,7 +1131,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
 
                                 {!isLoadingSaved && !savedError && savedAddresses.length === 0 && (
                                     <div className="pj-empty">
-                                        <p>📭 Chưa có địa chỉ nào được lưu</p>
+                                        <p>Chưa có địa chỉ nào được lưu</p>
                                         <small>Hãy tìm kiếm và thêm địa chỉ mới</small>
                                     </div>
                                 )}
@@ -1148,8 +1148,8 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                                                         onClick={() => handlePickSaved(addr)}
                                                     >
                                                         <div className="pj-address-icon">
-                                                            {String(addr.type || '').toUpperCase() === 'HOME' ? '🏠' :
-                                                                String(addr.type || '').toUpperCase() === 'OFFICE' ? '🏢' : '📍'}
+                                                            {String(addr.type || '').toUpperCase() === 'HOME' ? '' :
+                                                                String(addr.type || '').toUpperCase() === 'OFFICE' ? '' : ''}
                                                         </div>
                                                         <div className="pj-address-info">
                                                             <div className="pj-address-name">
@@ -1176,7 +1176,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                                                                 }}
                                                                 disabled={isUpdatingAddress || isDeletingAddress}
                                                             >
-                                                                ✏️ Sửa
+                                                                Sửa
                                                             </button>
                                                             <button
                                                                 type="button"
@@ -1187,7 +1187,7 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                                                                 }}
                                                                 disabled={isUpdatingAddress || isDeletingAddress || isInUse}
                                                             >
-                                                                🗑️ Xóa
+                                                                Xóa
                                                             </button>
                                                         </div>
                                                         <div className="pj-address-arrow">→</div>
@@ -1272,9 +1272,9 @@ const AddressStep = ({ onBack, onSelectAddress, serviceInfo }) => {
                                         onChange={(e) => setEditForm((prev) => ({ ...prev, type: e.target.value }))}
                                         disabled={isUpdatingAddress}
                                     >
-                                        <option value="HOME">🏠 Nhà riêng</option>
-                                        <option value="OFFICE">🏢 Văn phòng</option>
-                                        <option value="OTHER">📍 Khác</option>
+                                        <option value="HOME">Nhà riêng</option>
+                                        <option value="OFFICE">Văn phòng</option>
+                                        <option value="OTHER">Khác</option>
                                     </select>
                                 </div>
 
@@ -2031,7 +2031,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                     {/* Cột trái - Form nhập thông tin */}
                     <div className="pj-column">
                         <div className="pj-section">
-                            <h3 className="pj-section-title">📋 Thông tin công việc</h3>
+                            <h3 className="pj-section-title">Thông tin công việc</h3>
 
                             <div className="pj-form-row">
                                 <div className="pj-form-group half">
@@ -2537,7 +2537,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                     {detailConfig ? (
                                         <div className="pj-form-group pj-cleaning-scope" style={{ marginTop: 16, marginBottom: 0 }}>
                                             <div className="pj-detail-head">
-                                                <label className="pj-label">📋 Phạm vi & dụng cụ tham khảo</label>
+                                                <label className="pj-label">Phạm vi & dụng cụ tham khảo</label>
                                                 <button
                                                     type="button"
                                                     className="pj-detail-toggle"
@@ -2697,7 +2697,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                     {detailConfig ? (
                                         <div className="pj-form-group pj-cleaning-scope" style={{ marginTop: 16, marginBottom: 0 }}>
                                             <div className="pj-detail-head">
-                                                <label className="pj-label">📋 Chi tiết cô trông trẻ sẽ thực hiện</label>
+                                                <label className="pj-label">Chi tiết cô trông trẻ sẽ thực hiện</label>
                                                 <button
                                                     type="button"
                                                     className="pj-detail-toggle"
@@ -2733,7 +2733,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
 
                                     <div className="pj-form-group pj-cleaning-scope" style={{ marginTop: 12, marginBottom: 0 }}>
                                         <div className="pj-detail-head">
-                                            <label className="pj-label">📜 Điều khoản dịch vụ trông trẻ theo giờ</label>
+                                            <label className="pj-label">Điều khoản dịch vụ trông trẻ theo giờ</label>
                                             <button
                                                 type="button"
                                                 className="pj-detail-toggle"
@@ -2761,7 +2761,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                 <div className="pj-form-group pj-cooking-block">
                                     <div className="pj-cooking-eaters">
                                         <label className="pj-label" htmlFor="pj-eater-count">
-                                            👥 Số người ăn *
+                                            Số người ăn *
                                         </label>
                                         <input
                                             id="pj-eater-count"
@@ -2784,7 +2784,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                         </p>
                                     </div>
 
-                                    <label className="pj-label">🍽️ Số món chính cần nấu *</label>
+                                    <label className="pj-label">Số món chính cần nấu *</label>
                                     <p className="pj-cleaning-lead pj-cooking-hint">
                                         Số món gửi lên hệ thống để kiểm tra thời lượng: trên <strong>3 món</strong> cần tối thiểu{' '}
                                         <strong>3 giờ tổng</strong>; trên <strong>5 món</strong> cần tối thiểu <strong>4 giờ tổng</strong>{' '}
@@ -2838,7 +2838,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                     ) : null}
 
                                     <div className="pj-cooking-dish-names">
-                                        <label className="pj-label">✏️ Tên từng món *</label>
+                                        <label className="pj-label">Tên từng món *</label>
                                         <p className="pj-cleaning-lead pj-cooking-hint">
                                             Mỗi ô tương ứng một món; nên điền rõ để thợ chuẩn bị đúng mong muốn.
                                         </p>
@@ -2879,7 +2879,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                     </div>
 
                                     <div className="pj-cooking-flavor">
-                                        <label className="pj-label">🧂 Khẩu vị *</label>
+                                        <label className="pj-label">Khẩu vị *</label>
                                         <p className="pj-cleaning-lead pj-cooking-hint">Chọn khẩu vị theo vùng miền bạn mong muốn.</p>
                                         <div className="pj-cleaning-cards pj-cooking-flavor-cards" role="radiogroup" aria-label="Khẩu vị">
                                             {COOKING_FLAVOR_OPTIONS.map((opt) => {
@@ -3098,7 +3098,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                             ) : null}
 
                             <div className="pj-form-group">
-                                <label className="pj-label">✏️ Tiêu đề công việc</label>
+                                <label className="pj-label">Tiêu đề công việc</label>
                                 <input
                                     type="text"
                                     className="pj-input"
@@ -3119,7 +3119,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                             </div>
 
                             <div className="pj-form-group">
-                                <label className="pj-label">📝 Ghi chú thêm</label>
+                                <label className="pj-label">Ghi chú thêm</label>
                                 <textarea
                                     className="pj-textarea"
                                     rows="3"
@@ -3139,7 +3139,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
 
                             {!initialData.addressId && (
                                 <div className="pj-warning">
-                                    ⚠️ Bạn cần chọn địa chỉ ở bước trước
+                                    Bạn cần chọn địa chỉ ở bước trước
                                 </div>
                             )}
                         </div>
@@ -3148,7 +3148,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                     {/* Cột phải - Tóm tắt và giá */}
                     <div className="pj-column">
                         <div className="pj-sidebar">
-                            <h3 className="pj-sidebar-title">💰 Tóm tắt & giá dự kiến</h3>
+                            <h3 className="pj-sidebar-title">Tóm tắt & giá dự kiến</h3>
 
                             {!officeCleaningMode ? (
                                 <>
@@ -3172,7 +3172,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                             </div>
 
                             <div className="pj-sidebar-item">
-                                <span className="pj-sidebar-label">📍 Địa chỉ</span>
+                                <span className="pj-sidebar-label">Địa chỉ</span>
                                 <span className="pj-sidebar-value">{initialData.addressDetail || 'Chưa chọn địa chỉ'}</span>
                             </div>
 
@@ -3366,7 +3366,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                             ) : null}
 
                             {loadingPrice ? (
-                                <div className="pj-sidebar-loading">⏳ Đang tính giá...</div>
+                                <div className="pj-sidebar-loading">Đang tính giá...</div>
                             ) : preEstimate ? (
                                 <>
                                     <div className="pj-price-label">Tổng thanh toán dự kiến</div>
@@ -3380,7 +3380,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                     ) : null}
                                 </>
                             ) : (
-                                <div className="pj-sidebar-loading">📝 Chọn dịch vụ để tính giá</div>
+                                <div className="pj-sidebar-loading">Chọn dịch vụ để tính giá</div>
                             )}
                         </div>
                     </div>
@@ -3479,11 +3479,11 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
 
             <div className="pj-body">
                 {loadingEstimate ? (
-                    <div className="pj-loading">💰 Đang tính toán giá...</div>
+                    <div className="pj-loading">Đang tính toán giá...</div>
                 ) : (
                     <>
                         <div className="pj-summary">
-                            <h3 className="pj-summary-title">📋 Thông tin công việc</h3>
+                            <h3 className="pj-summary-title">Thông tin công việc</h3>
 
                             <div className="pj-summary-row">
                                 <div className="pj-summary-label">Dịch vụ</div>
@@ -3753,7 +3753,7 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                         {estimateData && (
                             <div className="pj-payment">
                                 <div className="pj-payment-row">
-                                    <span>💰 Giá dịch vụ cơ bản</span>
+                                    <span>Giá dịch vụ cơ bản</span>
                                     <span>{formatCurrency(estimateData.basePrice)}</span>
                                 </div>
                                 {estimateData.serviceFees && estimateData.serviceFees.length > 0 && (
@@ -3768,7 +3768,7 @@ const ConfirmPayStep = ({ onBack, onConfirm, jobData, estimateData, loadingEstim
                                     </div>
                                 )}
                                 <div className="pj-payment-row total">
-                                    <span>💎 Tổng thanh toán</span>
+                                    <span>Tổng thanh toán</span>
                                     <span style={{ color: serviceInfo.color, fontSize: '20px', fontWeight: 'bold' }}>
                                         {formatCurrency(estimateData.estimatedPrice)}
                                     </span>

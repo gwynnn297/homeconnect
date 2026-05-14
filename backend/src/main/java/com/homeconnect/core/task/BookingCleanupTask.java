@@ -111,7 +111,7 @@ public class BookingCleanupTask {
     }
 
     /**
-     * Tự động hủy các đơn hàng đã chốt (CONFIRMED) mà thợ không đến (No-Show).
+     * Tự động hủy các đơn hàng đã chốt (CONFIRMED) mà thợ không đến (vắng mặt).
      * Mỗi đơn được xử lý trong transaction độc lập (REQUIRES_NEW) qua NoShowBookingProcessor.
      */
     @Scheduled(fixedRate = 60000)
@@ -124,7 +124,7 @@ public class BookingCleanupTask {
 
         if (noShowBookings.isEmpty()) return;
 
-        log.info("Phát hiện {} đơn hàng thợ No-Show. Đang xử lý...", noShowBookings.size());
+        log.info("Phát hiện {} đơn hàng thợ vắng mặt. Đang xử lý...", noShowBookings.size());
 
         for (Booking booking : noShowBookings) {
             try {
@@ -134,7 +134,7 @@ public class BookingCleanupTask {
             }
         }
 
-        log.info("Đã xử lý xong {} đơn No-Show.", noShowBookings.size());
+        log.info("Đã xử lý xong {} đơn vắng mặt.", noShowBookings.size());
     }
 }
 

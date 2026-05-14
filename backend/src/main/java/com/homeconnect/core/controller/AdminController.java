@@ -159,7 +159,7 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getAdminAuditLogs(actorId, eventType, targetType, from, to, pageable));
     }
 
-    @Operation(summary = "Danh sách vi phạm vận hành", description = "Theo dõi helper/customer hủy sát giờ, no-show và mức phạt")
+    @Operation(summary = "Danh sách vi phạm vận hành", description = "Theo dõi thợ/khách hủy sát giờ, vắng mặt và mức phạt")
     @GetMapping("/violations")
     public ResponseEntity<AdminViolationListResponse> getViolations(
             @RequestParam(required = false) String violationType,
@@ -258,7 +258,7 @@ public class AdminController {
                 .build());
     }
 
-    @Operation(summary = "Xử lý helper no-show", description = "Auto cancel, hoàn tiền full cho khách, phạt helper và tạo vi phạm")
+    @Operation(summary = "Xử lý thợ vắng mặt", description = "Tự động hủy, hoàn tiền full cho khách, phạt thợ và tạo vi phạm")
     @PostMapping("/bookings/{bookingId}/helper-no-show")
     public ResponseEntity<ApiResponse<Void>> handleHelperNoShow(
             @PathVariable Long bookingId,
@@ -266,7 +266,7 @@ public class AdminController {
             Authentication authentication) {
         bookingService.handleHelperNoShow(bookingId, reason, authentication.getName());
         return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .message("Đã xử lý helper no-show")
+                .message("Đã xử lý thợ vắng mặt")
                 .build());
     }
 
@@ -279,7 +279,7 @@ public class AdminController {
             Authentication authentication) {
         bookingService.handleCustomerNoShow(bookingId, payoutRatio, reason, authentication.getName());
         return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .message("Đã xử lý customer no-show")
+                .message("Đã xử lý khách vắng mặt")
                 .build());
     }
 

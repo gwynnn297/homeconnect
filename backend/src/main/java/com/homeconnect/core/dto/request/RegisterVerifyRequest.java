@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 📝 DTO cho bước 2: Xác thực OTP và hoàn tất đăng ký
+ * DTO cho bước 2: Xác thực OTP và hoàn tất đăng ký
  */
 @Data
 public class RegisterVerifyRequest {

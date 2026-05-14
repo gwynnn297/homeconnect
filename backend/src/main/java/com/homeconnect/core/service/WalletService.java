@@ -60,7 +60,7 @@ public class WalletService {
      * Tạo ví mới cho user vừa đăng ký
      */
     public Wallet createWalletForUser(User user) {
-        log.info("🪙 Tạo wallet cho User ID: {}", user.getId());
+        log.info("Tạo wallet cho User ID: {}", user.getId());
 
         Wallet wallet = Wallet.builder()
                 .user(user)
@@ -77,7 +77,7 @@ public class WalletService {
      * [BE-Wallet-02] Lấy thông tin ví của user
      */
     public WalletInfoResponse getWalletInfo(Long userId) {
-        log.info("📊 Lấy thông tin ví cho User ID: {}", userId);
+        log.info("Lấy thông tin ví cho User ID: {}", userId);
 
         Wallet wallet = walletRepository.findByUserId(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng"));
@@ -100,7 +100,7 @@ public class WalletService {
      * [BE-Wallet-03] Lấy lịch sử giao dịch ví (có phân trang)
      */
     public WalletTransactionListResponse getTransactionHistory(Long userId, Pageable pageable) {
-        log.info("📜 Lấy lịch sử giao dịch cho User ID: {}", userId);
+        log.info("Lịch sử giao dịch cho User ID: {}", userId);
 
         Wallet wallet = walletRepository.findByUserId(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng"));
@@ -123,7 +123,7 @@ public class WalletService {
      * Format nội dung CK: HOMIE{userId}
      */
     public VietQRResponse generateVietQRUrl(Long userId, Long amount) {
-        log.info("🔗 Sinh VietQR URL cho User ID: {}, Amount: {}", userId, amount);
+        log.info("Sinh VietQR URL cho User ID: {}, Amount: {}", userId, amount);
 
         String transferContent = "HOMIE" + userId;
 
@@ -163,22 +163,22 @@ public class WalletService {
      */
     @Transactional
     public void processWebhookDeposit(WebhookDepositRequest request) {
-        log.info("💰 Xử lý webhook deposit - TransactionID: {}, Amount: {}, Description: {}",
+        log.info("Xử lý webhook deposit - TransactionID: {}, Amount: {}, Description: {}",
                 request.getTransactionId(), request.getAmount(), request.getDescription());
 
-        // 1. Validate webhook signature (TODO: Implement based on payment gateway)
+        // 1. Validate webhook signature
         // validateWebhookSignature(request);
 
         // 2. Chỉ xử lý transaction SUCCESS
         if (!"SUCCESS".equalsIgnoreCase(request.getStatus())) {
-            log.warn("⚠️ Transaction không thành công, bỏ qua: {}", request.getStatus());
+            log.warn("Transaction không thành công, bỏ qua: {}", request.getStatus());
             return;
         }
 
         // 3. Parse userId từ description (format: "HOMIE123 NAP TIEN" hoặc "HOMIE123")
         Long userId = extractUserIdFromDescription(request.getDescription());
         if (userId == null) {
-            log.error("❌ Không thể parse userId từ description: {}", request.getDescription());
+            log.error("Không thể parse userId từ description: {}", request.getDescription());
             throw new RuntimeException("Nội dung chuyển khoản không hợp lệ");
         }
 
@@ -189,7 +189,7 @@ public class WalletService {
         // 5. Idempotency check - Kiểm tra giao dịch đã tồn tại chưa (chống duplicate)
         Integer referenceId = parseReferenceId(request.getTransactionId());
         if (transactionRepository.findByReferenceIdAndReferenceTypeWebhook(referenceId).isPresent()) {
-            log.warn("⚠️ Giao dịch đã tồn tại, bỏ qua: TransactionID = {}", request.getTransactionId());
+            log.warn("Giao dịch đã tồn tại, bỏ qua: TransactionID = {}", request.getTransactionId());
             return; // Return 200 OK nhưng không xử lý
         }
 
@@ -198,7 +198,7 @@ public class WalletService {
         wallet.setAvailableBalance(wallet.getAvailableBalance().add(depositAmount));
         walletRepository.save(wallet);
 
-        log.info("✅ Đã cộng {} VNĐ vào ví của User ID: {}. Số dư mới: {}",
+        log.info("Đã cộng {} VNĐ vào ví của User ID: {}. Số dư mới: {}",
                 depositAmount, userId, wallet.getAvailableBalance());
 
         // 7. Lưu lịch sử giao dịch
@@ -214,7 +214,7 @@ public class WalletService {
 
         // Real-time update
         socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
-        log.info("💾 Đã lưu lịch sử giao dịch ID: {}", transaction.getTransactionId());
+        log.info("Đã lưu lịch sử giao dịch ID: {}", transaction.getTransactionId());
     }
 
     /**
@@ -224,33 +224,33 @@ public class WalletService {
      */
     @Transactional
     public void processXGateDepositWebhook(String description, BigDecimal amount, String transactionId) {
-        log.info("💰 Xử lý webhook deposit xGate - TransactionID: {}, Amount: {}, Description: {}",
+        log.info("Xử lý webhook deposit xGate - TransactionID: {}, Amount: {}, Description: {}",
                 transactionId, amount, description);
 
         // 1. Validate amount
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            log.warn("⚠️ Số tiền nạp không hợp lệ: {}", amount);
+            log.warn("Số tiền nạp không hợp lệ: {}", amount);
             return;
         }
 
         // 2. Parse userId từ description (format: "HOMIE123" hoặc "HOMIE123 NAP TIEN")
         Long userId = extractUserIdFromDescription(description);
         if (userId == null) {
-            log.error("❌ Không thể parse userId từ description: {}", description);
+            log.error("Không thể parse userId từ description: {}", description);
             return; // Luôn trả về 200 OK để tránh xGate retry
         }
 
         // 3. Lấy ví của user
         Wallet wallet = walletRepository.findByUserId(userId).orElse(null);
         if (wallet == null) {
-            log.error("❌ Không tìm thấy ví của User ID: {}", userId);
+            log.error("Không tìm thấy ví của User ID: {}", userId);
             return;
         }
 
         // 4. Idempotency check - chống duplicate webhook
         Integer referenceId = parseReferenceId(transactionId);
         if (transactionRepository.findByReferenceIdAndReferenceTypeWebhook(referenceId).isPresent()) {
-            log.warn("⚠️ Giao dịch HOMIE đã xử lý rồi, bỏ qua. TransactionID = {}", transactionId);
+            log.warn("Giao dịch HOMIE đã xử lý rồi, bỏ qua. TransactionID = {}", transactionId);
             return;
         }
 
@@ -259,7 +259,7 @@ public class WalletService {
         wallet.setAvailableBalance(oldBalance.add(amount));
         walletRepository.save(wallet);
 
-        log.info("✅ Đã cộng {} VNĐ vào ví User ID: {}. Số dư: {} → {}",
+        log.info("Đã cộng {} VNĐ vào ví User ID: {}. Số dư: {} → {}",
                 amount, userId, oldBalance, wallet.getAvailableBalance());
 
         // 6. Lưu lịch sử giao dịch
@@ -279,7 +279,7 @@ public class WalletService {
         try {
             notificationService.createNotification(
                     userId,
-                    "Nạp tiền thành công 🎉",
+                    "Nạp tiền thành công",
                     String.format("Bạn vừa nạp thành công %,.0f VNĐ vào ví. Số dư hiện tại: %,.0f VNĐ",
                             amount.doubleValue(), wallet.getAvailableBalance().doubleValue()),
                     "DEPOSIT_SUCCESS"
@@ -288,7 +288,7 @@ public class WalletService {
             log.error("Lỗi gửi thông báo deposit cho User {}: {}", userId, e.getMessage());
         }
 
-        log.info("💾 Webhook deposit xử lý xong. TransactionID: {}", transactionId);
+        log.info("Webhook deposit xử lý xong. TransactionID: {}", transactionId);
     }
 
     /**
@@ -302,7 +302,7 @@ public class WalletService {
      */
     @Transactional
     public void holdMoney(Long userId, BigDecimal amount, Long jobPostId, Long referenceId) {
-        log.info("🔒 Hold tiền cho User ID: {}, Amount: {}, JobPost ID: {}, Ref ID: {}", userId, amount, jobPostId, referenceId);
+        log.info("Hold tiền cho User ID: {}, Amount: {}, JobPost ID: {}, Ref ID: {}", userId, amount, jobPostId, referenceId);
 
         // 1. Lock row với Pessimistic Write để tránh race condition
         Wallet wallet = walletRepository.findByUserIdWithLock(userId)
@@ -310,7 +310,7 @@ public class WalletService {
 
         // 2. Validate số dư
         if (wallet.getAvailableBalance().compareTo(amount) < 0) {
-            log.error("❌ Số dư không đủ. Available: {}, Required: {}", wallet.getAvailableBalance(), amount);
+            log.error("Số dư không đủ. Available: {}, Required: {}", wallet.getAvailableBalance(), amount);
             throw new InsufficientBalanceException(
                     String.format("Số dư không đủ. Bạn cần %s VNĐ nhưng chỉ có %s VNĐ",
                             amount, wallet.getAvailableBalance()));
@@ -321,7 +321,7 @@ public class WalletService {
         wallet.setHoldBalance(wallet.getHoldBalance().add(amount));
         walletRepository.save(wallet);
 
-        log.info("✅ Đã hold {} VNĐ. Available: {}, Hold: {}",
+        log.info("Đã hold {} VNĐ. Available: {}, Hold: {}",
                 amount, wallet.getAvailableBalance(), wallet.getHoldBalance());
 
         // 4. Lưu lịch sử
@@ -391,7 +391,7 @@ public class WalletService {
      */
     @Transactional
     public void deductPenalty(Long userId, BigDecimal amount, Long jobId, String reason) {
-        log.info("💸 Trừ tiền phạt User ID: {}, Amount: {}, Job ID: {}, Reason: {}", userId, amount, jobId, reason);
+        log.info("Trừ tiền phạt User ID: {}, Amount: {}, Job ID: {}, Reason: {}", userId, amount, jobId, reason);
         Wallet wallet = walletRepository.findByUserIdWithLock(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng"));
 
@@ -423,7 +423,7 @@ public class WalletService {
      */
     @Transactional
     public void compensateCustomer(Long userId, BigDecimal amount, Long jobId, String reason) {
-        log.info("🎁 Cộng tiền bồi thường User ID: {}, Amount: {}, Job ID: {}, Reason: {}", userId, amount, jobId, reason);
+        log.info("Cộng tiền bồi thường User ID: {}, Amount: {}, Job ID: {}, Reason: {}", userId, amount, jobId, reason);
         Wallet wallet = walletRepository.findByUserIdWithLock(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng"));
 
@@ -449,14 +449,14 @@ public class WalletService {
      */
     @Transactional
     public void refundHold(Long userId, BigDecimal amount, Long referenceId, String reason) {
-        log.info("🔓 Hoàn tiền (Refund) User ID: {}, Amount: {}, Reference ID: {}, Reason: {}", 
+        log.info("Hoàn tiền (Refund) User ID: {}, Amount: {}, Reference ID: {}, Reason: {}", 
                 userId, amount, referenceId, reason);
 
         Wallet wallet = walletRepository.findByUserIdWithLock(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng"));
 
         if (wallet.getHoldBalance().compareTo(amount) < 0) {
-            log.warn("⚠️ HoldBalance ({}) thấp hơn số tiền cần hoàn ({}). Sẽ hoàn tối đa số tiền đang giữ.", 
+            log.warn("HoldBalance ({}) thấp hơn số tiền cần hoàn ({}). Sẽ hoàn tối đa số tiền đang giữ.", 
                     wallet.getHoldBalance(), amount);
             amount = wallet.getHoldBalance();
         }
@@ -478,7 +478,7 @@ public class WalletService {
         // Real-time update
         socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
         
-        log.info("✅ Đã hoàn {} VNĐ về ví khả dụng.", amount);
+        log.info("Đã hoàn {} VNĐ về ví khả dụng.", amount);
     }
 
     /**
@@ -687,7 +687,7 @@ public class WalletService {
      */
     @Transactional
     public void requestWithdraw(Long userId, BigDecimal amount, Integer bankAccountId) {
-        log.info("💸 User {} yêu cầu rút {} VNĐ. BankAccountID: {}", userId, amount, bankAccountId != null ? bankAccountId : "DEFAULT");
+        log.info("User {} yêu cầu rút {} VNĐ. BankAccountID: {}", userId, amount, bankAccountId != null ? bankAccountId : "DEFAULT");
         
         // 1. Lock wallet
         Wallet wallet = walletRepository.findByUserIdWithLock(userId)
@@ -706,7 +706,7 @@ public class WalletService {
             // Nếu không gửi ID, tìm thẻ mặc định
             bankAccount = userBankAccountRepository.findByUserIdAndIsDefaultTrue(userId)
                     .orElseThrow(() -> new RuntimeException("Vui lòng chọn hoặc liên kết một tài khoản ngân hàng mặc định để rút tiền"));
-            log.info("⭐ Sử dụng tài khoản mặc định ID: {} cho User {}", bankAccount.getBankAccountId(), userId);
+            log.info("Sử dụng tài khoản mặc định ID: {} cho User {}", bankAccount.getBankAccountId(), userId);
         }
 
         // 3. Validate balance and minimum amount
@@ -794,7 +794,7 @@ public class WalletService {
 
     @Transactional
     public void processWithdrawWebhook(String description, BigDecimal amount) {
-        log.info("🔔 Khớp lệnh rút tiền từ biến động số dư: Content='{}', Amount={}", description, amount);
+        log.info("Khớp lệnh rút tiền từ biến động số dư: Content='{}', Amount={}", description, amount);
         
         // 1. Parse requestId từ nội dung (HOMIRT123 -> 123)
         Integer requestId = extractRequestIdFromContent(description);
@@ -809,7 +809,7 @@ public class WalletService {
 
         // 2. Khớp số tiền - BẮT BUỘC phải khớp hoàn toàn để đảm bảo an toàn
         if (amount == null || request.getAmount().compareTo(amount) != 0) {
-            log.error("❌ Không thể khớp lệnh rút tiền #{}: Số tiền không khớp (Cần: {}, Nhận: {})", 
+            log.error("Không thể khớp lệnh rút tiền #{}: Số tiền không khớp (Cần: {}, Nhận: {})", 
                     requestId, request.getAmount(), amount);
             saveAudit(requestId, "WEBHOOK_MISMATCH", "SYSTEM", 
                     String.format("Số tiền không khớp. Cần: %s, Nhận từ ngân hàng: %s", request.getAmount(), amount));
@@ -849,7 +849,7 @@ public class WalletService {
         } catch (Exception e) {
             log.error("Failed to send notification for withdrawal #{}: {}", requestId, e.getMessage());
         }
-        log.info("✅ Đối soát thành công đơn rút tiền #{}", requestId);
+        log.info("Đối soát thành công đơn rút tiền #{}", requestId);
     }
 
     /**

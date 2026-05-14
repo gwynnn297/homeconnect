@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Xử lý từng đơn No-Show trong transaction độc lập.
+ * Xử lý từng đơn vắng mặt trong transaction độc lập.
  * Tách thành bean riêng để tránh Spring AOP self-invocation bug.
  */
 @Slf4j
@@ -43,7 +43,7 @@ public class NoShowBookingProcessor {
         // 1. Cập nhật trạng thái → EXPIRED
         booking.setStatus(BookingStatus.EXPIRED);
         booking.setCancelSource("SYSTEM");
-        booking.setCancelReason("No-Show: thợ không đến sau 30 phút");
+        booking.setCancelReason("Thợ vắng mặt: thợ không đến sau 30 phút");
         booking.setCancelledAt(LocalDateTime.now());
         booking.setNoShowActor("HELPER");
         bookingRepository.save(booking);
@@ -68,7 +68,7 @@ public class NoShowBookingProcessor {
                         booking.getCustomer().getId(),
                         booking.getTotalPrice(),
                         booking.getId(),
-                        "Thợ No-Show: hoàn tiền hold");
+                        "Thợ vắng mặt: hoàn tiền hold");
             }
         } catch (Exception e) {
             log.error("[NoShow] Lỗi hoàn tiền đơn #{}: {}", booking.getId(), e.getMessage());
