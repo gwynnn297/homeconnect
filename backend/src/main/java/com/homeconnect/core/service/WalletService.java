@@ -21,6 +21,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
@@ -213,7 +215,7 @@ public class WalletService {
         transactionRepository.save(transaction);
 
         // Real-time update
-        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
+        sendSocketAfterCommit(userId);
         log.info("Đã lưu lịch sử giao dịch ID: {}", transaction.getTransactionId());
     }
 
@@ -274,7 +276,7 @@ public class WalletService {
         transactionRepository.save(transaction);
 
         // Real-time update
-        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
+        sendSocketAfterCommit(userId);
         // 7. Gửi push notification cho Customer
         try {
             notificationService.createNotification(
@@ -336,7 +338,7 @@ public class WalletService {
         transactionRepository.save(transaction);
 
         // Real-time update
-        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
+        sendSocketAfterCommit(userId);
     }
 
     // ===== Helper Methods =====
@@ -415,7 +417,7 @@ public class WalletService {
         transactionRepository.save(transaction);
 
         // Real-time update
-        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
+        sendSocketAfterCommit(userId);
     }
 
     /**
@@ -441,7 +443,7 @@ public class WalletService {
         transactionRepository.save(transaction);
 
         // Real-time update
-        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
+        sendSocketAfterCommit(userId);
     }
 
     /**
@@ -476,7 +478,7 @@ public class WalletService {
         transactionRepository.save(transaction);
 
         // Real-time update
-        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
+        sendSocketAfterCommit(userId);
         
         log.info("Đã hoàn {} VNĐ về ví khả dụng.", amount);
     }
@@ -554,11 +556,11 @@ public class WalletService {
             transactionRepository.save(releaseTx);
 
             // Real-time update for Helper
-            socketIOService.sendMessage(helperId.toString(), "wallet:updated", getWalletInfo(helperId));
+            sendSocketAfterCommit(helperId);
         }
 
         // Real-time update for Customer (refund or final payment)
-        socketIOService.sendMessage(customerId.toString(), "wallet:updated", getWalletInfo(customerId));
+        sendSocketAfterCommit(customerId);
 
         return refundAmount;
     }
@@ -673,8 +675,8 @@ public class WalletService {
                 helperSalary, helperId, commission);
 
         // Real-time update for both
-        socketIOService.sendMessage(customerId.toString(), "wallet:updated", getWalletInfo(customerId));
-        socketIOService.sendMessage(helperId.toString(), "wallet:updated", getWalletInfo(helperId));
+        sendSocketAfterCommit(customerId);
+        sendSocketAfterCommit(helperId);
 
         return helperSalary;
     }
@@ -748,7 +750,10 @@ public class WalletService {
         transactionRepository.save(holdTx);
 
         // Real-time update
-        socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
+        sendSocketAfterCommit(userId);
+        
+        // Real-time cho Admin
+        socketIOService.sendToAdmin("withdraw:new_request", request.getRequestId());
 
         saveAudit(request.getRequestId(), "REQUEST", "USER", "Khởi tạo yêu cầu rút tiền về " + bankAccount.getBankName());
         
@@ -789,6 +794,9 @@ public class WalletService {
         withdrawRequestRepository.save(request);
         saveAudit(requestId, "APPROVE", adminActor, "Admin duyệt lệnh. Chờ Admin chuyển tiền tay với nội dung: " + transferCode);
         
+        // Real-time update cho User thấy đơn đã chuyển sang PROCESSING
+        sendSocketAfterCommit(request.getWallet().getUser().getId());
+        
         return transferCode;
     }
 
@@ -824,7 +832,7 @@ public class WalletService {
         walletRepository.save(wallet);
 
         // Real-time update
-        socketIOService.sendMessage(wallet.getUser().getId().toString(), "wallet:updated", getWalletInfo(wallet.getUser().getId()));
+        sendSocketAfterCommit(wallet.getUser().getId());
 
         // 4. Ghi lịch sử giao dịch loại WITHDRAWAL
         WalletTransaction withdrawTx = WalletTransaction.builder()
@@ -975,6 +983,9 @@ public class WalletService {
 
         // 5. Thông báo cho User
         try {
+            // Real-time update số dư sau khi hoàn tiền
+            sendSocketAfterCommit(wallet.getUser().getId());
+
             notificationService.createNotification(wallet.getUser().getId(), 
                     "Yêu cầu rút tiền bị từ chối", 
                     String.format("Yêu cầu rút %,.0f VNĐ của bạn đã bị từ chối. Lý do: %s", amount.doubleValue(), reason), 
@@ -1046,6 +1057,23 @@ public class WalletService {
         } catch (java.io.UnsupportedEncodingException e) {
             log.error("Lỗi tạo mã QR rút tiền: {}", e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Gửi tín hiệu Socket sau khi transaction đã commit thành công.
+     */
+    private void sendSocketAfterCommit(Long userId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    log.info("[Socket] Transaction committed, sending wallet update for user {}", userId);
+                    socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
+                }
+            });
+        } else {
+            socketIOService.sendMessage(userId.toString(), "wallet:updated", getWalletInfo(userId));
         }
     }
 }

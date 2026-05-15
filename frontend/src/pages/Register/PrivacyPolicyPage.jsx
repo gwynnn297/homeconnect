@@ -1,8 +1,23 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import './PrivacyPolicyPage.css';
 
 const PrivacyPolicyPage = () => {
+    const [hasReadToBottom, setHasReadToBottom] = useState(false);
+    const contentRef = useRef(null);
+
+    const handleScroll = () => {
+        const element = contentRef.current;
+        if (!element) return;
+
+        // Kiểm tra xem đã cuộn đến cuối chưa (với sai số 10px)
+        const isBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 10;
+        
+        if (isBottom) {
+            setHasReadToBottom(true);
+        }
+    };
+
     return (
         <div className="terms-container">
             <div className="terms-card">
@@ -11,7 +26,7 @@ const PrivacyPolicyPage = () => {
                     <p className="terms-subtitle">HomieConnect Cung Cấp Dịch Vụ Theo Quy Định Về Bảo Vệ Dữ Liệu Cá Nhân (Nghị Định 13/2023/NĐ-CP)</p>
                 </div>
 
-                <div className="terms-content">
+                <div className="terms-content" ref={contentRef} onScroll={handleScroll}>
                     <section className="terms-section">
                         <p>
                             Cam kết về bảo vệ dữ liệu cá nhân được thực hiện bởi và giữa HomieConnect và các Đại lý/Khách hàng/Đối tác cung cấp của HomieConnect (sau đây gọi chung là Bên Cung cấp).
@@ -91,7 +106,12 @@ const PrivacyPolicyPage = () => {
                 </div>
 
                 <div className="terms-footer">
-                    <Link to="/register" className="back-button">Đã hiểu và quay lại</Link>
+                    <Link 
+                        to="/register" 
+                        className={`back-button ${!hasReadToBottom ? 'disabled' : ''}`}
+                    >
+                        {!hasReadToBottom ? 'Vui lòng đọc hết điều khoản' : 'Đã hiểu và quay lại'}
+                    </Link>
                 </div>
             </div>
         </div>

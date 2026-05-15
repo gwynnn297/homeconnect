@@ -80,7 +80,10 @@ export const SocketProvider = ({ children }) => {
             }
 
             const newSocket = io(SOCKET_URL, {
-                query: { userId: userIdStr },
+                query: { 
+                    userId: userIdStr,
+                    role: user.role || user.userRole || '' 
+                },
                 transports: ['websocket'],
                 reconnection: true,
             });
@@ -122,6 +125,10 @@ export const SocketProvider = ({ children }) => {
 
             newSocket.on('wallet:updated', (data) => {
                 window.dispatchEvent(new CustomEvent('wallet:updated', { detail: data }));
+            });
+
+            newSocket.on('withdraw:new_request', (data) => {
+                window.dispatchEvent(new CustomEvent('withdraw:new_request', { detail: data }));
             });
 
             setSocket(newSocket);

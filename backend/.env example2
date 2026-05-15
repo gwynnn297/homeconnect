@@ -4,7 +4,7 @@ DB_NAME=homeconnect
 DB_USERNAME=root
 DB_PASSWORD=
 # ========================================
-# 📧 CẤU HÌNH EMAIL SMTP GMAIL
+#  CẤU HÌNH EMAIL SMTP GMAIL
 # ========================================
 # Gmail account để gửi email OTP 
 GMAIL_USERNAME=
@@ -25,3 +25,38 @@ CHECKIN_MAX_ATTEMPTS=
 FPT_AI_API_KEY=
 FPT_AI_OCR_URL=
 KYC_FACE_MATCH_THRESHOLD=75
+
+# ========================================
+#  CẤU HÌNH SECURITY & JWT (BỔ SUNG)
+# ========================================
+JWT_SECRET=
+JWT_EXPIRATION=86400000
+JWT_REFRESH_EXPIRATION=604800000
+
+# ========================================
+#  CẤU HÌNH VÍ & NGÂN HÀNG (BỔ SUNG)
+# ========================================
+WALLET_BANK_CODE=BIDV
+WALLET_BANK_ACCOUNT=5625438295
+WALLET_BANK_NAME=NGUYEN TRAN ANH TU
+WALLET_COMMISSION_RATE=0.15
+
+# ========================================
+#  CẤU HÌNH XGATE - RÚT TIỀN (BỔ SUNG)
+# ========================================
+XGATE_API_KEY=
+XGATE_API_URL=https://api.xgate.vn/v1
+XGATE_WEBHOOK_SECRET=
+
+# ========================================
+#  CẤU HÌNH REAL-TIME & AI PARSER (BỔ SUNG)
+# ========================================
+SOCKET_SERVER_PORT=9092
+AI_PARSER_URL=
+
+# ========================================
+#  CẤU HÌNH BẢN ĐỒ - GOONG MAPS (BỔ SUNG)
+# ========================================
+GOONG_API_KEY=
+GOONG_GEOCODING_URL=https://rsapi.goong.io/Geocode
+GOONG_PLACE_DETAIL_URL=https://rsapi.goong.io/Place/Detail

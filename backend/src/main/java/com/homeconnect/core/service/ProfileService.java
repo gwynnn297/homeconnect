@@ -58,6 +58,20 @@ public class ProfileService {
     @Transactional
     public UserProfileResponse updateCommonProfile(CommonProfileUpdateRequest request) {
         User user = getCurrentUser();
+        
+        // --- KHÓA TÊN SAU KHI KYC CHO HELPER ---
+        if (user.getRole() == com.homeconnect.core.enums.UserRole.HELPER) {
+            helperProfileRepository.findByUser_Id(user.getId()).ifPresent(profile -> {
+                if (com.homeconnect.core.enums.KycStatus.VERIFIED.equals(profile.getKycStatus()) || 
+                    com.homeconnect.core.enums.KycStatus.IDENTITY_VERIFIED.equals(profile.getKycStatus())) {
+                    
+                    if (user.getFullName() != null && !user.getFullName().equalsIgnoreCase(request.getFullName())) {
+                        throw new ApiException("Hồ sơ đã được xác thực danh tính (KYC). Bạn không thể thay đổi Họ tên.", HttpStatus.FORBIDDEN);
+                    }
+                }
+            });
+        }
+
         user.setFullName(request.getFullName());
         if (request.getAvatarUrl() != null) {
             user.setAvatarUrl(request.getAvatarUrl());

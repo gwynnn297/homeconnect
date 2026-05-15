@@ -23,6 +23,14 @@ public class SocketIOService {
     }
 
     /**
+     * Gửi tin nhắn cho tất cả Admin.
+     */
+    public void sendToAdmin(String eventName, Object data) {
+        log.info("[Socket] Sending event {} to admin_room", eventName);
+        server.getRoomOperations("admin_room").sendEvent(eventName, data);
+    }
+
+    /**
      * Gửi tin nhắn cho tất cả mọi người.
      */
     public void broadcast(String eventName, Object data) {

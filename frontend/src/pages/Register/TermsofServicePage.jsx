@@ -1,8 +1,23 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import './TermsofServicePage.css';
 
 const TermsofServicePage = () => {
+    const [hasReadToBottom, setHasReadToBottom] = useState(false);
+    const contentRef = useRef(null);
+
+    const handleScroll = () => {
+        const element = contentRef.current;
+        if (!element) return;
+
+        // Kiểm tra xem đã cuộn đến cuối chưa (với sai số 10px)
+        const isBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 10;
+        
+        if (isBottom) {
+            setHasReadToBottom(true);
+        }
+    };
+
     return (
         <div className="terms-container">
             <div className="terms-card">
@@ -11,7 +26,7 @@ const TermsofServicePage = () => {
                     <p className="terms-subtitle">Các điều khoản và điều kiện sử dụng dịch vụ của HomieConnect</p>
                 </div>
 
-                <div className="terms-content">
+                <div className="terms-content" ref={contentRef} onScroll={handleScroll}>
                     <section className="terms-section">
                         <p>
                             Các Điều khoản dưới đây (“Điều khoản”) điều chỉnh việc Khách hàng, một cá nhân hoặc tổ chức, truy cập hoặc sử dụng các ứng dụng, trang web, nội dung, sản phẩm và dịch vụ (“Dịch vụ”) của CÔNG TY CỔ PHẦN PHÁT TRIỂN DỊCH VỤ HOMIECONNECT, một doanh nghiệp thành lập theo pháp luật Việt Nam (“Công ty”).
@@ -264,7 +279,12 @@ const TermsofServicePage = () => {
                 </div>
 
                 <div className="terms-footer">
-                    <Link to="/register" className="back-button">Đã hiểu và quay lại</Link>
+                    <Link 
+                        to="/register" 
+                        className={`back-button ${!hasReadToBottom ? 'disabled' : ''}`}
+                    >
+                        {!hasReadToBottom ? 'Vui lòng đọc hết điều khoản' : 'Đã hiểu và quay lại'}
+                    </Link>
                 </div>
             </div>
         </div>
