@@ -1,0 +1,27 @@
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+DB_NAME=homeconnect
+DB_USERNAME=root
+DB_PASSWORD=
+# ========================================
+# 📧 CẤU HÌNH EMAIL SMTP GMAIL
+# ========================================
+# Gmail account để gửi email OTP 
+GMAIL_USERNAME=
+# App Password từ Google Account (KHÔNG phải password thường)
+# Hướng dẫn tạo: https://support.google.com/accounts/answer/185833
+GMAIL_APP_PASSWORD=
+
+
+# cấu hình cho Face++ API
+FACEPP_API_KEY=
+FACEPP_API_SECRET=
+FACEPP_COMPARE_URL=
+FACEPP_MIN_CONFIDENCE=
+CHECKIN_CHALLENGE_TTL_SECONDS=
+CHECKIN_MAX_ATTEMPTS=
+
+# cau hinh cho FPT.AI OCR (CCCD)
+FPT_AI_API_KEY=
+FPT_AI_OCR_URL=
+KYC_FACE_MATCH_THRESHOLD=75
