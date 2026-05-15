@@ -60,6 +60,18 @@ const AdminWithdrawalsPage = () => {
 
     useEffect(() => { fetchWithdrawals(); }, [fetchWithdrawals]);
 
+    // Real-time listener for new withdrawal requests
+    useEffect(() => {
+        const handleNewWithdrawRequest = (e) => {
+            console.log('[Admin] New withdrawal request received via socket:', e.detail);
+            // Re-fetch to show new request immediately
+            fetchWithdrawals();
+        };
+
+        window.addEventListener('withdraw:new_request', handleNewWithdrawRequest);
+        return () => window.removeEventListener('withdraw:new_request', handleNewWithdrawRequest);
+    }, [fetchWithdrawals]);
+
     const handleTabChange = (tab) => { setActiveTab(tab); setPage(0); };
 
     const handleViewDetail = async (requestId) => {

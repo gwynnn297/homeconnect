@@ -66,4 +66,10 @@ public class XGateWebhookController {
 
         return ResponseEntity.ok("OK");
     }
+
+    @GetMapping("/xgate")
+    public ResponseEntity<String> verifyWebhook() {
+        log.info("XGate Webhook Verification (GET) - Success");
+        return ResponseEntity.ok("Webhook is active");
+    }
 }

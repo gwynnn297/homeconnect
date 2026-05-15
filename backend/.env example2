@@ -1,0 +1,62 @@
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+DB_NAME=homeconnect
+DB_USERNAME=root
+DB_PASSWORD=
+# ========================================
+#  CẤU HÌNH EMAIL SMTP GMAIL
+# ========================================
+# Gmail account để gửi email OTP 
+GMAIL_USERNAME=
+# App Password từ Google Account (KHÔNG phải password thường)
+# Hướng dẫn tạo: https://support.google.com/accounts/answer/185833
+GMAIL_APP_PASSWORD=
+
+
+# cấu hình cho Face++ API
+FACEPP_API_KEY=
+FACEPP_API_SECRET=
+FACEPP_COMPARE_URL=
+FACEPP_MIN_CONFIDENCE=
+CHECKIN_CHALLENGE_TTL_SECONDS=
+CHECKIN_MAX_ATTEMPTS=
+
+# cau hinh cho FPT.AI OCR (CCCD)
+FPT_AI_API_KEY=
+FPT_AI_OCR_URL=
+KYC_FACE_MATCH_THRESHOLD=75
+
+# ========================================
+#  CẤU HÌNH SECURITY & JWT (BỔ SUNG)
+# ========================================
+JWT_SECRET=
+JWT_EXPIRATION=86400000
+JWT_REFRESH_EXPIRATION=604800000
+
+# ========================================
+#  CẤU HÌNH VÍ & NGÂN HÀNG (BỔ SUNG)
+# ========================================
+WALLET_BANK_CODE=BIDV
+WALLET_BANK_ACCOUNT=5625438295
+WALLET_BANK_NAME=NGUYEN TRAN ANH TU
+WALLET_COMMISSION_RATE=0.15
+
+# ========================================
+#  CẤU HÌNH XGATE - RÚT TIỀN (BỔ SUNG)
+# ========================================
+XGATE_API_KEY=
+XGATE_API_URL=https://api.xgate.vn/v1
+XGATE_WEBHOOK_SECRET=
+
+# ========================================
+#  CẤU HÌNH REAL-TIME & AI PARSER (BỔ SUNG)
+# ========================================
+SOCKET_SERVER_PORT=9092
+AI_PARSER_URL=
+
+# ========================================
+#  CẤU HÌNH BẢN ĐỒ - GOONG MAPS (BỔ SUNG)
+# ========================================
+GOONG_API_KEY=
+GOONG_GEOCODING_URL=https://rsapi.goong.io/Geocode
+GOONG_PLACE_DETAIL_URL=https://rsapi.goong.io/Place/Detail

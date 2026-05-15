@@ -1,0 +1,13 @@
+# ───────────────────────────────────────────────
+# Cloudinary Configuration
+# ───────────────────────────────────────────────
+VITE_CLOUDINARY_CLOUD_NAME=
+VITE_CLOUDINARY_UPLOAD_PRESET=
+VITE_GOONG_JS_KEY=
+VITE_GOONG_REST_API_KEY=
+
+# ───────────────────────────────────────────────
+# API & Socket URL (BỔ SUNG)
+# ───────────────────────────────────────────────
+VITE_API_URL=
+VITE_SOCKET_URL=
