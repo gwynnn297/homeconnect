@@ -454,9 +454,9 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
         }
 
         // Kiểm tra thời gian tối thiểu 30 phút nếu đặt cho hôm nay
-        const todayStr = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
         if (workDate === todayStr) {
-            const now = new Date();
             const slotMinutes = startHour * 60 + startMinute;
             const nowMinutes = now.getHours() * 60 + now.getMinutes();
             if (slotMinutes - nowMinutes < 30) {
@@ -684,7 +684,7 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
                         <div className="db-input-group">
                             <label>📅 Ngày làm việc</label>
                             <input type="date" className="db-field" value={workDate}
-                                min={new Date().toISOString().split('T')[0]}
+                                min={new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0')}
                                 onChange={e => setWorkDate(e.target.value)} required />
                         </div>
                         <div className="db-input-group">

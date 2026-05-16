@@ -143,9 +143,33 @@ const CustomerWalletPage = () => {
 
     const formatTxDescription = (description) => {
         const raw = String(description || '');
-        return raw
-            .replace(/subsidy loyalty:/gi, 'Trợ giá :')
-            .replace(/loyalty subsidy:/gi, 'Trợ giá :');
+        let text = raw;
+
+        // 1. Xử lý trường hợp thất bại trước
+        if (text.toLowerCase().includes('failed') || text.toLowerCase().includes('rejected')) {
+            return text
+                .replace(/Deposit via xGate/gi, 'Nạp tiền')
+                .replace(/Withdraw money/gi, 'Rút tiền')
+                .replace(/Failed/gi, 'thất bại')
+                .replace(/Rejected/gi, 'bị từ chối')
+                .replace(/via xGate/gi, 'qua ngân hàng')
+                .trim();
+        }
+
+        // 2. Xử lý trường hợp thành công
+        return text
+            .replace(/subsidy loyalty:/gi, 'Tiền trợ giá :')
+            .replace(/loyalty subsidy:/gi, 'Tiền trợ giá :')
+            .replace(/Nạp tiền qua xGate/gi, 'Nạp tiền thành công qua ngân hàng')
+            .replace(/Deposit via xGate/gi, 'Nạp tiền thành công qua ngân hàng')
+            .replace(/Withdraw money to bank/gi, 'Rút tiền thành công về ngân hàng')
+            .replace(/Withdraw money/gi, 'Rút tiền thành công')
+            .replace(/Payment for booking/gi, 'Thanh toán đơn hàng')
+            .replace(/Refund for booking/gi, 'Hoàn tiền đơn hàng')
+            .replace(/Thợ No-Show/gi, 'Thợ vắng mặt')
+            .replace(/No-Show/gi, 'Vắng mặt')
+            .replace(/hold/gi, 'tạm giữ')
+            .replace(/via xGate/gi, 'qua ngân hàng');
     };
 
     // ===== COUNTDOWN / POLLING =====

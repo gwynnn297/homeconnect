@@ -50,6 +50,38 @@ const HelperWalletPage = () => {
         return map[type] || { label: type, cls: 'muted', up: false };
     };
 
+    const formatTxDescription = (description) => {
+        const raw = String(description || '');
+        let text = raw;
+
+        // 1. Xử lý thất bại trước
+        if (text.toLowerCase().includes('failed') || text.toLowerCase().includes('rejected')) {
+            return text
+                .replace(/Withdraw money/gi, 'Rút tiền')
+                .replace(/Failed/gi, 'thất bại')
+                .replace(/Rejected/gi, 'bị từ chối')
+                .replace(/via xGate/gi, 'qua ngân hàng')
+                .replace(/xGate/gi, 'ngân hàng')
+                .trim();
+        }
+
+        // 2. Thành công
+        return text
+            .replace(/Earnings from booking/gi, 'Thu nhập từ đơn hàng')
+            .replace(/Release from booking/gi, 'Tiền công đơn hàng')
+            .replace(/Penalty for booking/gi, 'Khấu trừ phí đơn hàng')
+            .replace(/Refund for booking/gi, 'Hoàn tiền đơn hàng')
+            .replace(/Withdraw money to bank/gi, 'Rút tiền thành công về ngân hàng')
+            .replace(/Withdraw money/gi, 'Rút tiền thành công')
+            .replace(/Payment/gi, 'Thanh toán')
+            .replace(/Thợ No-Show/gi, 'Thợ vắng mặt')
+            .replace(/No-Show/gi, 'Vắng mặt')
+            .replace(/hold/gi, 'tạm giữ')
+            .replace(/via xGate/gi, 'qua ngân hàng')
+            .replace(/xGate/gi, 'ngân hàng')
+            .replace(/#([a-f0-9-]+)/gi, ' #$1'); 
+    };
+
     // ── Fetch wallet + transactions ──
     const fetchWalletData = useCallback(async () => {
         setIsLoading(true);
@@ -281,7 +313,7 @@ const HelperWalletPage = () => {
                                                         }
                                                     </div>
                                                     <div className="hw-tx-content">
-                                                        <div className="hw-tx-title">{tx.description}</div>
+                                                        <div className="hw-tx-title">{formatTxDescription(tx.description)}</div>
                                                         <div className="hw-tx-meta">
                                                             <span className={`hw-tx-type hw-text-${info.cls}`}>{info.label}</span>
                                                             <span className="hw-tx-dot">&bull;</span>
@@ -590,7 +622,7 @@ const HelperWalletPage = () => {
                             </div>
                             <div className="hw-form-group">
                                 <label className="hw-input-label">Tên chủ tài khoản</label>
-                                <input
+                                                <input
                                     type="text"
                                     className="hw-input"
                                     style={{ fontSize: 14 }}
@@ -602,6 +634,8 @@ const HelperWalletPage = () => {
                                     Tên chủ tài khoản phải khớp với tên của bạn trên hệ thống (không dấu, chữ hoa).
                                 </p>
                             </div>
+
+
 
                             {addBankError && (
                                 <div className="hw-alert hw-alert-danger">

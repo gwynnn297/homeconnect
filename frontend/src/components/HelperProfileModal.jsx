@@ -25,7 +25,7 @@ const HelperProfileModal = ({ helper, onClose, onBookNow }) => {
             const rawList = scheduleRes?.data || (Array.isArray(scheduleRes) ? scheduleRes : []);
             
             const now = new Date();
-            const todayStr = now.toISOString().split('T')[0];
+            const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
             const currentHour = now.getHours();
             const currentMinute = now.getMinutes();
 
