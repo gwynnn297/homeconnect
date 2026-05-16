@@ -278,13 +278,24 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
         if (!helper.workingDistricts || helper.workingDistricts.length === 0) return true;
         if (!districtName && !distCode) return true;
 
+        // Strip Vietnamese administrative prefixes from district name for normalized comparison
+        const stripPrefix = (str) =>
+            (str || '').toLowerCase()
+                .replace(/^(quận|huyện|thành phố|phường|xã|thị trấn|thị xã)\s+/i, '')
+                .trim();
+
+        const cleanDist = stripPrefix(districtName);
+
         return helper.workingDistricts.some(d => {
-            if (distCode && d.code) {
-                return String(distCode) === String(d.code);
+            // 1. Ưu tiên so sánh code nếu cả 2 đều có
+            if (distCode && d.code && String(distCode) === String(d.code)) {
+                return true;
             }
-            const cleanDist = (districtName || '').toLowerCase().replace(/^(quận|huyện|thành phố)\s+/i, '').trim();
-            const supportDist = (d.name || d).toLowerCase().replace(/^(quận|huyện|thành phố)\s+/i, '').trim();
-            return cleanDist === supportDist || supportDist.includes(cleanDist) || cleanDist.includes(supportDist);
+            // 2. Fallback: so sánh tên sau khi chuẩn hóa (strip prefix Quận/Huyện/Thành phố)
+            const supportDist = stripPrefix(d.name || d);
+            return cleanDist === supportDist
+                || supportDist.includes(cleanDist)
+                || cleanDist.includes(supportDist);
         });
     };
 
