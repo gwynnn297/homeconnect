@@ -13,7 +13,10 @@ Thumbs.db
 # Environment / Secrets
 ############################
 .env
-.env.*
+.env.local
+.env.*.local
+!.env.example
+!**/.env.example
 backend/.env
 frontend/.env
 AI/.env

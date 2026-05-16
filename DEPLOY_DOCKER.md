@@ -1,142 +1,210 @@
 # Deploy HomeConnect with Docker (VPS Ubuntu)
 
-This repo is a monorepo with 3 services:
-- `web` (React/Vite built to static files served by Nginx)
-- `backend` (Spring Boot, HTTP: 8080, Socket.IO: 9092)
-- `ai` (FastAPI/Uvicorn, HTTP: 8000)
-- `db` (MySQL)
+Monorepo services (one command):
 
-## 1) On the server
+| Service | Role | Internal port |
+|---------|------|----------------|
+| `db` | MySQL 8.4 | 3306 |
+| `ai` | FastAPI AI parser | 8000 |
+| `backend` | Spring Boot API + Socket.IO | 8080, 9092 |
+| `web` | Nginx (SPA + reverse proxy) | **80** (public) |
 
-### Install prerequisites
-Docker is already installed in your VPS logs. You still need Git.
-
-```bash
-apt-get update
-apt-get install -y git
-```
-
-### Clone the project
-```bash
-git clone https://github.com/gwynnn297/homeconnect.git
-cd homeconnect
-```
-
-### Create `.env`
-```bash
-cp .env.example .env
-nano .env
-```
-
-Set at least:
-- `PUBLIC_BASE_URL` (IP, used at frontend build time)
-- `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD` (you choose these; they are new passwords for the MySQL container)
-- `JWT_SECRET` (you choose this; generate a random string)
-- Email OTP (so registration can send OTP): `EMAIL_USERNAME` + `EMAIL_PASSWORD` (or `GMAIL_USERNAME` + `GMAIL_APP_PASSWORD`)
-
-Optional but needed for specific features:
-- Cloudinary upload (KYC / Smart Check-in): `VITE_CLOUDINARY_CLOUD_NAME`, `VITE_CLOUDINARY_UPLOAD_PRESET`
-- Goong Maps (frontend + backend geocoding): `VITE_GOONG_JS_KEY`, `VITE_GOONG_REST_API_KEY` and backend `GOONG_API_KEY`
-- Smart Check-in face compare (Face++): `FACEPP_API_KEY`, `FACEPP_API_SECRET`
-- KYC OCR (FPT.AI): `FPT_AI_API_KEY`
-- Automated payout (xGate): `XGATE_API_KEY`, `XGATE_WEBHOOK_SECRET`
-
-Generate a strong JWT secret on the server:
-```bash
-openssl rand -base64 48
-```
-
-Example (IP only):
-```env
-PUBLIC_BASE_URL=http://152.42.182.120
-```
-
-### (Optional but recommended) Add swap for smoother builds on 2GB RAM
-If `docker compose up --build` fails due to OOM, add a 2GB swapfile:
-
-```bash
-fallocate -l 2G /swapfile
-chmod 600 /swapfile
-mkswap /swapfile
-swapon /swapfile
-swapon --show
-```
-
-## 2) Build and run
+There is **no RabbitMQ** in this project.
 
 ```bash
 docker compose up -d --build
 ```
 
-## 2.1) Update `.env` later (VPS)
+---
 
-Edit the env file:
+## Architecture
+
+```
+Browser → :80 web (nginx)
+            ├─ /          → React static files
+            ├─ /api/*     → backend:8080
+            ├─ /socket.io/* → backend:9092
+            └─ /swagger-ui.html → backend:8080
+
+backend → db:3306 (MySQL)
+backend → ai:8000 (AI parser)
+```
+
+Inside containers, **never** use `localhost` for DB/AI — use service names `db` and `ai`.
+
+---
+
+## 1) VPS prerequisites
+
 ```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl git
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+# log out and back in
+```
+
+Optional swap (2 GB VPS):
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+```
+
+---
+
+## 2) Clone and configure
+
+```bash
+git clone https://github.com/gwynnn297/homeconnect.git
+cd homeconnect
+cp .env.example .env
 nano .env
 ```
 
-Apply changes:
-- If you changed **backend runtime env** (DB, JWT, Email OTP, Face++/FPT/xGate, etc):
+### Required variables
+
+| Variable | Description |
+|----------|-------------|
+| `MYSQL_ROOT_PASSWORD` | MySQL root password (new, for container) |
+| `HC_MYSQL_USER` | Application MySQL user (not `root`) |
+| `HC_MYSQL_PASSWORD` | Password for `HC_MYSQL_USER` (same value in DB + backend) |
+| `JWT_SECRET` | `openssl rand -base64 48` |
+| `GMAIL_USERNAME` + `GMAIL_APP_PASSWORD` | OTP email (or `EMAIL_*`) |
+
+**Windows:** if you have system/shell `DB_USERNAME` / `DB_PASSWORD`, Docker Compose can prefer those over your project `.env` when substituting variables. This stack uses `HC_MYSQL_*` so Compose does not collide with common Windows `DB_USERNAME=root`.
+
+### Recommended for production UI
+
+| Variable | Description |
+|----------|-------------|
+| `PUBLIC_BASE_URL` | `http://YOUR_VPS_IP` (no trailing slash) |
+| `VITE_*` Goong / Cloudinary | Maps & image upload |
+
+If `VITE_API_URL` and `VITE_SOCKET_URL` are **empty**, the frontend uses **same-origin** (works when users open `http://VPS_IP/` on port 80).
+
+---
+
+## 3) Build and run
+
+```bash
+docker compose config          # validate
+docker compose up -d --build
+docker compose ps
+```
+
+Wait until `db`, `ai`, `backend`, and `web` are **healthy** (backend may take 2–3 minutes on first Flyway migrate).
+
+Logs:
+
+```bash
+docker compose logs -f backend
+docker compose logs -f web
+```
+
+---
+
+## 4) Import database backup (for mentor / migration)
+
+On your dev machine (export):
+
+```bash
+mysqldump -u root -p homeconnect > homeconnect_full.sql
+zip homeconnect_db_backup.zip homeconnect_full.sql
+```
+
+On VPS (import):
+
+```bash
+# Linux
+chmod +x scripts/import-db.sh
+./scripts/import-db.sh homeconnect_full.sql
+
+# Windows (from repo root)
+.\scripts\import-db.ps1 -DumpFile ".\homeconnect_full.sql"
+```
+
+Use a **full** dump from an environment that already ran Flyway migrations.
+
+---
+
+## 5) Verify
+
+```bash
+curl -I http://127.0.0.1/
+curl -I http://127.0.0.1/swagger-ui.html
+docker compose exec ai wget -qO- http://127.0.0.1:8000/health
+```
+
+Browser:
+
+- `http://<VPS_IP>/` — frontend
+- `http://<VPS_IP>/swagger-ui.html` — API docs
+- Register → check OTP in backend logs if email fails
+
+---
+
+## 6) Firewall
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw enable
+```
+
+---
+
+## 7) Update `.env` later
+
+**Backend runtime** (DB, JWT, Gmail, Face++, xGate):
+
 ```bash
 docker compose up -d backend
 ```
 
-- If you changed any **frontend build-time env** (`PUBLIC_BASE_URL` or any `VITE_*`): you must rebuild the `web` image:
+**Frontend build-time** (`VITE_*` or `PUBLIC_BASE_URL`):
+
 ```bash
 docker compose build web --no-cache
 docker compose up -d web
 ```
 
-Important note about MySQL credentials:
-- Changing `DB_USERNAME` / `DB_PASSWORD` / `MYSQL_ROOT_PASSWORD` after the DB volume is created will usually break login.
-- If you really need to change them, you must recreate the DB volume (THIS DELETES DATA):
+**MySQL passwords** after volume exists: changing `HC_MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` usually breaks login. To reset (deletes all DB data):
+
 ```bash
 docker compose down -v
 docker compose up -d --build
 ```
 
-Check status:
-```bash
-docker compose ps
-```
+---
 
-Follow logs:
-```bash
-docker compose logs -f web
-# or
-docker compose logs -f backend
-```
+## Deploy checklist
 
-## 3) Verify
+- [ ] Clone repo, `cd homeconnect`
+- [ ] `cp .env.example .env` and fill secrets
+- [ ] `docker compose config` OK
+- [ ] `docker compose up -d --build` — all services healthy
+- [ ] Import `homeconnect_db_backup.zip` if provided
+- [ ] Open `http://<IP>/` and Swagger
+- [ ] Test register OTP / login
+- [ ] Send mentor: repo URL, VPS IP, backup zip (not in git)
 
-- Frontend: open `http://<PUBLIC_IP>/`
-- Backend Swagger: `http://<PUBLIC_IP>/swagger-ui.html`
-- AI health (internal): `docker compose exec ai wget -qO- http://localhost:8000/health`
+---
 
-If register OTP fails, check backend logs for SMTP errors:
-```bash
-docker compose logs -f backend
-```
+## Local dev vs Docker
 
-If map / KYC / check-in features fail after changing `VITE_*` keys, rebuild the web image:
-```bash
-docker compose build web --no-cache
-docker compose up -d
-```
+| | Local (`gradlew bootRun`) | Docker Compose |
+|--|---------------------------|----------------|
+| Env file | `backend/.env` | Root `.env` |
+| MySQL host | `localhost` | `db` (automatic) |
+| AI URL | `http://localhost:8000/...` | `http://ai:8000/...` (automatic) |
 
-## 4) Firewall (recommended)
-If you use UFW:
-
-```bash
-ufw allow OpenSSH
-ufw allow 80/tcp
-# ufw allow 443/tcp  # only if you add HTTPS
-ufw enable
-ufw status
-```
+---
 
 ## Notes
-- MySQL data is persisted in a Docker volume: `db_data`.
-- The frontend container also acts as a reverse proxy:
-  - `/api/*` -> backend (8080)
-  - `/socket.io/*` -> backend socket server (9092)
+
+- MySQL data persists in Docker volume `db_data`.
+- Containers can reach the internet (SMTP, Goong, OpenAI, etc.) by default.
+- Do not commit `.env` or database dumps to git.

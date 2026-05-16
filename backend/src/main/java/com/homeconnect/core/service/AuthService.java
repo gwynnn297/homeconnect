@@ -3,6 +3,7 @@ package com.homeconnect.core.service;
 import com.homeconnect.core.dto.request.*;
 import com.homeconnect.core.dto.response.LoginResponse;
 import com.homeconnect.core.dto.response.CaptchaResponse;
+import com.homeconnect.core.exception.ApiException;
 import com.homeconnect.core.entity.SecurityToken;
 import com.homeconnect.core.entity.User;
 import com.homeconnect.core.enums.UserRole;
@@ -13,6 +14,7 @@ import com.homeconnect.core.repository.UserRepository;
 import com.homeconnect.core.security.JwtUtil;
 import com.homeconnect.core.util.CaptchaUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -112,7 +114,9 @@ public class AuthService {
         // Send Email OTP
         boolean emailSent = emailService.sendOtp(user.getEmail(), otp, user.getFullName());
         if (!emailSent) {
-            throw new RuntimeException("Không thể gửi OTP qua email. Vui lòng kiểm tra cấu hình SMTP và thử lại.");
+            throw new ApiException(
+                    "Không thể gửi OTP qua email. Kiểm tra GMAIL_USERNAME và GMAIL_APP_PASSWORD trong .env và kết nối mạng.",
+                    HttpStatus.SERVICE_UNAVAILABLE);
         }
     }
 
@@ -248,7 +252,9 @@ public class AuthService {
         // Send Email
         boolean emailSent = emailService.sendOtp(user.getEmail(), otp, user.getFullName());
         if (!emailSent) {
-            throw new RuntimeException("Không thể gửi OTP qua email. Vui lòng kiểm tra cấu hình SMTP và thử lại.");
+            throw new ApiException(
+                    "Không thể gửi OTP qua email. Kiểm tra GMAIL_USERNAME và GMAIL_APP_PASSWORD trong .env và kết nối mạng.",
+                    HttpStatus.SERVICE_UNAVAILABLE);
         }
     }
 

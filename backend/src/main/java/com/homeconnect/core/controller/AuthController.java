@@ -2,6 +2,7 @@ package com.homeconnect.core.controller;
 
 import com.homeconnect.core.dto.request.*;
 import com.homeconnect.core.dto.response.*;
+import com.homeconnect.core.exception.ApiException;
 import com.homeconnect.core.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -9,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -37,6 +39,13 @@ public class AuthController {
                                         .message("Mã OTP đã được gửi tới email của bạn. Vui lòng kiểm tra hộp thư.")
                                         .build();
                         return ResponseEntity.ok(response);
+                } catch (ApiException e) {
+                        RegisterInitResponse response = RegisterInitResponse.builder()
+                                        .success(false)
+                                        .message(e.getMessage())
+                                        .build();
+                        HttpStatus status = e.getStatus() != null ? e.getStatus() : HttpStatus.BAD_REQUEST;
+                        return ResponseEntity.status(status).body(response);
                 } catch (RuntimeException e) {
                         RegisterInitResponse response = RegisterInitResponse.builder()
                                         .success(false)
@@ -105,12 +114,21 @@ public class AuthController {
         })
         public ResponseEntity<ForgotPasswordResponse> forgotPassword(
                         @Valid @RequestBody ForgotPasswordRequest request) {
-                authService.forgotPassword(request);
-                ForgotPasswordResponse response = ForgotPasswordResponse.builder()
-                                .success(true)
-                                .message("Mã OTP đã được gửi tới email của bạn. Vui lòng kiểm tra hộp thư.")
-                                .build();
-                return ResponseEntity.ok(response);
+                try {
+                        authService.forgotPassword(request);
+                        ForgotPasswordResponse response = ForgotPasswordResponse.builder()
+                                        .success(true)
+                                        .message("Mã OTP đã được gửi tới email của bạn. Vui lòng kiểm tra hộp thư.")
+                                        .build();
+                        return ResponseEntity.ok(response);
+                } catch (ApiException e) {
+                        ForgotPasswordResponse response = ForgotPasswordResponse.builder()
+                                        .success(false)
+                                        .message(e.getMessage())
+                                        .build();
+                        HttpStatus status = e.getStatus() != null ? e.getStatus() : HttpStatus.BAD_REQUEST;
+                        return ResponseEntity.status(status).body(response);
+                }
         }
 
         @PostMapping("/verify-forgot-otp")

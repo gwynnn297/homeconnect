@@ -5,7 +5,9 @@ export function isAccountBlockedError(err) {
     return err?.code === 'ACCOUNT_BLOCKED' || err?.silent === true;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Empty baseURL = same-origin (nginx proxies /api/* to backend in Docker/production).
+const API_URL = import.meta.env.VITE_API_URL
+    || (typeof window !== 'undefined' ? '' : 'http://localhost:8080');
 
 const apiClient = axios.create({
     baseURL: API_URL,

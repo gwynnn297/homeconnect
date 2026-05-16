@@ -21,7 +21,10 @@ const CATEGORY_ID_TO_SERVICE_NAME = {
     6: 'Làm vườn',
     7: 'Sơn sửa',
 };
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '');
+const API_BASE_URL = (
+    import.meta.env.VITE_API_URL
+    || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080')
+).replace(/\/$/, '');
 
 const resolveAvatarUrl = (value) => {
     const raw = String(value || '').trim();

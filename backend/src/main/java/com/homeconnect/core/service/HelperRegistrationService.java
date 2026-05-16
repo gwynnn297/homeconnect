@@ -71,7 +71,7 @@ public class HelperRegistrationService {
     @Value("${app.facepp.compare-url:https://api-us.faceplusplus.com/facepp/v3/compare}")
     private String faceppCompareUrl;
 
-    @Value("${app.kyc.face-match-threshold:85}")
+    @Value("${app.kyc.face-match-threshold:70}")
     private double kycFaceMatchThreshold;
 
     @Transactional

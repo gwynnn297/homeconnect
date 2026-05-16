@@ -23,7 +23,11 @@ WORKDIR /app
 
 ENV TZ=Asia/Ho_Chi_Minh
 
-# Spring Boot will listen on 8080; socket server on 9092.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl \
+  && rm -rf /var/lib/apt/lists/*
+
+# Spring Boot listens on 8080; Socket.IO (netty-socketio) on 9092.
 EXPOSE 8080 9092
 
 COPY --from=build /workspace/build/libs/*.jar /app/app.jar

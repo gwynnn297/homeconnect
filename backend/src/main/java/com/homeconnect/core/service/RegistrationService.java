@@ -62,7 +62,8 @@ public class RegistrationService {
                     request.getFullName());
 
             if (!emailSent) {
-                return RegisterResponse.error("Lỗi gửi email OTP. Vui lòng thử lại.");
+                return RegisterResponse.error(
+                        "Lỗi gửi email OTP. Kiểm tra GMAIL_USERNAME và GMAIL_APP_PASSWORD trong .env.");
             }
 
             // 5. Lưu Cache với thông tin đăng ký

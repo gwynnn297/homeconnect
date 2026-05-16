@@ -20,7 +20,7 @@ Copy và cấu hình file `.env`:
 cp .env.template .env
 ```
 
-Sửa file `.env` với thông tin database của bạn:
+Sửa file `.env` với thông tin database của bạn (local `bootRun`). Docker dùng `.env` ở thư mục gốc `homeconnect/` với `HC_MYSQL_USER` / `HC_MYSQL_PASSWORD` — xem `../.env.example`.
 ```env
 # Database Configuration
 MYSQL_HOST=localhost
