@@ -85,13 +85,19 @@ public class SecurityConfig {
         public CorsConfigurationSource corsConfigurationSource() {
                 CorsConfiguration configuration = new CorsConfiguration();
 
-                // Các origin được phép
+                // Các origin được phép (dev + production VPS/domain)
                 configuration.setAllowedOriginPatterns(Arrays.asList(
                                 "http://localhost:*",
                                 "http://127.0.0.1:*",
                                 "https://*.netlify.app",
                                 "https://*.vercel.app",
-                                "https://homeconnect.com"));
+                                "https://homeconnect.com",
+                                "http://homieconnect.io.vn",
+                                "https://homieconnect.io.vn",
+                                "http://www.homieconnect.io.vn",
+                                "https://www.homieconnect.io.vn",
+                                "http://14.225.202.118",
+                                "https://14.225.202.118"));
 
                 // Các HTTP methods được phép
                 configuration.setAllowedMethods(Arrays.asList(
