@@ -128,6 +128,22 @@ chmod +x scripts/import-db.sh
 
 Use a **full** dump from an environment that already ran Flyway migrations.
 
+### Test data (full flows — wallets, bookings, chat, …)
+
+After stack is up and Flyway finished:
+
+```powershell
+# Windows
+.\scripts\run-seed-test-data.ps1
+
+# Export backup.sql + .zip (master data + test rows)
+.\scripts\export-test-backup.ps1
+```
+
+Files: `scripts/seed-test-data.sql` (re-runnable INSERT), `scripts/backups/homeconnect_test_backup.sql` / `.zip` (full dump).
+
+Test password (if BCrypt hash in seed matches): `viecnha123` — accounts `admin@homeconnect.vn`, `cust1@gmail.com`, `helper1@gmail.com`, etc.
+
 ---
 
 ## 5) Verify
@@ -154,9 +170,70 @@ sudo ufw allow 80/tcp
 sudo ufw enable
 ```
 
+**Do not** open MySQL port `3306` on the public firewall. Database access from your PC uses **SSH tunnel** only (see section 8).
+
 ---
 
-## 7) Update `.env` later
+## 7) MySQL Workbench (local PC → VPS database)
+
+MySQL runs in Docker (`homeconnect-db`). Compose publishes it on the **VPS loopback only**:
+
+`127.0.0.1:3306` → container `3306` (see `MYSQL_BIND_HOST` / `MYSQL_HOST_PORT` in `.env`).
+
+### On VPS (after `git pull`)
+
+```bash
+cd ~/homeconnect
+docker compose up -d db
+ss -tlnp | grep 3306   # expect 127.0.0.1:3306
+```
+
+### PuTTY — SSH tunnel (Windows)
+
+1. Session: host = VPS IP, user `root` (or your SSH user).
+2. **Connection → SSH → Tunnels**
+   - Source port: `3307` (free port on your PC)
+   - Destination: `127.0.0.1:3306`
+   - Type: **Local** → **Add**
+3. Open the session and **keep PuTTY connected** while using Workbench.
+
+### PowerShell alternative
+
+```powershell
+ssh -L 3307:127.0.0.1:3306 root@YOUR_VPS_IP
+```
+
+### MySQL Workbench connection
+
+| Field | Value |
+|-------|--------|
+| Hostname | `127.0.0.1` |
+| Port | `3307` (same as PuTTY source port) |
+| Username | `root` or `HC_MYSQL_USER` from VPS `.env` |
+| Password | `MYSQL_ROOT_PASSWORD` or `HC_MYSQL_PASSWORD` |
+| Default schema | `homeconnect` (`DB_NAME`) |
+
+**Test Connection** → browse `users`, `bookings`, etc.
+
+### Security
+
+- Never set `MYSQL_BIND_HOST=0.0.0.0` on a public VPS.
+- Never `ufw allow 3306` for the internet.
+- Optional: use user `homeconnect` instead of `root` for day-to-day edits.
+
+### Local Docker on Windows
+
+If `docker compose` fails with “port already allocated”, another MySQL uses 3306. In `.env`:
+
+```env
+MYSQL_HOST_PORT=3307
+```
+
+Then tunnel PuTTY to VPS `127.0.0.1:3306` (unchanged); only local Docker host port changes.
+
+---
+
+## 8) Update `.env` after first deploy
 
 **Backend runtime** (DB, JWT, Gmail, Face++, xGate):
 
@@ -189,6 +266,7 @@ docker compose up -d --build
 - [ ] Import `homeconnect_db_backup.zip` if provided
 - [ ] Open `http://<IP>/` and Swagger
 - [ ] Test register OTP / login
+- [ ] (Optional) MySQL Workbench via SSH tunnel (section 7)
 - [ ] Send mentor: repo URL, VPS IP, backup zip (not in git)
 
 ---
@@ -205,6 +283,7 @@ docker compose up -d --build
 
 ## Notes
 
-- MySQL data persists in Docker volume `db_data`.
+- MySQL data persists in Docker volume `homeconnect_db_data` (Compose project name `homeconnect`).
+- MySQL is reachable on the VPS host at `127.0.0.1:${MYSQL_HOST_PORT:-3306}` for SSH tunnel / Workbench only.
 - Containers can reach the internet (SMTP, Goong, OpenAI, etc.) by default.
 - Do not commit `.env` or database dumps to git.

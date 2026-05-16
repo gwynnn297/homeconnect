@@ -10,6 +10,12 @@ Thumbs.db
 *.iws
 
 ############################
+# DB dumps (local test backups)
+############################
+scripts/backups/*.sql
+scripts/backups/*.zip
+
+############################
 # Environment / Secrets
 ############################
 .env

@@ -17,6 +17,9 @@ services:
       TZ: ${TZ:-Asia/Ho_Chi_Minh}
     volumes:
       - db_data:/var/lib/mysql
+    # Localhost-only on the host — use with SSH tunnel for MySQL Workbench (never 0.0.0.0 on VPS).
+    ports:
+      - "${MYSQL_BIND_HOST:-127.0.0.1}:${MYSQL_HOST_PORT:-3306}:3306"
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
