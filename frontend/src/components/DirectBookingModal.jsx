@@ -278,13 +278,24 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
         if (!helper.workingDistricts || helper.workingDistricts.length === 0) return true;
         if (!districtName && !distCode) return true;
 
+        // Strip Vietnamese administrative prefixes from district name for normalized comparison
+        const stripPrefix = (str) =>
+            (str || '').toLowerCase()
+                .replace(/^(quận|huyện|thành phố|phường|xã|thị trấn|thị xã)\s+/i, '')
+                .trim();
+
+        const cleanDist = stripPrefix(districtName);
+
         return helper.workingDistricts.some(d => {
-            if (distCode && d.code) {
-                return String(distCode) === String(d.code);
+            // 1. Ưu tiên so sánh code nếu cả 2 đều có
+            if (distCode && d.code && String(distCode) === String(d.code)) {
+                return true;
             }
-            const cleanDist = (districtName || '').toLowerCase().replace(/^(quận|huyện|thành phố)\s+/i, '').trim();
-            const supportDist = (d.name || d).toLowerCase().replace(/^(quận|huyện|thành phố)\s+/i, '').trim();
-            return cleanDist === supportDist || supportDist.includes(cleanDist) || cleanDist.includes(supportDist);
+            // 2. Fallback: so sánh tên sau khi chuẩn hóa (strip prefix Quận/Huyện/Thành phố)
+            const supportDist = stripPrefix(d.name || d);
+            return cleanDist === supportDist
+                || supportDist.includes(cleanDist)
+                || cleanDist.includes(supportDist);
         });
     };
 
@@ -443,9 +454,9 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
         }
 
         // Kiểm tra thời gian tối thiểu 30 phút nếu đặt cho hôm nay
-        const todayStr = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
         if (workDate === todayStr) {
-            const now = new Date();
             const slotMinutes = startHour * 60 + startMinute;
             const nowMinutes = now.getHours() * 60 + now.getMinutes();
             if (slotMinutes - nowMinutes < 30) {
@@ -673,7 +684,7 @@ const DirectBookingModal = ({ helper, onClose, onSuccess }) => {
                         <div className="db-input-group">
                             <label>📅 Ngày làm việc</label>
                             <input type="date" className="db-field" value={workDate}
-                                min={new Date().toISOString().split('T')[0]}
+                                min={new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0')}
                                 onChange={e => setWorkDate(e.target.value)} required />
                         </div>
                         <div className="db-input-group">

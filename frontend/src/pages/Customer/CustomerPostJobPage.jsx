@@ -1337,7 +1337,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
     /** Tổng thời lượng gửi API = base + (số dịch vụ con × HOURS_PER_SUB_SERVICE) — khớp backend */
     const minBaseHoursFloor = homeCleaningMode || officeCleaningMode ? 2 : 1;
 
-    const [workDate, setWorkDate] = useState(initialData.workDate || new Date().toISOString().split('T')[0]);
+    const [workDate, setWorkDate] = useState(initialData.workDate || (new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0')));
     const [startHour, setStartHour] = useState(() => {
         const raw = String(initialData?.startTime || '08:00');
         const parts = raw.split(':');
@@ -2041,7 +2041,7 @@ const JobDetailsStep = ({ onBack, onSubmit, initialData, serviceInfo }) => {
                                         className="pj-input"
                                         value={workDate}
                                         onChange={e => setWorkDate(e.target.value)}
-                                        min={new Date().toISOString().split('T')[0]}
+                                        min={new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0')}
                                     />
                                 </div>
                                 <div className="pj-form-group half">
