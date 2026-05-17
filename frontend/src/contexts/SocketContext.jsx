@@ -9,21 +9,23 @@ const resolveSocketUrl = () => {
     const envSocketUrl = import.meta.env.VITE_SOCKET_URL;
     if (envSocketUrl) return envSocketUrl;
 
+    // Production (Docker/nginx): same origin → /socket.io/ proxied to backend:9092
+    if (typeof window !== 'undefined' && window.location?.origin) {
+        const { hostname } = window.location;
+        if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+            return window.location.origin;
+        }
+    }
+
     const apiUrl = import.meta.env.VITE_API_URL;
     const fallbackPort = import.meta.env.VITE_SOCKET_PORT || '9092';
-
     try {
-        // Reuse API host to avoid hard-coded localhost issues.
         if (apiUrl) {
             const parsed = new URL(apiUrl);
             return `${parsed.protocol}//${parsed.hostname}:${fallbackPort}`;
         }
     } catch (_) {
-        // Ignore malformed env and continue with window fallback.
-    }
-
-    if (typeof window !== 'undefined' && window.location?.hostname) {
-        return `${window.location.protocol}//${window.location.hostname}:${fallbackPort}`;
+        /* ignore */
     }
 
     return `http://localhost:${fallbackPort}`;
@@ -84,7 +86,7 @@ export const SocketProvider = ({ children }) => {
                     userId: userIdStr,
                     role: user.role || user.userRole || '' 
                 },
-                transports: ['websocket'],
+                transports: ['websocket', 'polling'],
                 reconnection: true,
             });
 

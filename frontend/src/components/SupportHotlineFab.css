@@ -1,0 +1,94 @@
+.support-hotline-fab {
+    position: fixed;
+    z-index: 9990;
+    bottom: 24px;
+}
+
+.support-hotline-fab--left {
+    left: 24px;
+}
+
+.support-hotline-fab--right {
+    right: 24px;
+}
+
+.support-hotline-trigger {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    background: #2f5d50;
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.support-hotline-trigger:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 18px rgba(47, 93, 80, 0.35);
+}
+
+.support-hotline-panel {
+    position: absolute;
+    bottom: 60px;
+    left: 0;
+    min-width: 220px;
+    padding: 12px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(47, 93, 80, 0.12);
+}
+
+.support-hotline-fab--right .support-hotline-panel {
+    left: auto;
+    right: 0;
+}
+
+.support-hotline-title {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #2f5d50;
+}
+
+.support-hotline-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 8px;
+    color: #1a1a1a;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.support-hotline-link:hover {
+    background: #f0f7f4;
+}
+
+.support-hotline-link strong {
+    color: #2f5d50;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+@media (max-width: 768px) {
+    .support-hotline-fab {
+        bottom: 16px;
+    }
+
+    .support-hotline-fab--left {
+        left: 16px;
+    }
+
+    .support-hotline-fab--right {
+        right: 16px;
+    }
+}

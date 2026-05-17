@@ -24,6 +24,8 @@ const TYPE_GROUPS = {
         'BOOKING_REJECTED',
         'BOOKING_CANCELLED',
         'BOOKING_CONFIRMED',
+        'HELPER_CHECKIN',
+        'ARRIVAL_CONFIRMED',
         'WORK_DONE_BY_HELPER',
         'WORK_COMPLETED',
         'JOB',
@@ -35,6 +37,7 @@ const TYPE_GROUPS = {
     ]),
     WORK_RELATED: new Set([
         'MATCHING',
+        'HELPER_CHECKIN',
         'ARRIVAL_CONFIRMED',
         'BOOKING',
         'BOOKING_STATUS',

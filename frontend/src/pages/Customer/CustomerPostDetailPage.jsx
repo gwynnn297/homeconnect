@@ -238,17 +238,34 @@ const CustomerPostDetailPage = () => {
         };
 
         const onNotificationReceived = (e) => {
-            if (String(e?.detail?.type || '').toUpperCase() !== 'JOB_APPLICATION') return;
-            void Promise.all([fetchJobQuiet(), fetchApplicantsQuiet()]);
+            const type = String(e?.detail?.type || '').toUpperCase();
+            if (type === 'JOB_APPLICATION') {
+                void Promise.all([fetchJobQuiet(), fetchApplicantsQuiet()]);
+                return;
+            }
+            if (type === 'HELPER_CHECKIN' || type === 'ARRIVAL_CONFIRMED') {
+                void fetchJobQuiet();
+            }
+        };
+
+        const onBookingUpdated = (e) => {
+            const d = e?.detail || {};
+            const job = data;
+            const bid = job?.bookingId;
+            if (bid == null || d.bookingId == null) return;
+            if (String(d.bookingId) !== String(bid)) return;
+            void fetchJobQuiet();
         };
 
         window.addEventListener('job:new_application', onJobApplication);
         window.addEventListener('notification:received', onNotificationReceived);
+        window.addEventListener('booking:updated', onBookingUpdated);
         return () => {
             window.removeEventListener('job:new_application', onJobApplication);
             window.removeEventListener('notification:received', onNotificationReceived);
+            window.removeEventListener('booking:updated', onBookingUpdated);
         };
-    }, [postId]);
+    }, [postId, data?.bookingId]);
 
     const viewModel = useMemo(() => {
         const job = data || {};

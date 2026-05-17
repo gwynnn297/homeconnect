@@ -348,6 +348,14 @@ const HeaderComponent = () => {
         const handleSocketNotification = (event) => {
             const newNotification = event?.detail;
             if (!newNotification || typeof newNotification !== 'object') return;
+
+            const notifType = String(newNotification.type || '').toUpperCase();
+            if (notifType === 'HELPER_CHECKIN' && !showNotifications) {
+                setToast({
+                    message: 'Thợ đã đến nhà — vui lòng xác nhận trên đơn làm việc.',
+                    type: 'warning',
+                });
+            }
             
             // Cập nhật danh sách thông báo
             setAllNotifications((prev) => {

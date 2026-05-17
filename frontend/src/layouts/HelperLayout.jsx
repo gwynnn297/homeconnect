@@ -1,6 +1,7 @@
 import React from 'react';
 import HeaderComponent from '../components/HeaderComponent';
 import HelperSidebarComponent from '../components/HelperSidebarComponent';
+import SupportHotlineFab from '../components/SupportHotlineFab';
 import './HelperLayout.css';
 
 const HelperLayout = ({ children }) => {
@@ -12,6 +13,7 @@ const HelperLayout = ({ children }) => {
                 <main className="content">
                     {children}
                 </main>
+                <SupportHotlineFab placement="right" />
             </div>
         </div>
     );

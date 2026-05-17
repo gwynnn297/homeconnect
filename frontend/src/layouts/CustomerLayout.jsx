@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import AIChatbotComponent from '../components/AIChatbotComponent';
 import HeaderComponent from '../components/HeaderComponent';
 import CustomerSidebarComponent from '../components/CustomerSidebarComponent';
+import SupportHotlineFab from '../components/SupportHotlineFab';
 import './CustomerLayout.css';
 
 const CustomerLayout = ({ children }) => {
@@ -35,6 +36,7 @@ const CustomerLayout = ({ children }) => {
                     {children}
                 </main>
                 <AIChatbotComponent />
+                <SupportHotlineFab placement="left" />
             </div>
         </div>
     );
